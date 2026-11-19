@@ -262,6 +262,8 @@ struct NewPostView: View {
     let status: Bool
     var kind: PostKind = .moment
     var prefill: String = ""
+    /// Photos already prepared (e.g. a workout card).
+    var initialMedia: [Attachments.Prepared] = []
     @EnvironmentObject var engine: SyncEngine
     @Environment(\.dismiss) private var dismiss
     @Environment(\.look) private var look
@@ -350,6 +352,10 @@ struct NewPostView: View {
         .onAppear {
             postKind = kind
             if text.isEmpty { text = prefill }
+            if media.isEmpty && !initialMedia.isEmpty {
+                media = initialMedia.map(\.ref)
+                for p in initialMedia { uploads[p.upload.0] = p.upload.1 }
+            }
             audienceID = Audience.saved.first?.id ?? ""
         }
         .onChange(of: picks) { _, items in Task { await load(items) } }

@@ -1,4 +1,5 @@
 import SwiftUI
+import SwiftData
 import Charts
 import UIKit
 
@@ -152,6 +153,9 @@ struct ShareMenuButton<Card: View>: View {
     @ViewBuilder let card: () -> Card
     @State private var items: [Any] = []
     @State private var show = false
+    @State private var prepared: Attachments.Prepared?
+    @State private var toChat = false
+    @State private var toViews = false
 
     var body: some View {
         Menu {
@@ -159,10 +163,28 @@ struct ShareMenuButton<Card: View>: View {
             Button("Share as PDF", systemImage: "doc.richtext") { share(image: false, pdf: true) }
             if text != nil { Button("Share as text", systemImage: "text.alignleft") { share(image: false, pdf: false, textOnly: true) } }
             if extraFiles != nil { Button("Share data (CSV)", systemImage: "tablecells") { share(image: false, pdf: false, files: true) } }
+            Divider()
+            Button("Send to trainer / client chat…", systemImage: "bubble.left.and.bubble.right") { prepare(); toChat = prepared != nil }
+            Button("Post to Views or Status…", systemImage: "play.rectangle.on.rectangle") { prepare(); toViews = prepared != nil }
         } label: {
             Image(systemName: "square.and.arrow.up")
         }
         .sheet(isPresented: $show) { ShareSheet(items: items) }
+        .sheet(isPresented: $toChat) {
+            if let prepared { NavigationStack { SendCardToChatSheet(text: text?() ?? name, prepared: prepared) } }
+        }
+        .sheet(isPresented: $toViews) {
+            if let prepared {
+                NavigationStack { NewPostView(status: false, kind: .training, prefill: text?() ?? name, initialMedia: [prepared]) }
+            }
+        }
+    }
+
+    /// The card as an encrypted photo attachment, ready to send.
+    private func prepare() {
+        guard let img = Exporter.image(card()), let data = img.jpegData(compressionQuality: 0.9),
+              let p = try? Attachments.prepareImage(data) else { prepared = nil; return }
+        prepared = p
     }
 
     private func share(image: Bool, pdf: Bool, textOnly: Bool = false, files: Bool = false) {
@@ -200,5 +222,52 @@ enum CSV {
     }
     static func table(_ header: [String], _ rows: [[Any?]]) -> String {
         ([header.joined(separator: ",")] + rows.map(row)).joined(separator: "\n") + "\n"
+    }
+}
+
+/// Sends a fitness card (workout, meal, day) into one or more chats — e.g. to your trainer or your client.
+struct SendCardToChatSheet: View {
+    let text: String
+    let prepared: Attachments.Prepared
+    @EnvironmentObject var engine: SyncEngine
+    @Environment(\.dismiss) private var dismiss
+    @Environment(\.look) private var look
+    @Query(filter: #Predicate<Conversation> { !$0.left }, sort: \Conversation.lastActivity, order: .reverse) private var convs: [Conversation]
+    @State private var picked: Set<String> = []
+
+    var body: some View {
+        List {
+            ForEach(convs.filter { !$0.id.hasPrefix("s_") }) { c in
+                Button {
+                    if picked.contains(c.id) { picked.remove(c.id) } else { picked.insert(c.id) }
+                } label: {
+                    HStack {
+                        Text(c.title).foregroundStyle(Color.primary)
+                        Spacer()
+                        Image(systemName: picked.contains(c.id) ? "checkmark.circle.fill" : "circle").foregroundStyle(look.accent)
+                    }
+                }
+            }
+            .lookRows()
+        }
+        .listStyle(.insetGrouped)
+        .lookScreen()
+        .navigationTitle("Send to a chat")
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
+            ToolbarItem(placement: .confirmationAction) {
+                Button("Send") {
+                    var first = true
+                    for c in convs where picked.contains(c.id) {
+                        engine.sendText(text, in: c, attachments: [prepared.ref], uploads: first ? [prepared.upload.0: prepared.upload.1] : [:])
+                        first = false
+                    }
+                    Haptics.success()
+                    dismiss()
+                }
+                .disabled(picked.isEmpty)
+            }
+        }
     }
 }

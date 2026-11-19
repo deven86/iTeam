@@ -35,6 +35,7 @@ struct RootView: View {
         let sharedGym = gymMembers.contains { $0.createdBy != me && !$0.id.hasPrefix("g_demo") }
         if modules.isOn(ModuleRegistry.iLifeCare) || (sharedCare && modules.isVisible(ModuleRegistry.iLifeCare)) { a.append(.care) }
         if modules.isOn(ModuleRegistry.gymTraining) || (sharedGym && modules.isVisible(ModuleRegistry.gymTraining)) { a.append(.gym) }
+        if modules.isOn(ModuleRegistry.mindfulness) { a.append(.mind) }
         a.append(.activity)
         return a
     }
@@ -74,6 +75,11 @@ struct RootView: View {
                 }
                 .hidden(!inBar.contains(.gym))
 
+                Tab("Mind", systemImage: "leaf.fill", value: Router.TabID.mind) {
+                    MindHomeView()
+                }
+                .hidden(!inBar.contains(.mind))
+
                 Tab("Activity", systemImage: "bell.fill", value: Router.TabID.activity) {
                     ActivityView()
                 }
@@ -91,7 +97,7 @@ struct RootView: View {
             .onChange(of: inBar) { _, bar in
                 router.barTabs = bar
                 // A tab that just left the bar reopens inside the hub instead of vanishing.
-                if [Router.TabID.views, .tasks, .care, .gym, .activity].contains(router.tab), !bar.contains(router.tab) {
+                if [Router.TabID.views, .tasks, .care, .gym, .mind, .activity].contains(router.tab), !bar.contains(router.tab) {
                     router.tab = .chats
                 }
             }
@@ -144,6 +150,7 @@ struct ModulesHubView: View {
         case .tasks: TaskDashboardView()
         case .care: CareHomeView()
         case .gym: GymHomeView()
+        case .mind: MindHomeView()
         default: ActivityView()
         }
     }
@@ -221,6 +228,7 @@ struct ModulesHubView: View {
         case .tasks: ("Tasks", ModuleRegistry.businessTasks.icon, ModuleRegistry.businessTasks.colors)
         case .care: ("Care", ModuleRegistry.iLifeCare.icon, ModuleRegistry.iLifeCare.colors)
         case .gym: ("Gym", ModuleRegistry.gymTraining.icon, ModuleRegistry.gymTraining.colors)
+        case .mind: ("Mind", ModuleRegistry.mindfulness.icon, ModuleRegistry.mindfulness.colors)
         default: ("Activity", "bell.fill", [0xFFB347, 0xFF6F61])
         }
     }

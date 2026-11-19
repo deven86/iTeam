@@ -11,7 +11,8 @@ enum ITeamSchema {
         TaskFile.self, Approval.self, Expense.self, Poll.self,
         CareProfile.self, Medicine.self, DoseLog.self, HealthEvent.self, VaultItem.self,
         GymMember.self, GymPlan.self, GymSession.self, GymPayment.self,
-        Post.self, PostReaction.self, PostComment.self, PostSeen.self
+        Post.self, PostReaction.self, PostComment.self, PostSeen.self,
+        MeditationLog.self, CustomMeditation.self
     ]
 }
 

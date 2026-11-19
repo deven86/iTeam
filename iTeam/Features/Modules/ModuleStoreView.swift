@@ -246,6 +246,9 @@ struct ModulePreviewScreen: View {
 
     private var title: String {
         switch preview {
+        case .mindDashboard: "Mindfulness"
+        case .mindForm: "Set up a session"
+        case .mindPlayer: "Now playing"
         case .gymDashboard: "Gym dashboard"
         case .gymForm: "Add payment form"
         case .gymSessions: "Training sessions"
@@ -352,6 +355,28 @@ struct ModulePreviewScreen: View {
             row("checkmark.circle.fill", "9:00 Metformin", "Taken")
             row("exclamationmark.circle.fill", "10:00 Amlodipine", "Due")
             row("bell.badge.fill", "Family alerted: dose skipped")
+        case .mindDashboard:
+            HStack(spacing: 6) { stat("12", "min today"); stat("5🔥", "day streak") }
+            card {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("SUGGESTED NOW").font(.system(size: 9, weight: .bold))
+                    Text("Wind down for sleep").font(.caption.bold())
+                }
+            }
+            row("sparkles", "Make one for me (AI)")
+            row("wind", "Box breathing · 5 min")
+            row("moon.zzz.fill", "Body scan for sleep · 15 min")
+        case .mindForm:
+            field("Length", "10 minutes", "timer")
+            field("Voice", "English · Calm female", "waveform")
+            field("Sound", "Rain", "cloud.rain.fill")
+            field("Mood before", "😟 → ?", "face.smiling")
+            button("Begin")
+        case .mindPlayer:
+            card { Text("Breathe in… 4").font(.headline).frame(maxWidth: .infinity) }
+            bar("6:12 of 10:00", 0.62)
+            row("pause.circle.fill", "Pause")
+            row("speaker.wave.2.fill", "Voice & sound volume")
         case .gymDashboard:
             HStack(spacing: 6) { stat("9", "Sessions · Nov"); stat("4", "Sessions left") }
             card {

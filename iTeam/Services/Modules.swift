@@ -14,6 +14,7 @@ struct ModuleInfo: Identifiable {
         case careToday, careEvent, careVault
         case workspaces, library, assistant
         case gymDashboard, gymForm, gymSessions
+        case mindDashboard, mindForm, mindPlayer
     }
 
     let id: String
@@ -97,6 +98,23 @@ final class ModuleRegistry: ObservableObject {
         previews: [.gymDashboard, .gymForm, .gymSessions],
         note: "Only the person who adds members needs the subscription; trainers, clients and family in the chat use it free.")
 
+    static let mindfulness = ModuleInfo(
+        id: "mindfulness", title: "Mindfulness",
+        tagline: "Guided meditation, breathing and sleep — in English or Hindi.",
+        icon: "leaf.fill", colors: [0x7ED6B2, 0x3B8D99], availability: .paid,
+        productID: Store.mindProductID, fallbackPrice: "₹99 / $0.99 a month",
+        problems: ["Stress and racing thoughts after a long day",
+                   "Trouble falling asleep",
+                   "No time for a class — and most apps are expensive or ad-filled"],
+        benefits: ["Guided sessions read aloud: calm, focus, sleep, gratitude, body scan and more",
+                   "Breathing patterns with on-screen pacing (box, 4-7-8, coherent breathing)",
+                   "Soundscapes — rain, ocean, singing bowls, binaural — or your own audio file",
+                   "English and Hindi voices; optional natural voices with your own Google key",
+                   "“Make one for me”: AI writes a session for how you feel right now",
+                   "Mood before and after, streaks, minutes and history"],
+        previews: [.mindDashboard, .mindForm, .mindPlayer],
+        note: "Personal: your sessions and moods stay on your devices.")
+
     static let teamWorkspace = ModuleInfo(
         id: "team-workspace", title: "Team Workspace",
         tagline: "Keep office, trust and family separate.",
@@ -121,7 +139,7 @@ final class ModuleRegistry: ObservableObject {
         benefits: ["“What did I miss?” summaries", "Suggested tasks from messages", "Runs on-device with Apple Intelligence (iPhone 15 Pro and newer)"],
         previews: [.assistant], note: "In development.")
 
-    static let all: [ModuleInfo] = [businessTasks, businessPro, iLifeCare, gymTraining, teamWorkspace, filesKnowledge, aiAssistant]
+    static let all: [ModuleInfo] = [businessTasks, businessPro, iLifeCare, gymTraining, mindfulness, teamWorkspace, filesKnowledge, aiAssistant]
 
     @Published private var enabled: [String: Bool]
     /// Modules the user wants in the iPhone bottom bar, in order (Router.TabID raw values).

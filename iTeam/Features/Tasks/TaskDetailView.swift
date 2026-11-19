@@ -78,41 +78,46 @@ struct TaskDetailView: View {
         return !c.left && (t.createdBy == engine.me || t.involves(engine.me) || (c.role(of: engine.me)?.canManage ?? false))
     }
 
+    @ViewBuilder
+    private func acceptanceSection(_ t: TaskItem) -> some View {
+        if t.awaitsMe(engine.me) {
+            Section {
+                VStack(alignment: .leading, spacing: 10) {
+                    Label("\(engine.name(of: t.createdBy)) assigned this to you", systemImage: "hand.raised.fill").font(.headline)
+                    Text("Accept to start it, or decline with a reason.").font(.caption).foregroundStyle(look.textSecondary)
+                    HStack {
+                        Button { engine.respondToTask(t, accept: true); Haptics.success() } label: {
+                            Label("Accept", systemImage: "checkmark").frame(maxWidth: .infinity)
+                        }
+                        .buttonStyle(.glassProminent)
+                        Button { askDecline = true } label: { Label("Decline", systemImage: "xmark").frame(maxWidth: .infinity) }
+                            .buttonStyle(.glass)
+                    }
+                }
+                .padding(.vertical, 4)
+            }
+            .lookRows()
+        } else if t.needsAcceptance && (!t.pendingAcceptance.isEmpty || !t.acceptance.isEmpty) {
+            Section("Acceptance") {
+                ForEach(t.assignees.filter { $0 != t.createdBy }, id: \.self) { a in
+                    let answer = t.acceptance[a]
+                    LabeledContent(engine.name(of: a)) {
+                        if let answer {
+                            Text(answer.hasPrefix("accepted") ? "Accepted" : "Declined" + (answer.split(separator: "|").dropFirst().first.map { ": \($0)" } ?? ""))
+                                .foregroundStyle(answer.hasPrefix("accepted") ? look.success : look.danger)
+                        } else {
+                            Text("Waiting").foregroundStyle(look.warning)
+                        }
+                    }
+                }
+            }
+            .lookRows()
+        }
+    }
+
     private func content(_ t: TaskItem) -> some View {
         List {
-            if t.awaitsMe(engine.me) {
-                Section {
-                    VStack(alignment: .leading, spacing: 10) {
-                        Label("\(engine.name(of: t.createdBy)) assigned this to you", systemImage: "hand.raised.fill").font(.headline)
-                        Text("Accept to start it, or decline with a reason.").font(.caption).foregroundStyle(look.textSecondary)
-                        HStack {
-                            Button { engine.respondToTask(t, accept: true); Haptics.success() } label: {
-                                Label("Accept", systemImage: "checkmark").frame(maxWidth: .infinity)
-                            }
-                            .buttonStyle(.glassProminent)
-                            Button { askDecline = true } label: { Label("Decline", systemImage: "xmark").frame(maxWidth: .infinity) }
-                                .buttonStyle(.glass)
-                        }
-                    }
-                    .padding(.vertical, 4)
-                }
-                .lookRows()
-            } else if t.needsAcceptance && (!t.pendingAcceptance.isEmpty || !t.acceptance.isEmpty) {
-                Section("Acceptance") {
-                    ForEach(t.assignees.filter { $0 != t.createdBy }, id: \.self) { a in
-                        let answer = t.acceptance[a]
-                        LabeledContent(engine.name(of: a)) {
-                            if let answer {
-                                Text(answer.hasPrefix("accepted") ? "Accepted" : "Declined" + (answer.split(separator: "|").dropFirst().first.map { ": \($0)" } ?? ""))
-                                    .foregroundStyle(answer.hasPrefix("accepted") ? look.success : look.danger)
-                            } else {
-                                Text("Waiting").foregroundStyle(look.warning)
-                            }
-                        }
-                    }
-                }
-                .lookRows()
-            }
+            acceptanceSection(t)
             Section {
                 VStack(alignment: .leading, spacing: 10) {
                     HStack(alignment: .top) {

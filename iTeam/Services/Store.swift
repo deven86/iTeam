@@ -8,7 +8,8 @@ final class Store: ObservableObject {
     static let careProductID = "com.jondhale.iteam.care.monthly"
     static let proProductID = "com.jondhale.iteam.pro.monthly"
     static let gymProductID = "com.jondhale.iteam.gym.monthly"
-    static let allProducts = [careProductID, proProductID, gymProductID]
+    static let mindProductID = "com.jondhale.iteam.mind.monthly"
+    static let allProducts = [careProductID, proProductID, gymProductID, mindProductID]
 
     @Published private(set) var active: Set<String> = []
     @Published private(set) var products: [String: Product] = [:]

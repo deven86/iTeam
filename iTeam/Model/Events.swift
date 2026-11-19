@@ -38,6 +38,12 @@ struct Event: Codable {
         case gymPlan(GymPlanPayload)
         case gymSession(GymSessionPayload)
         case gymPayment(GymPaymentPayload)
+        case post(PostPayload)
+        case postReact(postID: String, emoji: String?)
+        case postComment(PostCommentPayload)
+        case postSeen(postID: String)
+        /// My FaceTime phone or email for this contact ("" = stop sharing).
+        case facetime(handle: String)
     }
 }
 
@@ -346,4 +352,24 @@ struct GymPaymentPayload: Codable {
     var receipts: [AttachmentRef]
     var deleted: Bool
     var at: Date
+}
+
+// MARK: Views
+
+struct PostPayload: Codable {
+    var id: String
+    var kind: String
+    var text: String
+    var media: [AttachmentRef]
+    var status: Bool
+    var expires: Date?
+    var deleted: Bool
+    var at: Date
+}
+
+struct PostCommentPayload: Codable {
+    var id: String
+    var postID: String
+    var text: String
+    var deleted: Bool
 }

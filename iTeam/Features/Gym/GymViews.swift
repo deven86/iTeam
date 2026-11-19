@@ -146,6 +146,7 @@ struct GymMemberView: View {
     @State private var addPayment = false
     @State private var preview: URL?
     @State private var confirmDelete = false
+    @State private var shareToViews = false
 
     init(memberID: String) {
         self.memberID = memberID
@@ -210,6 +211,8 @@ struct GymMemberView: View {
                 .buttonStyle(.glassProminent).controlSize(.large)
                 .disabled(trainedToday)
                 .listRowBackground(Color.clear)
+                Button("Share to Views", systemImage: "play.rectangle.on.rectangle") { shareToViews = true }
+                    .listRowBackground(Color.clear)
             } footer: {
                 Text("Personal-training sessions are counted per training day. Paid sessions come from Personal training payments.")
             }
@@ -290,6 +293,9 @@ struct GymMemberView: View {
             ToolbarItem(placement: .topBarTrailing) { Button("Edit") { edit = true } }
         }
         .sheet(isPresented: $edit) { NavigationStack { GymMemberEditor(member: m) { _ in } } }
+        .sheet(isPresented: $shareToViews) {
+            NavigationStack { NewPostView(status: false, kind: .training, prefill: "💪 \(m.name): \(trainingDays) training days and counting") }
+        }
         .sheet(isPresented: $addPlan) { NavigationStack { GymPlanEditor(member: m, plan: nil) } }
         .sheet(item: $editPlan) { p in NavigationStack { GymPlanEditor(member: m, plan: p) } }
         .sheet(isPresented: $addSession) { NavigationStack { GymSessionEditor(member: m, session: nil) } }

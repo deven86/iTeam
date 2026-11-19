@@ -47,6 +47,7 @@ targets:
         ITSAppUsesNonExemptEncryption: false   # see README → Export compliance before App Store release
         NSFaceIDUsageDescription: iTeam uses Face ID to keep your chats and tasks private.
         NSCameraUsageDescription: iTeam uses the camera to scan a contact's invite QR code and to take photos for chats.
+        NSMicrophoneUsageDescription: iTeam uses the microphone to record voice notes you send in chats.
         NSPhotoLibraryUsageDescription: iTeam lets you send photos and pick chat wallpapers from your library.
         BGTaskSchedulerPermittedIdentifiers:
           - com.jondhale.iteam.refresh

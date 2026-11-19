@@ -10,7 +10,8 @@ enum ITeamSchema {
         ActivityItem.self, OutboxItem.self, PendingEnvelope.self, SentRecord.self,
         TaskFile.self, Approval.self, Expense.self, Poll.self,
         CareProfile.self, Medicine.self, DoseLog.self, HealthEvent.self, VaultItem.self,
-        GymMember.self, GymPlan.self, GymSession.self, GymPayment.self
+        GymMember.self, GymPlan.self, GymSession.self, GymPayment.self,
+        Post.self, PostReaction.self, PostComment.self, PostSeen.self
     ]
 }
 
@@ -37,6 +38,8 @@ enum Packed {
     var isRequest: Bool
     /// Added by scanning their QR code (key checked against iCloud).
     var verified: Bool
+    /// Phone or email they chose to share for FaceTime ("" = not shared).
+    var facetime: String = ""
     var blocked: Bool
 
     init(userID: String, name: String, publicKey: String, avatar: Data? = nil, saved: Bool, isRequest: Bool = false, verified: Bool = false) {
@@ -150,6 +153,8 @@ struct AttachmentRef: Codable, Hashable, Identifiable {
     var height: Double?
     /// Small JPEG preview (inside the encrypted event).
     var thumb: Data?
+    /// Seconds, for voice notes and videos.
+    var duration: Double? = nil
 }
 
 enum MessageStatus: Int {
@@ -212,7 +217,14 @@ enum MessageStatus: Int {
         if approvalID != nil { return "🟡 Approval: \(text)" }
         if pollID != nil { return "📊 Poll: \(text)" }
         if !text.isEmpty { return text }
-        if let a = attachments.first { return a.kind == "image" ? "📷 Photo" : "📎 \(a.name)" }
+        if let a = attachments.first {
+            switch a.kind {
+            case "image": return "📷 Photo"
+            case "audio": return "🎤 Voice note (\(Clock.mmss(a.duration ?? 0)))"
+            case "video": return "🎬 Video"
+            default: return "📎 \(a.name)"
+            }
+        }
         return ""
     }
 }
@@ -406,7 +418,7 @@ enum WorkPriority: Int, Codable, CaseIterable {
 // MARK: - Activity
 
 enum ActivityKind: String {
-    case mention, taskAssigned, taskUpdated, taskCompleted, taskComment, group, sync, contact, approval, expense, care, gym
+    case mention, taskAssigned, taskUpdated, taskCompleted, taskComment, group, sync, contact, approval, expense, care, gym, views
     var icon: String {
         switch self {
         case .mention: "at"
@@ -421,6 +433,7 @@ enum ActivityKind: String {
         case .expense: "indianrupeesign.circle"
         case .care: "heart.text.square"
         case .gym: "dumbbell.fill"
+        case .views: "play.rectangle.on.rectangle.fill"
         }
     }
 }

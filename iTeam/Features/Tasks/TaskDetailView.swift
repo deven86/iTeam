@@ -22,6 +22,7 @@ struct TaskDetailView: View {
     @State private var askTemplate = false
     @State private var templateName = ""
     @State private var showFollowUp = false
+    @State private var shareToViews = false
     @ObservedObject private var store = Store.shared
 
     init(taskID: String) {
@@ -92,6 +93,8 @@ struct TaskDetailView: View {
                     if t.isDone, let by = t.completedBy, let at = t.completedAt {
                         Label("Completed by \(engine.name(of: by)) · \(at.formatted(date: .abbreviated, time: .shortened))", systemImage: "checkmark.seal.fill")
                             .font(.caption).foregroundStyle(look.success)
+                        Button("Share to Views", systemImage: "play.rectangle.on.rectangle") { shareToViews = true }
+                            .font(.caption.weight(.semibold)).buttonStyle(.bordered)
                     }
                 }
                 .padding(.vertical, 4)
@@ -256,6 +259,7 @@ struct TaskDetailView: View {
             }
         }
         .sheet(isPresented: $showFollowUp) { NavigationStack { FollowUpEditor(task: t) } }
+        .sheet(isPresented: $shareToViews) { NavigationStack { NewPostView(status: false, kind: .taskDone, prefill: "✅ Completed: \(t.title)") } }
         .onAppear { notesText = t.notes }
         .onChange(of: t.notes) { _, n in notesText = n }
         .alert("Save as template", isPresented: $askTemplate) {

@@ -13,6 +13,10 @@ struct AttachmentView: View {
         Group {
             if ref.kind == "image" {
                 photo
+            } else if ref.kind == "audio" {
+                VoiceNoteView(ref: ref)
+            } else if ref.kind == "video" {
+                video
             } else {
                 file
             }
@@ -43,6 +47,29 @@ struct AttachmentView: View {
         }
         .buttonStyle(.plain)
         .accessibilityLabel("Photo")
+    }
+
+    private var video: some View {
+        Button { Task { await open() } } label: {
+            ZStack {
+                if let t = ref.thumb, let img = UIImage(data: t) {
+                    Image(uiImage: img).resizable().scaledToFill()
+                } else {
+                    Rectangle().fill(.black.opacity(0.4))
+                }
+                if loading { ProgressView().tint(.white) }
+                else { Image(systemName: "play.circle.fill").font(.system(size: 46)).foregroundStyle(.white, .black.opacity(0.35)) }
+                if let d = ref.duration {
+                    Text(Clock.mmss(d)).font(.caption2.bold()).foregroundStyle(.white)
+                        .padding(.horizontal, 6).padding(.vertical, 2).background(.black.opacity(0.5), in: Capsule())
+                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing).padding(8)
+                }
+            }
+            .frame(width: 240, height: min(320, 240 / max(aspect, 0.5)))
+            .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("Video")
     }
 
     private var file: some View {
@@ -104,6 +131,57 @@ struct AttachmentView: View {
         }
         await download()
         if !failed { onOpen(Attachments.cacheURL(ref)) }
+    }
+}
+
+/// A voice note: play/pause, progress and length. Downloads on first play.
+struct VoiceNoteView: View {
+    let ref: AttachmentRef
+    @ObservedObject private var player = VoicePlayer.shared
+    @State private var loading = false
+    @State private var failed = false
+
+    private var playing: Bool { player.playingID == ref.id }
+
+    var body: some View {
+        HStack(spacing: 10) {
+            Button {
+                Task {
+                    loading = true
+                    defer { loading = false }
+                    do {
+                        let url = try await Attachments.load(ref)
+                        failed = false
+                        player.toggle(id: ref.id, url: url)
+                    } catch { failed = true }
+                }
+            } label: {
+                Group {
+                    if loading { ProgressView() }
+                    else { Image(systemName: failed ? "exclamationmark.icloud" : playing ? "pause.circle.fill" : "play.circle.fill").font(.system(size: 34)) }
+                }
+                .frame(width: 36, height: 36)
+            }
+            .buttonStyle(.plain)
+            VStack(alignment: .leading, spacing: 4) {
+                GeometryReader { g in
+                    let bars = 28
+                    HStack(alignment: .center, spacing: 2) {
+                        ForEach(0..<bars, id: \.self) { i in
+                            let h = 6 + CGFloat(abs((ref.id.hashValue >> (i % 16)) % 14))
+                            Capsule()
+                                .fill(Double(i) / Double(bars) < (playing ? player.progress : 0) ? Color.primary : Color.primary.opacity(0.35))
+                                .frame(width: max(2, (g.size.width - CGFloat(bars) * 2) / CGFloat(bars)), height: h)
+                        }
+                    }
+                    .frame(height: g.size.height)
+                }
+                .frame(height: 22)
+                Text(Clock.mmss(ref.duration ?? 0)).font(.caption2).opacity(0.75)
+            }
+        }
+        .frame(width: 220)
+        .accessibilityLabel("Voice note, \(Clock.mmss(ref.duration ?? 0))")
     }
 }
 

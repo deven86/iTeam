@@ -78,7 +78,14 @@ struct MessageBubble: View {
                     AttachmentView(ref: a, onOpen: onOpen)
                 }
                 if !message.text.isEmpty {
-                    if let url = LinkPreviewStore.firstURL(in: message.text) {
+                    if let call = FaceTime.isLink(message.text) {
+                        Button { UIApplication.shared.open(call) } label: {
+                            Label("Join video call", systemImage: "video.fill").font(.headline)
+                                .padding(.horizontal, 14).padding(.vertical, 10)
+                                .background(Color.green, in: Capsule()).foregroundStyle(.white)
+                        }
+                        .buttonStyle(.plain)
+                    } else if let url = LinkPreviewStore.firstURL(in: message.text) {
                         LinkPreviewCard(url: url).frame(maxWidth: 280)
                     }
                     Text(linkified(message.text))

@@ -73,6 +73,15 @@ enum MyDetails {
         get { UserDefaults.standard.string(forKey: "me.phone") ?? "" }
         set { UserDefaults.standard.set(newValue, forKey: "me.phone") }
     }
+    /// Phone or email used for FaceTime, and whether contacts may see it.
+    static var facetime: String {
+        get { UserDefaults.standard.string(forKey: "me.facetime") ?? "" }
+        set { UserDefaults.standard.set(newValue, forKey: "me.facetime") }
+    }
+    static var shareFaceTime: Bool {
+        get { UserDefaults.standard.bool(forKey: "me.shareFaceTime") }
+        set { UserDefaults.standard.set(newValue, forKey: "me.shareFaceTime") }
+    }
     /// Apple's private-relay addresses forward to the real inbox but aren't worth showing.
     static var isRelay: Bool { email.hasSuffix("privaterelay.appleid.com") }
 }

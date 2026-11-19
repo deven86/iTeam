@@ -111,7 +111,17 @@ extension SyncEngine {
                                           MemberInfo(id: c.userID, name: c.name, role: .member)])
         context.insert(conv)
         save()
+        if MyDetails.shareFaceTime && !MyDetails.facetime.isEmpty && !c.blocked {
+            send(.facetime(handle: MyDetails.facetime), in: conv, loud: false)
+        }
         return conv
+    }
+
+    /// Shares (or stops sharing) my FaceTime handle with every contact I have a direct chat with.
+    func updateFaceTimeSharing() {
+        let handle = MyDetails.shareFaceTime ? MyDetails.facetime : ""
+        let convs = (try? context.fetch(FetchDescriptor<Conversation>(predicate: #Predicate { $0.kind == "direct" && !$0.left }))) ?? []
+        for c in convs where !c.isDemo { send(.facetime(handle: handle), in: c, loud: false) }
     }
 
     func createGroup(title: String, members: [Contact], avatar: Data?) -> Conversation {
@@ -196,7 +206,8 @@ extension SyncEngine {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty || !attachments.isEmpty, !conv.left else { return }
         let p = MessagePayload(id: UUID().uuidString, text: trimmed, replyTo: replyTo, attachments: attachments, fwd: forwarded ? true : nil)
-        let preview = trimmed.isEmpty ? (attachments.first?.kind == "image" ? "📷 Photo" : "📎 File") : trimmed
+        let kind = attachments.first?.kind
+        let preview = trimmed.isEmpty ? (kind == "image" ? "📷 Photo" : kind == "audio" ? "🎤 Voice note" : kind == "video" ? "🎬 Video" : "📎 File") : trimmed
         send(.message(p), in: conv, loud: true, preview: preview, uploads: uploads)
         if !forwarded { conv.draft = "" }
     }
@@ -445,6 +456,52 @@ extension SyncEngine {
     func vote(_ poll: Poll, options: [String]) {
         guard let conv = conversation(poll.convID) else { return }
         send(.vote(VotePayload(pollID: poll.id, optionIDs: options)), in: conv, loud: false)
+    }
+
+    // MARK: - Views
+
+    func post(_ id: String) -> Post? {
+        try? context.fetch(FetchDescriptor<Post>(predicate: #Predicate { $0.id == id })).first
+    }
+
+    /// Shares a post or status into each chat of the audience. Files upload once and are reused.
+    func publishPost(kind: PostKind, text: String, media: [AttachmentRef], uploads: [String: String], status: Bool, to convs: [Conversation]) {
+        guard !convs.isEmpty else { return }
+        let p = PostPayload(id: UUID().uuidString, kind: kind.rawValue, text: text, media: media, status: status,
+                            expires: status ? Date(timeIntervalSinceNow: 24 * 3600) : nil, deleted: false, at: .now)
+        for (i, conv) in convs.enumerated() where !conv.left {
+            send(.post(p), in: conv, loud: false, uploads: i == 0 ? uploads : [:])
+        }
+        if let mine = post(p.id) { mine.convIDs = convs.map(\.id) }
+        save()
+    }
+
+    func deletePost(_ p: Post) {
+        guard p.author == me else { return }
+        let payload = PostPayload(id: p.id, kind: p.kind, text: p.text, media: [], status: p.isStatus, expires: p.expiresAt, deleted: true, at: .now)
+        for id in p.convIDs { if let c = conversation(id) { send(.post(payload), in: c, loud: false) } }
+    }
+
+    /// The chat a reaction or comment goes back through: the one the post arrived in.
+    private func replyConvs(_ p: Post) -> [Conversation] {
+        let ids = p.author == me ? p.convIDs : Array(p.convIDs.prefix(1))
+        return ids.compactMap { conversation($0) }.filter { !$0.left }
+    }
+
+    func reactToPost(_ p: Post, emoji: String?) {
+        for c in replyConvs(p) { send(.postReact(postID: p.id, emoji: emoji), in: c, loud: false) }
+    }
+
+    func commentOnPost(_ p: Post, text: String) {
+        let c = PostCommentPayload(id: UUID().uuidString, postID: p.id, text: text, deleted: false)
+        for conv in replyConvs(p) { send(.postComment(c), in: conv, loud: p.author != me, preview: "💬 Comment on a post") }
+    }
+
+    func markSeen(_ p: Post) {
+        guard p.author != me else { return }
+        let sid = p.id + "|" + me
+        if (try? context.fetch(FetchDescriptor<PostSeen>(predicate: #Predicate { $0.id == sid })).first) != nil { return }
+        for c in replyConvs(p) { send(.postSeen(postID: p.id), in: c, loud: false) }
     }
 
     // MARK: - Gym & Training

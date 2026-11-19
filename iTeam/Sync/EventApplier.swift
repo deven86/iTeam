@@ -432,6 +432,67 @@ struct EventApplier {
             p.kind = g.kind; p.amount = g.amount; p.date = g.date; p.method = g.method; p.sessions = g.sessions
             p.notes = g.notes; p.receipts = g.receipts; p.deleted = g.deleted; p.updatedAt = g.at
 
+        case .post(let p):
+            guard let conv else { return .needsConversation }
+            let pid = p.id
+            if let post = try? ctx.fetch(FetchDescriptor<Post>(predicate: #Predicate { $0.id == pid })).first {
+                guard post.author == e.from else { return .ignored }
+                if !post.convIDs.contains(conv.id) { post.convIDs.append(conv.id) }
+                post.text = p.text
+                post.deleted = p.deleted
+                if !p.media.isEmpty { post.media = p.media }
+            } else {
+                let post = Post(id: p.id, author: e.from)
+                post.kind = p.kind; post.text = p.text; post.media = p.media
+                post.isStatus = p.status; post.expiresAt = p.expires; post.createdAt = e.at
+                post.deleted = p.deleted; post.convIDs = [conv.id]
+                ctx.insert(post)
+                if !local && e.from != me && !p.status && !p.deleted {
+                    ctx.insert(ActivityItem(kind: .views, text: "\(engine.name(of: e.from)) shared a \((PostKind(rawValue: p.kind) ?? .moment).title.lowercased()) in Views",
+                                            convID: nil, actorID: e.from, date: e.at))
+                }
+            }
+
+        case .postReact(let postID, let emoji):
+            let rid = postID + "|" + e.from
+            let existing = try? ctx.fetch(FetchDescriptor<PostReaction>(predicate: #Predicate { $0.id == rid })).first
+            if let existing, existing.at > e.at { return .ignored }
+            if let emoji {
+                if let existing { existing.emoji = emoji; existing.at = e.at }
+                else {
+                    ctx.insert(PostReaction(postID: postID, user: e.from, emoji: emoji, at: e.at))
+                    if !local && e.from != me, let post = try? ctx.fetch(FetchDescriptor<Post>(predicate: #Predicate { $0.id == postID })).first, post.author == me {
+                        ctx.insert(ActivityItem(kind: .views, text: "\(engine.name(of: e.from)) liked your post \(emoji)", convID: nil, actorID: e.from, date: e.at))
+                    }
+                }
+            } else if let existing {
+                ctx.delete(existing)
+            }
+
+        case .postComment(let c):
+            guard let conv else { return .needsConversation }
+            let cid = c.id
+            if let existing = try? ctx.fetch(FetchDescriptor<PostComment>(predicate: #Predicate { $0.id == cid })).first {
+                guard existing.author == e.from else { return .ignored }
+                existing.text = c.text
+                existing.deleted = c.deleted
+            } else {
+                ctx.insert(PostComment(id: c.id, postID: c.postID, author: e.from, text: c.text, createdAt: e.at, convID: conv.id))
+                let pid = c.postID
+                if !local && e.from != me, let post = try? ctx.fetch(FetchDescriptor<Post>(predicate: #Predicate { $0.id == pid })).first, post.author == me {
+                    ctx.insert(ActivityItem(kind: .views, text: "\(engine.name(of: e.from)) commented: \(c.text.prefix(80))", convID: nil, actorID: e.from, date: e.at))
+                }
+            }
+
+        case .postSeen(let postID):
+            let sid = postID + "|" + e.from
+            if (try? ctx.fetch(FetchDescriptor<PostSeen>(predicate: #Predicate { $0.id == sid })).first) == nil {
+                ctx.insert(PostSeen(postID: postID, user: e.from, at: e.at))
+            }
+
+        case .facetime(let handle):
+            if e.from != me, let c = engine.contact(e.from) { c.facetime = handle }
+
         case .group, .receipt:
             break
         }

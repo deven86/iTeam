@@ -118,6 +118,25 @@ enum DemoChats {
             }
             return e
         }
+        if case .post(let p) = body, !p.deleted, let fan = conv.members.map(\.id).first(where: { $0.hasPrefix("demo_") }) {
+            // A pretend friend reacts, so Views can be tried alone.
+            let convID = conv.id
+            Task { @MainActor in
+                try? await Task.sleep(for: .seconds(2))
+                let like = Event(id: UUID().uuidString, conv: convID, from: fan, at: .now, body: .postReact(postID: p.id, emoji: "❤️"))
+                _ = EventApplier(engine: engine).apply(like, local: false)
+                if !p.status {
+                    let c = Event(id: UUID().uuidString, conv: convID, from: fan, at: .now,
+                                  body: .postComment(PostCommentPayload(id: UUID().uuidString, postID: p.id, text: "Well done! 👏", deleted: false)))
+                    _ = EventApplier(engine: engine).apply(c, local: false)
+                } else {
+                    let seen = Event(id: UUID().uuidString, conv: convID, from: fan, at: .now, body: .postSeen(postID: p.id))
+                    _ = EventApplier(engine: engine).apply(seen, local: false)
+                }
+                engine.save()
+            }
+            return e
+        }
         if case .poll(let poll) = body {
             engine.message(poll.messageID)?.status = .sent
             engine.save()

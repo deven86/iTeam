@@ -29,6 +29,9 @@ struct ChatView: View {
     @State private var forwarding: Message?
     @State private var shareItems: ShareItems?
     @State private var aiSheet: AISheet?
+    @StateObject private var recorder = VoiceRecorder()
+    @State private var showGroupCall = false
+    @State private var askFaceTime = false
     enum AISheet: String, Identifiable { case summary, report; var id: String { rawValue } }
     @FocusState private var focused: Bool
 
@@ -99,6 +102,7 @@ struct ChatView: View {
             ToolbarItem(placement: .principal) {
                 Button { showInfo = true } label: { header(conv) }.buttonStyle(.plain)
             }
+            ToolbarItem(placement: .topBarTrailing) { callButton(conv) }
             ToolbarItem(placement: .topBarTrailing) {
                 Button { taskFrom = nil; showInfo = false; newTaskInChat = true } label: { Image(systemName: "checklist") }
                     .accessibilityLabel("New task in this chat")
@@ -130,6 +134,24 @@ struct ChatView: View {
         }
     }
 
+    /// FaceTime: one tap for a direct chat (if they shared FaceTime), a link card for groups.
+    @ViewBuilder
+    private func callButton(_ conv: Conversation) -> some View {
+        if conv.isGroup {
+            Button { showGroupCall = true } label: { Image(systemName: "video") }
+                .accessibilityLabel("Group video call")
+        } else if let peer = conv.peerID.flatMap({ engine.contact($0) }), !peer.facetime.isEmpty {
+            Menu {
+                Button("FaceTime video", systemImage: "video") { FaceTime.call(peer.facetime, video: true) }
+                Button("FaceTime audio", systemImage: "phone") { FaceTime.call(peer.facetime, video: false) }
+            } label: { Image(systemName: "video") }
+            .accessibilityLabel("Call")
+        } else if !conv.isDemo, conv.peerID != nil {
+            Button { askFaceTime = true } label: { Image(systemName: "video") }
+                .accessibilityLabel("Call")
+        }
+    }
+
     /// Share one message: its text plus its files (downloaded and decrypted first).
     private func share(_ m: Message) async {
         var items: [Any] = []
@@ -156,6 +178,15 @@ struct ChatView: View {
             NavigationStack { ForwardSheet(messages: [m]) }
         }
         .shareSheet($shareItems)
+        .sheet(isPresented: $showGroupCall) { NavigationStack { GroupCallSheet(conv: conv) } }
+        .alert("\(conv.title) hasn't shared FaceTime", isPresented: $askFaceTime) {
+            Button("Ask them") {
+                engine.sendText("📹 I'd like to FaceTime you. Please turn on Settings → Profile → “Share my FaceTime with contacts” in iTeam.", in: conv)
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("Calls use Apple's FaceTime. They need to share their FaceTime phone or email with contacts first.")
+        }
         .sheet(item: $aiSheet) { kind in
             NavigationStack {
                 if kind == .summary {
@@ -320,13 +351,45 @@ struct ChatView: View {
                 }
                 .accessibilityLabel("Attach")
 
-                TextField("Message", text: $text, axis: .vertical)
-                    .lineLimit(1...6)
-                    .focused($focused)
+                if recorder.recording {
+                    HStack(spacing: 10) {
+                        Button { _ = recorder.stop(keep: false) } label: { Image(systemName: "trash").foregroundStyle(look.danger) }
+                        Circle().fill(.red).frame(width: 10, height: 10).opacity(recorder.level > 0.3 ? 1 : 0.4)
+                        Text(Clock.mmss(recorder.elapsed)).monospacedDigit()
+                        Spacer()
+                        Text("Recording…").font(.caption).foregroundStyle(look.textSecondary)
+                    }
                     .padding(.horizontal, 14).padding(.vertical, 10)
                     .lookFloating(in: RoundedRectangle(cornerRadius: 20, style: .continuous))
+                } else {
+                    TextField("Message", text: $text, axis: .vertical)
+                        .lineLimit(1...6)
+                        .focused($focused)
+                        .padding(.horizontal, 14).padding(.vertical, 10)
+                        .lookFloating(in: RoundedRectangle(cornerRadius: 20, style: .continuous))
+                }
 
                 let canSend = !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                if !canSend && editing == nil {
+                    Button {
+                        if recorder.recording {
+                            if let r = recorder.stop(keep: true), let p = try? Attachments.prepareVoice(r.0, duration: r.1) {
+                                engine.sendText("", in: conv, replyTo: replyTo?.id, attachments: [p.ref], uploads: [p.upload.0: p.upload.1])
+                                replyTo = nil
+                            }
+                        } else {
+                            Task { if !(await recorder.start()) { sendError = "Allow the microphone for iTeam in iPhone Settings to record voice notes." } }
+                        }
+                    } label: {
+                        Image(systemName: recorder.recording ? "arrow.up" : "mic.fill")
+                            .font(.title3.weight(.bold))
+                            .foregroundStyle(recorder.recording ? Color.white : Color.primary)
+                            .frame(width: 40, height: 40)
+                            .background(recorder.recording ? AnyShapeStyle(look.gradient) : AnyShapeStyle(Color.clear), in: Circle())
+                            .lookFloating(in: Circle(), interactive: true)
+                    }
+                    .accessibilityLabel(recorder.recording ? "Send voice note" : "Record voice note")
+                } else {
                 Button { send(conv) } label: {
                     Image(systemName: editing != nil ? "checkmark" : "arrow.up")
                         .font(.title3.weight(.bold))
@@ -338,6 +401,7 @@ struct ChatView: View {
                 .disabled(!canSend)
                 .sensoryFeedback(.impact(weight: .light), trigger: messages.count)
                 .accessibilityLabel(editing != nil ? "Save edit" : "Send")
+                }
             }
         }
         .padding(.horizontal, 10)
@@ -418,5 +482,66 @@ struct ChatWallpaper: View {
             }
         }
         .ignoresSafeArea()
+    }
+}
+
+/// Apple's FaceTime: free, end-to-end encrypted, up to 32 people.
+enum FaceTime {
+    static func call(_ handle: String, video: Bool) {
+        let clean = handle.contains("@") ? handle : handle.filter { $0.isNumber || $0 == "+" }
+        guard let enc = clean.addingPercentEncoding(withAllowedCharacters: .urlHostAllowed),
+              let url = URL(string: (video ? "facetime://" : "facetime-audio://") + enc) else { return }
+        UIApplication.shared.open(url)
+    }
+
+    static func isLink(_ text: String) -> URL? {
+        guard let r = text.range(of: #"https://facetime\.apple\.com/join[^\s]*"#, options: .regularExpression) else { return nil }
+        return URL(string: String(text[r]))
+    }
+}
+
+/// Group video call: make a FaceTime link and post it as a "Join call" card.
+struct GroupCallSheet: View {
+    let conv: Conversation
+    @EnvironmentObject var engine: SyncEngine
+    @Environment(\.dismiss) private var dismiss
+    @Environment(\.look) private var look
+    @State private var link = ""
+
+    var body: some View {
+        Form {
+            Section {
+                Label("Open the FaceTime app", systemImage: "1.circle.fill")
+                Label("Tap “Create Link”, then “Copy”", systemImage: "2.circle.fill")
+                Label("Come back and tap Paste below", systemImage: "3.circle.fill")
+                Button("Open FaceTime", systemImage: "video.fill") {
+                    if let url = URL(string: "facetime://") { UIApplication.shared.open(url) }
+                }
+            } header: {
+                Text("Start a group call — up to 32 people")
+            } footer: {
+                Text("Everyone in “\(conv.title)” gets a Join call card. FaceTime is free and end-to-end encrypted; people on Android or Windows can join from a browser.")
+            }
+            .lookRows()
+            Section {
+                TextField("https://facetime.apple.com/join#…", text: $link).textInputAutocapitalization(.never).keyboardType(.URL)
+                Button("Paste", systemImage: "doc.on.clipboard") { link = UIPasteboard.general.string ?? link }
+            }
+            .lookRows()
+        }
+        .lookScreen()
+        .navigationTitle("Group video call")
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
+            ToolbarItem(placement: .confirmationAction) {
+                Button("Post") {
+                    engine.sendText("📹 Group video call — tap Join\n\(link.trimmingCharacters(in: .whitespaces))", in: conv)
+                    Haptics.success()
+                    dismiss()
+                }
+                .disabled(FaceTime.isLink(link) == nil)
+            }
+        }
     }
 }

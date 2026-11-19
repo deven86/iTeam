@@ -15,11 +15,18 @@ struct RootView: View {
     @Query(filter: #Predicate<CareProfile> { !$0.deleted }) private var careProfiles: [CareProfile]
     @Query(filter: #Predicate<GymMember> { !$0.deleted }) private var gymMembers: [GymMember]
 
+    @Query(filter: #Predicate<Post> { !$0.deleted && !$0.isStatus }) private var allPosts: [Post]
+    @AppStorage("views.lastVisit") private var viewsLastVisit: Double = 0
+    private var newPosts: Int {
+        let since = Date(timeIntervalSince1970: viewsLastVisit)
+        return allPosts.filter { $0.createdAt > since && $0.author != engine.me }.count
+    }
+
     private var unreadChats: Int { conversations.filter { !$0.muted && $0.unread > 0 }.count }
 
     /// Module tabs the user can open right now.
     private var available: [Router.TabID] {
-        var a: [Router.TabID] = []
+        var a: [Router.TabID] = [.views]
         if modules.isOn(ModuleRegistry.businessTasks) { a.append(.tasks) }
         // Paid modules appear once bought (or unlocked for the owner / TestFlight testing) — or when
         // someone else shared a profile with you, because members use shared profiles free.
@@ -45,6 +52,12 @@ struct RootView: View {
                     ChatListView()
                 }
                 .badge(unreadChats)
+
+                Tab("Views", systemImage: "play.rectangle.on.rectangle.fill", value: Router.TabID.views) {
+                    ViewsHomeView()
+                }
+                .badge(newPosts)
+                .hidden(!inBar.contains(.views))
 
                 Tab("Tasks", systemImage: "checklist", value: Router.TabID.tasks) {
                     TaskDashboardView()
@@ -82,7 +95,7 @@ struct RootView: View {
             .onChange(of: inBar) { _, bar in
                 router.barTabs = bar
                 // A tab that just left the bar reopens inside the hub instead of vanishing.
-                if [Router.TabID.tasks, .care, .gym, .activity].contains(router.tab), !bar.contains(router.tab) {
+                if [Router.TabID.views, .tasks, .care, .gym, .activity].contains(router.tab), !bar.contains(router.tab) {
                     router.go(router.tab)
                 }
             }
@@ -128,6 +141,7 @@ struct ModulesHubView: View {
     @ViewBuilder
     static func content(_ t: Router.TabID) -> some View {
         switch t {
+        case .views: ViewsHomeView()
         case .tasks: TaskDashboardView()
         case .care: CareHomeView()
         case .gym: GymHomeView()
@@ -204,6 +218,7 @@ struct ModulesHubView: View {
 
     static func tileInfo(_ t: Router.TabID) -> (title: String, icon: String, colors: [UInt32]) {
         switch t {
+        case .views: ("Views", "play.rectangle.on.rectangle.fill", [0xFF5F6D, 0xFFC371])
         case .tasks: ("Tasks", ModuleRegistry.businessTasks.icon, ModuleRegistry.businessTasks.colors)
         case .care: ("Care", ModuleRegistry.iLifeCare.icon, ModuleRegistry.iLifeCare.colors)
         case .gym: ("Gym", ModuleRegistry.gymTraining.icon, ModuleRegistry.gymTraining.colors)

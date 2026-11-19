@@ -200,6 +200,8 @@ struct EditProfileView: View {
     @State private var photo: PhotosPickerItem?
     @State private var email = MyDetails.isRelay ? "" : MyDetails.email
     @State private var phone = MyDetails.phone
+    @State private var shareFT = MyDetails.shareFaceTime
+    @State private var facetime = MyDetails.facetime.isEmpty ? (MyDetails.phone.isEmpty ? (MyDetails.isRelay ? "" : MyDetails.email) : MyDetails.phone) : MyDetails.facetime
     @State private var busy = false
     @State private var error: String?
 
@@ -225,6 +227,18 @@ struct EditProfileView: View {
                 Text("Contact details")
             } footer: {
                 Text("Email comes from Sign in with Apple. Both stay on this device.")
+            }
+            .lookRows()
+            Section {
+                Toggle("Share my FaceTime with contacts", isOn: $shareFT)
+                if shareFT {
+                    TextField("FaceTime phone or email", text: $facetime)
+                        .keyboardType(.emailAddress).textInputAutocapitalization(.never)
+                }
+            } header: {
+                Text("Video calls")
+            } footer: {
+                Text("Calls use Apple's FaceTime — free, end-to-end encrypted, up to 32 people. Your contacts need this to FaceTime you from iTeam; it's sent to them encrypted, never published.")
             }
             .lookRows()
             if let error { Text(error).foregroundStyle(look.danger) }
@@ -253,6 +267,12 @@ struct EditProfileView: View {
             engine.saveIdentity(id: engine.me, name: clean, avatar: avatar)
             MyDetails.email = email.trimmingCharacters(in: .whitespaces)
             MyDetails.phone = phone.trimmingCharacters(in: .whitespaces)
+            let ft = facetime.trimmingCharacters(in: .whitespaces)
+            if shareFT != MyDetails.shareFaceTime || ft != MyDetails.facetime {
+                MyDetails.facetime = ft
+                MyDetails.shareFaceTime = shareFT && !ft.isEmpty
+                engine.updateFaceTimeSharing()
+            }
             dismiss()
         } catch {
             self.error = "Couldn't save: \(error.cloudMessage)"

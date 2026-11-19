@@ -59,7 +59,7 @@ enum Attachments {
         return try prepare(data, name: url.lastPathComponent, mime: mime, kind: "file")
     }
 
-    private static func prepare(_ plain: Data, name: String, mime: String, kind: String) throws -> Prepared {
+    static func prepare(_ plain: Data, name: String, mime: String, kind: String) throws -> Prepared {
         guard plain.count <= maxFileBytes else { throw Failure.tooLarge }
         let key = SymmetricKey(size: .bits256)
         let sealed = try E2E.seal(plain, key: key)

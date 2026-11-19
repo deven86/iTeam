@@ -132,7 +132,7 @@ final class ModuleRegistry: ObservableObject {
 
     private init() {
         enabled = UserDefaults.standard.dictionary(forKey: "modules.enabled") as? [String: Bool] ?? [:]
-        pinned = UserDefaults.standard.stringArray(forKey: "modules.pinned") ?? ["tasks", "care"]
+        pinned = UserDefaults.standard.stringArray(forKey: "modules.pinned") ?? ["views", "tasks"]
     }
 
     /// Which of the available module tabs go in the bar: the user's pins first, then the rest in order.

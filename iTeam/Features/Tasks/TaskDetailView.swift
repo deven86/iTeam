@@ -115,9 +115,8 @@ struct TaskDetailView: View {
         }
     }
 
-    private func content(_ t: TaskItem) -> some View {
-        List {
-            acceptanceSection(t)
+    @ViewBuilder
+    private func headerSection(_ t: TaskItem) -> some View {
             Section {
                 VStack(alignment: .leading, spacing: 10) {
                     HStack(alignment: .top) {
@@ -141,6 +140,10 @@ struct TaskDetailView: View {
             }
             .lookRows()
 
+    }
+
+    @ViewBuilder
+    private func statusSection(_ t: TaskItem) -> some View {
             Section("Status") {
                 if t.policy == .all && !t.assignees.isEmpty {
                     progressBlock(t)
@@ -157,6 +160,10 @@ struct TaskDetailView: View {
             }
             .lookRows()
 
+    }
+
+    @ViewBuilder
+    private func detailsSection(_ t: TaskItem) -> some View {
             Section("Details") {
                 TextField("Notes", text: $notesText, axis: .vertical)
                     .lineLimit(2...10)
@@ -213,6 +220,15 @@ struct TaskDetailView: View {
                 }
             }
             .lookRows()
+
+    }
+
+    private func content(_ t: TaskItem) -> some View {
+        List {
+            acceptanceSection(t)
+            headerSection(t)
+            statusSection(t)
+            detailsSection(t)
 
             Section("Checklist") {
                 ForEach(checklist) { item in

@@ -11,7 +11,7 @@ on:
         required: true
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   build:
@@ -81,6 +81,26 @@ jobs:
           APP_DIR=$(mktemp -d); cd "$APP_DIR"; unzip -q "$RUNNER_TEMP"/export/*.ipa
           codesign -d --entitlements :- Payload/*.app 2>/dev/null | grep -A1 icloud-container-environment | tr -d '\t\n' | sed 's/^/::notice title=entitlement::/'; echo
           mkdir -p "$RUNNER_TEMP/out"; cp "$RUNNER_TEMP"/export/*.ipa "$RUNNER_TEMP/out/iTeam-dev.ipa"
+
+      - name: Publish one-tap install link (branch "install", delete after use)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -e
+          W="$RUNNER_TEMP/pub"; mkdir -p "$W"; cd "$W"
+          cp "$RUNNER_TEMP/out/iTeam-dev.ipa" iTeam-dev.ipa
+          BASE="https://raw.githubusercontent.com/${{ github.repository }}/install"
+          printf '%s\n' '<?xml version="1.0" encoding="UTF-8"?>' \
+            '<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">' \
+            '<plist version="1.0"><dict><key>items</key><array><dict>' \
+            "<key>assets</key><array><dict><key>kind</key><string>software-package</string><key>url</key><string>$BASE/iTeam-dev.ipa</string></dict></array>" \
+            '<key>metadata</key><dict><key>bundle-identifier</key><string>com.jondhale.iteam</string><key>bundle-version</key><string>1.0</string><key>kind</key><string>software</string><key>title</key><string>iTeam setup</string></dict>' \
+            '</dict></array></dict></plist>' > manifest.plist
+          git init -q -b install
+          git add -A
+          git -c user.name=ci -c user.email=ci@users.noreply.github.com commit -qm "one-time install build"
+          git push -qf "https://x-access-token:${GH_TOKEN}@github.com/${{ github.repository }}.git" install
+          echo "::notice title=install::itms-services://?action=download-manifest&url=$BASE/manifest.plist"
 
       - uses: actions/upload-artifact@v4
         with:

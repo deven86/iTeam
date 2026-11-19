@@ -2,6 +2,7 @@ import SwiftUI
 import SwiftData
 import UIKit
 import UniformTypeIdentifiers
+import Charts
 
 // Glue that lets the Mindfulness module (ported from iLife's Mind section) run inside iTeam.
 
@@ -149,5 +150,20 @@ extension View {
     /// iLife's glass card, drawn with iTeam's look.
     func glassCard(cornerRadius: CGFloat = 22, padding: CGFloat = 16) -> some View {
         lookCard(cornerRadius: cornerRadius, padding: padding)
+    }
+}
+
+/// Mindful minutes for the last 14 days.
+struct MindDaysChart: View {
+    let values: [(Date, Double)]
+    var body: some View {
+        Chart(Array(values.enumerated()), id: \.offset) { _, v in
+            BarMark(x: .value("Day", v.0, unit: .day), y: .value("Minutes", v.1))
+                .foregroundStyle(LinearGradient(colors: [Color(hex: 0x7ED6B2), Color(hex: 0x3B8D99)], startPoint: .top, endPoint: .bottom))
+                .cornerRadius(4)
+            RuleMark(y: .value("Goal", 10)).foregroundStyle(.secondary.opacity(0.5)).lineStyle(StrokeStyle(lineWidth: 1, dash: [4, 4]))
+        }
+        .chartXAxis { AxisMarks(values: .stride(by: .day, count: 2)) { _ in AxisValueLabel(format: .dateTime.day()) } }
+        .frame(height: 140)
     }
 }

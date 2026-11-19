@@ -188,6 +188,7 @@ struct SessionSetupSheet: View {
     @State private var showPlayer = false
     @State private var showFile = false
     @State private var showPlaylists = false
+    @State private var didSetLength = false
     @State private var fileName = UserDefaults.standard.string(forKey: "medFileName") ?? ""
     @ObservedObject private var music = MusicController.shared
 
@@ -278,7 +279,7 @@ struct SessionSetupSheet: View {
                 .disabled(sound == .myFile && fileName.isEmpty)
                 .padding()
             }
-            .onFirstAppear { minutes = script.defaultLength }
+            .onAppear { if minutes == 0 || !didSetLength { minutes = script.defaultLength; didSetLength = true } }
             .fullScreenCover(isPresented: $showPlayer, onDismiss: { dismiss() }) {
                 MeditationPlayerView(script: script, minutes: isCustom ? (script.lengths.first ?? 5) : minutes, lang: script.fixedLang ?? lang,
                                      sound: sound, moodBefore: moodBefore)
@@ -563,10 +564,9 @@ struct MindHistoryView: View {
     @Environment(\.modelContext) private var context
     @Query(sort: \MeditationLog.date, order: .reverse) private var logs: [MeditationLog]
 
-    private var csvFiles: [URL] {
-        let rows: [[Any?]] = logs.map { [$0.date, $0.title, $0.category, $0.minutes, $0.language, $0.soundscape, $0.moodBefore, $0.moodAfter, $0.completed] }
-        let csv = CSV.table(["time", "session", "category", "minutes", "language", "sound", "mood_before", "mood_after", "completed"], rows)
-        return [Exporter.file(csv, name: "iLife meditation.csv")].compactMap { $0 }
+    private var historyText: String {
+        logs.prefix(200).map { "\($0.date.formatted(date: .abbreviated, time: .shortened)) · \($0.title) · \(Int($0.minutes.rounded())) min" }
+            .joined(separator: "\n")
     }
 
     private var byDay: [(Date, Double)] {
@@ -584,11 +584,9 @@ struct MindHistoryView: View {
                     Text("Last 14 days").font(.headline)
                     HStack {
                         Spacer()
-                        ShareMenuButton(name: "Meditation history", extraFiles: { csvFiles }) {
-                            TrendShareCard(title: "Mindful minutes", unit: "min", data: byDay.map { DayValue(date: $0.0, value: $0.1) }, color: .mint, goal: 10)
-                        }
+                        ShareMenu(title: "Meditation history", text: { historyText }).labelStyle(.iconOnly)
                     }
-                    WeekChart(title: "Mindful minutes", values: byDay.map(\.1), end: Calendar.current.startOfDay(for: .now), color: .mint, goal: 10)
+                    MindDaysChart(values: byDay)
                     let rated = logs.filter { $0.moodBefore > 0 && $0.moodAfter > 0 }
                     if !rated.isEmpty {
                         let lift = Double(rated.reduce(0) { $0 + ($1.moodAfter - $1.moodBefore) }) / Double(rated.count)
@@ -611,10 +609,8 @@ struct MindHistoryView: View {
                         Spacer()
                         if l.moodBefore > 0 && l.moodAfter > 0 { Text("\(["😣","😕","😐","🙂","😌"][l.moodBefore-1])→\(["😣","😕","😐","🙂","😌"][l.moodAfter-1])") }
                         Text("\(Int(l.minutes.rounded())) min").font(.subheadline.bold())
-                        ShareMenuButton(name: l.title, text: { "\(l.title) — \(Int(l.minutes.rounded())) mindful minutes on \(l.date.formatted(date: .abbreviated, time: .shortened)) with iLife" }) {
-                            MeditationShareCard(log: l, recent: byDay.map { DayValue(date: $0.0, value: $0.1) })
-                        }
-                        .font(.caption)
+                        ShareMenu(title: l.title, text: { "\(l.title) — \(Int(l.minutes.rounded())) mindful minutes on \(l.date.formatted(date: .abbreviated, time: .shortened))" })
+                            .labelStyle(.iconOnly).font(.caption)
                     }
                     .glassCard(cornerRadius: 16, padding: 12)
                     .contextMenu { Button("Delete", systemImage: "trash", role: .destructive) { context.delete(l); try? context.save() } }
@@ -622,7 +618,7 @@ struct MindHistoryView: View {
             }
             .padding()
         }
-        .iLifeScreen()
+        .lookScreen()
         .navigationTitle("Meditation History")
     }
 }
@@ -698,16 +694,16 @@ struct MindSettingsView: View {
 
     private func scheduleReminder() {
         let center = UNUserNotificationCenter.current()
-        center.removePendingNotificationRequests(withIdentifiers: ["ilife.meditation.daily"])
+        center.removePendingNotificationRequests(withIdentifiers: ["iteam.meditation.daily"])
         guard reminderOn else { return }
         Task {
-            await NotificationService.requestAuthorization()
+            _ = await Reminders.shared.requestAuthorization()
             let c = UNMutableNotificationContent()
             c.title = "Time to breathe 🧘"
-            c.body = "A few quiet minutes in iLife — your streak is waiting."
+            c.body = "A few quiet minutes in iTeam — your streak is waiting."
             c.sound = .default
             var comps = DateComponents(); comps.hour = reminderMinutes / 60; comps.minute = reminderMinutes % 60
-            try? await center.add(UNNotificationRequest(identifier: "ilife.meditation.daily", content: c,
+            try? await center.add(UNNotificationRequest(identifier: "iteam.meditation.daily", content: c,
                                                         trigger: UNCalendarNotificationTrigger(dateMatching: comps, repeats: true)))
         }
     }

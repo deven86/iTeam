@@ -13,6 +13,8 @@ struct iTeamApp: App {
     let container: ModelContainer
 
     init() {
+        // A restore downloaded last session replaces the data before the database opens.
+        Backup.applyPendingRestore()
         let schema = Schema(ITeamSchema.models)
         // The local store is never mirrored to iCloud by SwiftData; CloudKit only carries encrypted events.
         let config = ModelConfiguration(schema: schema, cloudKitDatabase: .none)
@@ -62,6 +64,7 @@ struct iTeamApp: App {
                 lock.lock()
                 AppDelegate.scheduleRefresh()
                 Reminders.shared.updateBadge(totalUnread(engine))
+                Backup.shared.runIfDue()
             default:
                 break
             }

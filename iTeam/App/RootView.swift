@@ -44,6 +44,16 @@ struct RootView: View {
         sizeClass == .regular ? available : modules.barTabs(available: available)
     }
 
+    @State private var restoreOffer: Backup.Found?
+
+    /// After a fresh install, offer the newest iCloud backup once.
+    private func offerRestoreIfFresh() async {
+        let key = "backup.restoreOffered"
+        guard !UserDefaults.standard.bool(forKey: key), Backup.shared.lastDate == nil else { return }
+        UserDefaults.standard.set(true, forKey: key)
+        if let newest = await Backup.shared.available().first { restoreOffer = newest }
+    }
+
     var body: some View {
         if !engine.isSetUp {
             OnboardingView()
@@ -107,8 +117,10 @@ struct RootView: View {
             .sheet(isPresented: Binding(get: { router.openMyDay != nil }, set: { if !$0 { router.openMyDay = nil } })) {
                 NavigationStack { MyDayView(evening: router.openMyDay == "evening") }
             }
+            .sheet(item: $restoreOffer) { f in RestoreOfferView(found: f) }
             .task {
                 engine.setForeground(true)
+                await offerRestoreIfFresh()
                 await engine.sync()
             }
         }

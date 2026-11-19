@@ -19,6 +19,7 @@ struct ChatListView: View {
     @State private var showNewChat = false
     @State private var showAddContact = false
     @State private var editProfile = false
+    @ObservedObject private var backup = Backup.shared
     @State private var path: [String] = []
     @State private var selection: String?
 
@@ -84,6 +85,17 @@ struct ChatListView: View {
                 .listRowBackground(Color.clear)
                 .listRowInsets(EdgeInsets(top: 4, leading: 0, bottom: 4, trailing: 0))
                 syncBanner
+                if backup.needsWarning && conversations.contains(where: { !$0.isDemo }) {
+                    NavigationLink { BackupView() } label: {
+                        Label {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(backup.lastDate == nil ? "Not backed up" : "Backup is out of date").font(.footnote.bold())
+                                Text("Deleting iTeam would erase these chats. Tap to back up to iCloud.").font(.caption2)
+                            }
+                        } icon: { Image(systemName: "exclamationmark.icloud") }
+                        .foregroundStyle(look.warning)
+                    }
+                }
             }
 
             if filter == .all && search.isEmpty {

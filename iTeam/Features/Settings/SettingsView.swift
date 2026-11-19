@@ -138,6 +138,16 @@ struct SettingsView: View {
                 .lookRows()
 
                 Section {
+                    NavigationLink { BackupView() } label: {
+                        Label {
+                            HStack {
+                                Text("iCloud Backup")
+                                Spacer()
+                                Text(Backup.shared.lastDate.map { $0.formatted(.relative(presentation: .named)) } ?? "Off")
+                                    .foregroundStyle(Backup.shared.needsWarning ? look.warning : look.textSecondary).lineLimit(1)
+                            }
+                        } icon: { Image(systemName: "icloud.and.arrow.up") }
+                    }
                     SyncStatusCard().listRowInsets(EdgeInsets()).listRowBackground(Color.clear)
                     LabeledContent("Downloaded files", value: Fmt.bytes(cacheSize))
                     Button("Clear downloaded files") { Attachments.clearCache(); cacheSize = 0 }

@@ -213,8 +213,14 @@ struct ContactInfoView: View {
     @Environment(\.look) private var look
     @State private var refreshing = false
     @Query(filter: #Predicate<TaskItem> { !$0.deleted }, sort: \TaskItem.createdAt, order: .reverse) private var allTasks: [TaskItem]
+    @Query(filter: #Predicate<Conversation> { $0.kind == "group" && !$0.left }, sort: \Conversation.lastActivity, order: .reverse) private var groups: [Conversation]
+    @State private var showAllGroups = false
 
     private var contact: Contact? { conv.peerID.flatMap { engine.contact($0) } }
+    private var commonGroups: [Conversation] {
+        guard let peer = conv.peerID else { return [] }
+        return groups.filter { g in g.members.contains { $0.id == peer } }
+    }
 
     /// Tasks between me and this person, from any chat.
     private var shared: [TaskItem] {
@@ -251,6 +257,25 @@ struct ContactInfoView: View {
                 NavigationLink { ChatWallpaperPicker(conv: conv) } label: { Label("Chat wallpaper", systemImage: "photo.artframe") }
             }
             .lookRows()
+
+            if !commonGroups.isEmpty {
+                Section("\(commonGroups.count) group\(commonGroups.count == 1 ? "" : "s") in common") {
+                    ForEach(showAllGroups ? commonGroups : Array(commonGroups.prefix(3))) { g in
+                        Button { dismiss(); Router.shared.show(conversation: g.id) } label: {
+                            HStack(spacing: 12) {
+                                AvatarView(name: g.title, imageData: g.avatar, size: 36, isGroup: true)
+                                VStack(alignment: .leading, spacing: 1) {
+                                    Text(g.title).foregroundStyle(Color.primary)
+                                    Text(g.members.map { $0.id == engine.me ? "You" : $0.name }.joined(separator: ", "))
+                                        .font(.caption).foregroundStyle(look.textSecondary).lineLimit(1)
+                                }
+                            }
+                        }
+                    }
+                    if commonGroups.count > 3 && !showAllGroups { Button("See all") { showAllGroups = true } }
+                }
+                .lookRows()
+            }
 
             if !shared.isEmpty, let peer = conv.peerID {
                 Section("Tasks with \(contact?.name ?? conv.title)") {

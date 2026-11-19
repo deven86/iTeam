@@ -20,6 +20,16 @@ struct ChatListView: View {
     @State private var showAddContact = false
     @State private var editProfile = false
     @ObservedObject private var backup = Backup.shared
+    @Query(filter: #Predicate<Post> { !$0.deleted && $0.isStatus }) private var minis: [Post]
+    /// People with a live mini: true = something unseen (coloured ring), false = all seen (grey ring).
+    private var miniRing: [String: Bool] {
+        var out: [String: Bool] = [:]
+        for p in minis where p.isLive && p.author != engine.me {
+            let unseen = !UserDefaults.standard.bool(forKey: "views.seen." + p.id)
+            out[p.author] = (out[p.author] ?? false) || unseen
+        }
+        return out
+    }
     @State private var path: [String] = []
     @State private var selection: String?
 
@@ -118,7 +128,7 @@ struct ChatListView: View {
                     emptyState.listRowBackground(Color.clear)
                 }
                 ForEach(Array(visible.enumerated()), id: \.element.id) { i, c in
-                    NavigationLink(value: c.id) { ConversationRow(conv: c) }
+                    NavigationLink(value: c.id) { ConversationRow(conv: c, ring: c.isGroup ? nil : c.peerID.flatMap { miniRing[$0] }) }
                         .tag(c.id)
                         .appear(i)
                         .swipeActions(edge: .leading) {
@@ -217,6 +227,8 @@ struct ChatListView: View {
 
 struct ConversationRow: View {
     let conv: Conversation
+    /// nil = no mini; true = unseen mini; false = seen.
+    var ring: Bool? = nil
     @EnvironmentObject var engine: SyncEngine
     @Environment(\.look) private var look
 
@@ -227,7 +239,13 @@ struct ConversationRow: View {
 
     var body: some View {
         HStack(spacing: 12) {
-            AvatarView(name: conv.title, imageData: avatar, size: 50, isGroup: conv.isGroup)
+            AvatarView(name: conv.title, imageData: avatar, size: ring == nil ? 50 : 44, isGroup: conv.isGroup)
+                .padding(ring == nil ? 0 : 3)
+                .overlay {
+                    if let ring {
+                        Circle().stroke(ring ? AnyShapeStyle(look.gradient) : AnyShapeStyle(Color.secondary.opacity(0.45)), lineWidth: 2.5)
+                    }
+                }
             VStack(alignment: .leading, spacing: 3) {
                 HStack {
                     Text(conv.title).font(.headline).lineLimit(1)

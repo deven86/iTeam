@@ -65,6 +65,7 @@ final class SyncEngine: ObservableObject {
     private var pendingReceipts: [String: (delivered: Date?, read: Date?)] = [:]
     private var timer: Timer?
     private var subscriptionsChecked = false
+    private var profileChecked = false
 
     /// Envelopes and files are deleted from iCloud after this many days.
     static let retentionDays = 45
@@ -120,6 +121,14 @@ final class SyncEngine: ObservableObject {
             again = false
             status = .syncing
             do {
+                if !profileChecked {
+                    // Make sure my public profile exists in this iCloud environment (e.g. after switching environments).
+                    let remote = try await cloud.fetchProfile(me)
+                    if remote == nil || remote?.publicKey != myPublicKey || remote?.name != myName {
+                        try await cloud.saveProfile(userID: me, name: myName, publicKey: myPublicKey, avatar: myAvatar)
+                    }
+                    profileChecked = true
+                }
                 if !subscriptionsChecked {
                     // Push setup must never block syncing: messages still flow without it.
                     do {

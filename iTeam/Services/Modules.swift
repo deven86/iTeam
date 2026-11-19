@@ -69,7 +69,7 @@ final class ModuleRegistry: ObservableObject {
         id: "ilife-care", title: "iLife Care",
         tagline: "Look after family health together.",
         icon: "heart.text.square.fill", colors: [0xFF8A5B, 0xE5486B], availability: .paid,
-        productID: Store.careProductID, fallbackPrice: "about $0.49 a month",
+        productID: Store.careProductID, fallbackPrice: "₹99 / $0.99 a month",
         problems: ["Missed or double doses when several people look after one person",
                    "Injury and recovery updates lost in family chats",
                    "Reports and prescriptions scattered across phones and paper files"],

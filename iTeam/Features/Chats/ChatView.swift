@@ -28,6 +28,8 @@ struct ChatView: View {
     @State private var showPoll = false
     @State private var forwarding: Message?
     @State private var shareItems: ShareItems?
+    @State private var aiSheet: AISheet?
+    enum AISheet: String, Identifiable { case summary, report; var id: String { rawValue } }
     @FocusState private var focused: Bool
 
     init(convID: String) {
@@ -112,6 +114,12 @@ struct ChatView: View {
                     Button("Share chat as text", systemImage: "text.alignleft") {
                         shareItems = ShareItems(items: [ShareText.chatText(conv, messages, engine: engine)])
                     }
+                    if AISettings.shared.allows(.chatSummary) {
+                        Button("What did I miss? (AI)", systemImage: "sparkles") { aiSheet = .summary }
+                    }
+                    if conv.isGroup && AISettings.shared.groupAI.contains(conv.id) && AISettings.shared.allows(.groupReports) {
+                        Button("Group report (AI)", systemImage: "chart.bar.doc.horizontal") { aiSheet = .report }
+                    }
                     Button("Copy whole chat", systemImage: "doc.on.doc") {
                         UIPasteboard.general.string = ShareText.chatText(conv, messages, engine: engine)
                         Haptics.success()
@@ -148,6 +156,19 @@ struct ChatView: View {
             NavigationStack { ForwardSheet(messages: [m]) }
         }
         .shareSheet($shareItems)
+        .sheet(item: $aiSheet) { kind in
+            NavigationStack {
+                if kind == .summary {
+                    AIResultView(title: "What did I miss?",
+                                 instructions: "Summarise this chat for someone catching up: key points, decisions, questions waiting for an answer, and anything that should become a task. Mention who said what.",
+                                 context: AIContext.chat(conv, engine: engine), postTo: conv)
+                } else {
+                    AIResultView(title: "Group report",
+                                 instructions: "Write a short weekly report for the whole group: progress, what was completed and by whom, what's overdue, spending, and the next 3 priorities. Neutral and encouraging.",
+                                 context: AIContext.groupReport(conv, engine: engine), postTo: conv)
+                }
+            }
+        }
         .sheet(item: $taskFrom) { m in
             NavigationStack { TaskEditorView(conv: conv, source: m) }
         }

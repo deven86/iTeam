@@ -3,6 +3,7 @@ import SwiftData
 import PhotosUI
 
 struct GroupInfoView: View {
+    @ObservedObject private var ai = AISettings.shared
     let conv: Conversation
     @EnvironmentObject var engine: SyncEngine
     @EnvironmentObject var router: Router
@@ -53,6 +54,27 @@ struct GroupInfoView: View {
                 } label: {
                     Label("Group tasks", systemImage: "checklist")
                 }
+            }
+            .lookRows()
+
+            Section {
+                Toggle(isOn: Binding(get: { ai.groupAI.contains(conv.id) }, set: { on in
+                    if on {
+                        ai.groupAI.insert(conv.id)
+                        engine.sendText("🤖 \(engine.myName) turned on AI reports for this group. They run on \(engine.myName)'s phone with their own AI — no key is shared.", in: conv)
+                    } else {
+                        ai.groupAI.remove(conv.id)
+                    }
+                })) {
+                    Label("Run this group's AI on my phone", systemImage: "sparkles")
+                }
+                .disabled(!ai.ready || conv.left)
+            } header: {
+                Text("Group AI")
+            } footer: {
+                Text(ai.ready
+                     ? "Reports and summaries for this group are made on your phone and posted into the chat. Your key never leaves your phone — members only see the results."
+                     : "Set up AI in Settings → AI first.")
             }
             .lookRows()
 

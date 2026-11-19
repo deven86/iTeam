@@ -90,6 +90,8 @@ final class Router: ObservableObject {
     @Published var openTask: String?
     @Published var openCare: String?
     @Published var openGym: String?
+    /// "morning" or "evening": open My Day.
+    @Published var openMyDay: String?
     @Published var pendingInvite: SyncEngine.Invite?
 
     func handle(_ url: URL) {
@@ -199,6 +201,8 @@ final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCent
                     default: Router.shared.show(care: profileID)
                     }
                 }
+            } else if let kind = info["myday"] as? String {
+                Router.shared.openMyDay = kind
             } else if let taskID {
                 switch action {
                 case Reminders.doneAction:

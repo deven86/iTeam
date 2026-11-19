@@ -94,6 +94,9 @@ struct SettingsView: View {
                             Label { Text(m.title) } icon: { Image(systemName: m.icon) }
                         }
                     }
+                    NavigationLink { AISettingsView() } label: {
+                        Label { HStack { Text("AI & My Day"); Spacer(); Text(AISettings.shared.statusText).foregroundStyle(look.textSecondary).lineLimit(1) } } icon: { Image(systemName: "sparkles") }
+                    }
                     NavigationLink { BottomBarSettingsView() } label: { Label("Bottom bar", systemImage: "dock.rectangle") }
                     NavigationLink { ModuleRequestView() } label: { Label("Request a module", systemImage: "lightbulb.max.fill") }
                 } header: {
@@ -153,7 +156,6 @@ struct SettingsView: View {
                         .contentShape(Rectangle())
                         .onTapGesture(count: 5) { showOwnerVerify = true }
                     NavigationLink { AboutView() } label: { Label("How iTeam keeps your data", systemImage: "lock.shield") }
-                    NavigationLink { LogoStoryView() } label: { Label { Text("Our logo") } icon: { AppLogo(size: 26) } }
                 }
                 .lookRows()
             }

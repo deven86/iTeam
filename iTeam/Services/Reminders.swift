@@ -60,6 +60,44 @@ final class Reminders {
             }
         }
 
+        // Follow-ups (Business Tasks Pro): the next 3 days, until the task is done or the end date passes.
+        let followTasks = ((try? context.fetch(FetchDescriptor<TaskItem>(predicate: #Predicate { !$0.deleted && $0.followUpRaw != "" }))) ?? [])
+        let convMembers = Dictionary(uniqueKeysWithValues: ((try? context.fetch(FetchDescriptor<Conversation>())) ?? []).map { ($0.id, Set($0.members.map(\.id))) })
+        let cal = Calendar.current
+        for t in followTasks where !t.isDone {
+            guard let fu = t.followUp else { continue }
+            let inGroup = t.convID.flatMap { convMembers[$0]?.contains(me) } ?? false
+            guard t.involves(me) || (fu.wholeGroup && inGroup) else { continue }
+            var body = t.title
+            if let conv = t.convID, let title = convTitles[conv] { body += " · \(title)" }
+            if let due = t.dueAt { body += " · due \(Fmt.due(due))" }
+            for dayOffset in 0..<3 {
+                guard let day = cal.date(byAdding: .day, value: dayOffset, to: cal.startOfDay(for: now)),
+                      fu.weekdays.contains(cal.component(.weekday, from: day)) else { continue }
+                for minutes in fu.times {
+                    let fire = day.addingTimeInterval(Double(minutes) * 60)
+                    guard fire > now else { continue }
+                    if let until = fu.until, fire > cal.date(bySettingHour: 23, minute: 59, second: 0, of: until) ?? until { continue }
+                    plans.append(Plan(id: prefix + t.id + ".fu.\(Int(fire.timeIntervalSince1970))", fire: fire, title: "🔔 Follow-up",
+                                      body: body + " — is it done?", category: Self.categoryID, info: ["task": t.id]))
+                }
+            }
+        }
+
+        // My Day: morning brief and end-of-day review.
+        if MyDaySettings.enabled {
+            for (kind, minutes, title, text) in [("morning", MyDaySettings.morning, "☀️ Your day", "Your brief and suggestions for today are ready."),
+                                                 ("evening", MyDaySettings.evening, "🌙 How was your day?", "See what got done and move what's left.")] {
+                for dayOffset in 0..<2 {
+                    guard let day = cal.date(byAdding: .day, value: dayOffset, to: cal.startOfDay(for: now)) else { continue }
+                    let fire = day.addingTimeInterval(Double(minutes) * 60)
+                    guard fire > now else { continue }
+                    plans.append(Plan(id: "myday.\(kind).\(dayOffset == 0 ? "today" : "next")", fire: fire, title: title, body: text,
+                                      category: "MYDAY", info: ["myday": kind]))
+                }
+            }
+        }
+
         // Medicine doses (today and tomorrow), unless this person turned reminders off for that profile
         let off = Set(UserDefaults.standard.stringArray(forKey: "care.remindOff") ?? [])
         let profiles = Dictionary(uniqueKeysWithValues: ((try? context.fetch(FetchDescriptor<CareProfile>(predicate: #Predicate { !$0.deleted }))) ?? []).map { ($0.id, $0) })
@@ -84,7 +122,7 @@ final class Reminders {
         let chosen = Array(plans.prefix(limit))
 
         Task {
-            let pending = await center.pendingNotificationRequests().map(\.identifier).filter { $0.hasPrefix(prefix) || $0.hasPrefix("dose.") }
+            let pending = await center.pendingNotificationRequests().map(\.identifier).filter { $0.hasPrefix(prefix) || $0.hasPrefix("dose.") || $0.hasPrefix("myday.") }
             let wanted = Set(chosen.map(\.id))
             center.removePendingNotificationRequests(withIdentifiers: pending.filter { !wanted.contains($0) })
             for p in chosen {
@@ -93,7 +131,7 @@ final class Reminders {
                 content.body = p.body
                 content.sound = .default
                 content.categoryIdentifier = p.category
-                content.threadIdentifier = p.category == Self.doseCategoryID ? "care" : "tasks"
+                content.threadIdentifier = p.category == Self.doseCategoryID ? "care" : p.category == "MYDAY" ? "myday" : "tasks"
                 content.userInfo = p.info
                 let comps = Calendar.current.dateComponents([.year, .month, .day, .hour, .minute], from: p.fire)
                 let trigger = UNCalendarNotificationTrigger(dateMatching: comps, repeats: false)

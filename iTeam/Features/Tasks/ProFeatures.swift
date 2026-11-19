@@ -102,6 +102,14 @@ struct TaskReportsView: View {
     @State private var chatID = ""
     @State private var exportURL: URL?
 
+    private var aiContext: String {
+        let lines = scoped.prefix(80).map { AIContext.taskLine($0, engine: engine) }
+        let ex = expenses.filter { $0.date >= period.start }
+        return "Period: \(period.rawValue)\nTasks:\n" + lines.joined(separator: "\n") +
+            "\nExpenses: \(ex.count) entries, total \(Money.format(ex.reduce(0) { $0 + $1.amount })); by category: " +
+            Dictionary(grouping: ex, by: \.category).map { "\($0.key) \(Money.format($0.value.reduce(0) { $0 + $1.amount }))" }.joined(separator: ", ")
+    }
+
     private var scoped: [TaskItem] {
         tasks.filter { chatID.isEmpty || $0.convID == chatID }.filter { $0.createdAt >= period.start || !$0.isDone || ($0.completedAt ?? .distantPast) >= period.start }
     }
@@ -189,6 +197,13 @@ struct TaskReportsView: View {
         .listStyle(.insetGrouped)
         .lookScreen()
         .navigationTitle("Reports")
+        .toolbar {
+            ToolbarItem(placement: .bottomBar) {
+                AIButton(title: "AI report", feature: .taskReports,
+                         instructions: "Write a management report from this data: who is on track, what is overdue and why it matters, spending vs approvals, and 3 concrete actions. Use short bullets.",
+                         context: { aiContext })
+            }
+        }
     }
 
     private func stat(_ label: String, _ value: Int, _ color: Color) -> some View {

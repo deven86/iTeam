@@ -21,6 +21,7 @@ struct TaskDetailView: View {
     @State private var confirmDelete = false
     @State private var askTemplate = false
     @State private var templateName = ""
+    @State private var showFollowUp = false
     @ObservedObject private var store = Store.shared
 
     init(taskID: String) {
@@ -147,10 +148,20 @@ struct TaskDetailView: View {
                         ForEach(RepeatRule.allCases, id: \.rawValue) { Text($0.title).tag($0.rawValue) }
                     }
                     .disabled(!canEdit(t))
+                    if t.createdBy == engine.me && !t.isDone {
+                        Button { showFollowUp = true } label: {
+                            LabeledContent {
+                                Text(t.followUp.map { FollowUpEditor.summary($0) } ?? "Off")
+                            } label: { Label("Follow-up", systemImage: "bell.and.waves.left.and.right") }
+                        }
+                    } else if let fu = t.followUp {
+                        LabeledContent("Follow-up", value: FollowUpEditor.summary(fu))
+                    }
                     Button { templateName = t.title; askTemplate = true } label: { Label("Save as template", systemImage: "doc.on.doc") }
                 } else {
                     if t.repeatRule != "none" { LabeledContent("Repeats", value: RepeatRule(rawValue: t.repeatRule)?.title ?? t.repeatRule) }
-                    ProLockRow(text: "Repeat & templates")
+                    if let fu = t.followUp { LabeledContent("Follow-up", value: FollowUpEditor.summary(fu)) }
+                    ProLockRow(text: "Repeat, templates & follow-ups")
                 }
                 if let c = conv(t) {
                     Button { router.show(conversation: c.id) } label: {
@@ -244,6 +255,7 @@ struct TaskDetailView: View {
                     .labelStyle(.iconOnly)
             }
         }
+        .sheet(isPresented: $showFollowUp) { NavigationStack { FollowUpEditor(task: t) } }
         .onAppear { notesText = t.notes }
         .onChange(of: t.notes) { _, n in notesText = n }
         .alert("Save as template", isPresented: $askTemplate) {

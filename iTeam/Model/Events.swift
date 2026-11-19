@@ -78,6 +78,8 @@ struct TaskPayload: Codable {
     var change: String?
     /// Recurrence (Business Tasks Pro). nil from older versions = "none".
     var repeatRule: String? = nil
+    /// Follow-up schedule (Business Tasks Pro), JSON of FollowUp. "" = off.
+    var followUp: String? = nil
 }
 
 struct ChecklistPayload: Codable {
@@ -246,12 +248,13 @@ struct KeyShare: Codable {
 
 extension TaskItem {
     /// Shared fields that take part in last-writer-wins merging.
-    static let sharedFields = ["title", "notes", "status", "priority", "dueAt", "policy", "assignees", "repeat"]
+    static let sharedFields = ["title", "notes", "status", "priority", "dueAt", "policy", "assignees", "repeat", "followUp"]
 
     var payload: TaskPayload {
         TaskPayload(id: id, sourceMessageID: sourceMessageID, title: title, notes: notes, status: status, priority: priority,
                     dueAt: dueAt, policy: policy, assignees: assignees, createdBy: createdBy, createdAt: createdAt,
-                    completedAt: completedAt, completedBy: completedBy, stamps: stamps, change: nil, repeatRule: repeatRule)
+                    completedAt: completedAt, completedBy: completedBy, stamps: stamps, change: nil, repeatRule: repeatRule,
+                    followUp: followUpRaw)
     }
 
     /// Takes each field from `p` when its stamp is newer than ours. Returns the names of fields that changed.
@@ -278,6 +281,10 @@ extension TaskItem {
             case "repeat":
                 let r = p.repeatRule ?? "none"
                 if repeatRule != r { repeatRule = r; changed.append(f) }
+            case "followUp":
+                // Older versions don't send it; never let their silence switch a follow-up off.
+                guard let fu = p.followUp else { break }
+                if followUpRaw != fu { followUpRaw = fu; changed.append(f) }
             default: break
             }
         }

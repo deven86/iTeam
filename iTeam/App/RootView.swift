@@ -86,6 +86,9 @@ struct RootView: View {
                     router.go(router.tab)
                 }
             }
+            .sheet(isPresented: Binding(get: { router.openMyDay != nil }, set: { if !$0 { router.openMyDay = nil } })) {
+                NavigationStack { MyDayView(evening: router.openMyDay == "evening") }
+            }
             .task {
                 engine.setForeground(true)
                 await engine.sync()
@@ -150,6 +153,11 @@ struct ModulesHubView: View {
                     .lookCard()
 
                     VStack(spacing: 10) {
+                        Button {
+                            router.openMyDay = Calendar.current.component(.hour, from: .now) >= 17 ? "evening" : "morning"
+                        } label: {
+                            hubRow("sun.max.fill", "My Day", "Today's brief, or how the day went")
+                        }
                         NavigationLink { ModuleStoreView() } label: {
                             hubRow("bag.fill", "Module Store", "Add more modules to iTeam")
                         }

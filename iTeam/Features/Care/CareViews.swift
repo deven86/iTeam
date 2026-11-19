@@ -298,6 +298,14 @@ struct CareProfileView: View {
             } header: { Text("Medical info") }
             .lookRows()
 
+            if AISettings.shared.allows(.care) {
+                Section {
+                    AIButton(title: "AI health summary", feature: .care,
+                             instructions: "Summarise this person's health record for the family: current medicines and timings, recent events and recovery, anything to watch or ask the doctor. You are not a doctor: do not diagnose or change doses; suggest consulting the doctor where relevant.",
+                             context: { ShareText.care(p, meds: meds, events: events) })
+                }
+                .lookRows()
+            }
             if p.createdBy == engine.me {
                 Section {
                     Button("Delete care profile", role: .destructive) { confirmDelete = true }

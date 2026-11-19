@@ -299,6 +299,13 @@ enum WorkPriority: Int, Codable, CaseIterable {
     var deletedAt: Date? = nil
     /// "none", "daily", "weekly", "monthly" (Business Tasks Pro)
     var repeatRule: String = "none"
+    /// Follow-up schedule (Business Tasks Pro): JSON of FollowUp, "" = off.
+    var followUpRaw: String = ""
+
+    var followUp: FollowUp? {
+        get { followUpRaw.isEmpty ? nil : (try? JSONDecoder().decode(FollowUp.self, from: Data(followUpRaw.utf8))) }
+        set { followUpRaw = newValue.flatMap { (try? JSONEncoder().encode($0)).flatMap { String(data: $0, encoding: .utf8) } } ?? "" }
+    }
 
     init(id: String = UUID().uuidString, convID: String?, title: String, createdBy: String) {
         self.id = id
@@ -950,4 +957,17 @@ enum VaultCategory: String, CaseIterable {
         get { Packed.decode(AttachmentRef.self, attachmentData) }
         set { attachmentData = newValue.map { Packed.encode($0) } }
     }
+}
+
+/// A task follow-up (Business Tasks Pro): set by the task creator, it keeps nudging everyone on the task —
+/// the assignees, or the whole group for a group task — until the work is done or the end date passes.
+struct FollowUp: Codable, Hashable {
+    /// Times of day, minutes after midnight (1–4 per day).
+    var times: [Int] = [600]
+    /// Weekdays, Calendar numbering (1 = Sunday … 7 = Saturday).
+    var weekdays: [Int] = [2, 3, 4, 5, 6]
+    /// nil = until the task is completed.
+    var until: Date?
+    /// Everyone in the group chat, not only assignees.
+    var wholeGroup: Bool = false
 }

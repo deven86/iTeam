@@ -264,6 +264,14 @@ struct GymMemberView: View {
             } header: { Text("Payments") }
             .lookRows()
 
+            if AISettings.shared.allows(.gym) {
+                Section {
+                    AIButton(title: "AI training insights", feature: .gym,
+                             instructions: "Give short insights on attendance consistency, sessions paid vs used, membership renewal timing and spending, with 3 practical suggestions. No medical advice.",
+                             context: { ShareText.gym(m, plans: plans, sessions: sessions, payments: payments, engine: engine) + "\nSessions:\n" + sessions.prefix(40).map { "- \($0.date.formatted(date: .abbreviated, time: .omitted)) \($0.workout)" }.joined(separator: "\n") })
+                }
+                .lookRows()
+            }
             if m.createdBy == engine.me {
                 Section { Button("Remove \(m.name)", role: .destructive) { confirmDelete = true } }.lookRows()
             }

@@ -1,0 +1,120 @@
+name: iTeam
+options:
+  bundleIdPrefix: com.jondhale
+  deploymentTarget:
+    iOS: "26.0"
+  xcodeVersion: "26.0"
+  createIntermediateGroups: true
+  developmentLanguage: en
+
+settings:
+  base:
+    SWIFT_VERSION: "5.0"
+    MARKETING_VERSION: "1.0.0"
+    CURRENT_PROJECT_VERSION: "1"
+    VERSIONING_SYSTEM: apple-generic
+    DEVELOPMENT_TEAM: ""          # passed in by CI from the APPLE_TEAM_ID secret
+    CODE_SIGN_STYLE: Automatic
+
+targets:
+  iTeam:
+    type: application
+    platform: iOS
+    sources:
+      - path: iTeam
+      - path: Shared
+    dependencies:
+      - target: iTeamNotify
+    settings:
+      configs:
+        Release:
+          CODE_SIGN_STYLE: Manual
+          CODE_SIGN_IDENTITY: "Apple Distribution"
+          PROVISIONING_PROFILE_SPECIFIER: "match AppStore com.jondhale.iteam"
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.jondhale.iteam
+        TARGETED_DEVICE_FAMILY: "1,2"
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
+        CODE_SIGN_ENTITLEMENTS: iTeam/iTeam.entitlements
+    info:
+      path: iTeam/Info.plist
+      properties:
+        CFBundleDisplayName: iTeam
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        LSRequiresIPhoneOS: true
+        ITSAppUsesNonExemptEncryption: false   # see README → Export compliance before App Store release
+        NSFaceIDUsageDescription: iTeam uses Face ID to keep your chats and tasks private.
+        NSCameraUsageDescription: iTeam uses the camera to scan a contact's invite QR code and to take photos for chats.
+        NSPhotoLibraryUsageDescription: iTeam lets you send photos and pick chat wallpapers from your library.
+        BGTaskSchedulerPermittedIdentifiers:
+          - com.jondhale.iteam.refresh
+        UIBackgroundModes:
+          - remote-notification
+          - fetch
+        CFBundleURLTypes:
+          - CFBundleURLName: com.jondhale.iteam
+            CFBundleURLSchemes:
+              - iteam
+        UILaunchScreen:
+          UIColorName: AccentColor
+        UIApplicationSupportsIndirectInputEvents: true
+        UISupportedInterfaceOrientations:
+          - UIInterfaceOrientationPortrait
+        UISupportedInterfaceOrientations~ipad:
+          - UIInterfaceOrientationPortrait
+          - UIInterfaceOrientationPortraitUpsideDown
+          - UIInterfaceOrientationLandscapeLeft
+          - UIInterfaceOrientationLandscapeRight
+    entitlements:
+      path: iTeam/iTeam.entitlements
+      properties:
+        aps-environment: production
+        com.apple.developer.icloud-container-identifiers:
+          - iCloud.com.jondhale.iteam
+        com.apple.developer.icloud-services:
+          - CloudKit
+        com.apple.security.application-groups:
+          - group.com.jondhale.iteam
+
+  iTeamNotify:
+    type: app-extension
+    platform: iOS
+    sources:
+      - path: iTeamNotify
+      - path: Shared
+    settings:
+      configs:
+        Release:
+          CODE_SIGN_STYLE: Manual
+          CODE_SIGN_IDENTITY: "Apple Distribution"
+          PROVISIONING_PROFILE_SPECIFIER: "match AppStore com.jondhale.iteam.notify"
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.jondhale.iteam.notify
+        TARGETED_DEVICE_FAMILY: "1,2"
+        CODE_SIGN_ENTITLEMENTS: iTeamNotify/iTeamNotify.entitlements
+        SKIP_INSTALL: YES
+    info:
+      path: iTeamNotify/Info.plist
+      properties:
+        CFBundleDisplayName: iTeam
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        NSExtension:
+          NSExtensionPointIdentifier: com.apple.usernotifications.service
+          NSExtensionPrincipalClass: $(PRODUCT_MODULE_NAME).NotificationService
+    entitlements:
+      path: iTeamNotify/iTeamNotify.entitlements
+      properties:
+        com.apple.security.application-groups:
+          - group.com.jondhale.iteam
+
+schemes:
+  iTeam:
+    build:
+      targets:
+        iTeam: all
+        iTeamNotify: all
+    archive:
+      config: Release

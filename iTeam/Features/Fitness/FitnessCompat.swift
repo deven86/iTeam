@@ -108,3 +108,20 @@ struct DayValue: Identifiable, Hashable {
     let date: Date
     let value: Double
 }
+
+/// Runs once, the first time the view appears (not again after a camera or picker closes).
+private struct FirstAppear: ViewModifier {
+    @State private var done = false
+    let action: () -> Void
+    func body(content: Content) -> some View {
+        content.onAppear {
+            guard !done else { return }
+            done = true
+            action()
+        }
+    }
+}
+
+extension View {
+    func onFirstAppear(perform action: @escaping () -> Void) -> some View { modifier(FirstAppear(action: action)) }
+}

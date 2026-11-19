@@ -44,6 +44,8 @@ struct Event: Codable {
         case postSeen(postID: String)
         /// My FaceTime phone or email for this contact ("" = stop sharing).
         case facetime(handle: String)
+        /// An assignee accepts or declines a task assigned to them.
+        case taskAccept(taskID: String, accept: Bool, note: String)
     }
 }
 
@@ -86,6 +88,8 @@ struct TaskPayload: Codable {
     var repeatRule: String? = nil
     /// Follow-up schedule (Business Tasks Pro), JSON of FollowUp. "" = off.
     var followUp: String? = nil
+    /// Set at creation: assigned to specific people, who must accept.
+    var needsAcceptance: Bool? = nil
 }
 
 struct ChecklistPayload: Codable {
@@ -260,7 +264,7 @@ extension TaskItem {
         TaskPayload(id: id, sourceMessageID: sourceMessageID, title: title, notes: notes, status: status, priority: priority,
                     dueAt: dueAt, policy: policy, assignees: assignees, createdBy: createdBy, createdAt: createdAt,
                     completedAt: completedAt, completedBy: completedBy, stamps: stamps, change: nil, repeatRule: repeatRule,
-                    followUp: followUpRaw)
+                    followUp: followUpRaw, needsAcceptance: needsAcceptance ? true : nil)
     }
 
     /// Takes each field from `p` when its stamp is newer than ours. Returns the names of fields that changed.

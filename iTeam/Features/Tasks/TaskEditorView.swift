@@ -47,7 +47,31 @@ struct TaskEditorView: View {
             }
             .lookRows()
 
-            if let chat {
+            if let chat, !chat.isGroup, let other = chat.members.first(where: { $0.id != engine.me }) {
+                Section {
+                    Picker("Assign to", selection: Binding(get: { everyone ? "both" : (draft.assignees.first ?? "both") },
+                                                           set: { v in
+                                                               if v == "both" { everyone = true; draft.assignees = [] }
+                                                               else { everyone = false; draft.assignees = [v] }
+                                                           })) {
+                        Text(memberName(other)).tag(other.id)
+                        Text("Both of us").tag("both")
+                        Text("Me").tag(engine.me)
+                    }
+                    .pickerStyle(.segmented)
+                } header: {
+                    Text("Assign to")
+                } footer: {
+                    Text(everyone ? "Shared between you two — starts right away; either of you can mark it done."
+                         : draft.assignees.first == engine.me ? "Your own task in this chat."
+                         : "\(memberName(other)) gets it as a request and must accept before it starts.")
+                }
+                .lookRows()
+                .onAppear {
+                    // In a one-to-one chat, a new task goes to the other person by default.
+                    if draft.assignees.isEmpty && everyone { everyone = false; draft.assignees = [other.id] }
+                }
+            } else if let chat {
                 Section {
                     Toggle("Whole group / everyone in the chat", isOn: $everyone)
                     if !everyone {
@@ -71,9 +95,9 @@ struct TaskEditorView: View {
                 } header: {
                     Text("Assign to")
                 } footer: {
-                    Text(draft.policy == .all
+                    Text((everyone ? "" : "People you pick must accept the task before it starts. ") + (draft.policy == .all
                          ? "Each person ticks off their own part. The task completes when everyone has."
-                         : "One shared task: anyone in it can mark the whole task done.")
+                         : "One shared task: anyone in it can mark the whole task done."))
                 }
                 .lookRows()
             }
@@ -176,6 +200,7 @@ struct TaskEditorView: View {
         d.dueAt = hasDue ? due : nil
         if chat == nil || everyone { d.assignees = chat == nil ? [] : (d.policy == .all ? chat!.members.map(\.id) : []) }
         if chat == nil { d.policy = .any }
+        d.everyone = everyone || chat == nil
         engine.createTask(d, in: chat)
         Haptics.success()
         dismiss()

@@ -137,6 +137,20 @@ enum DemoChats {
             }
             return e
         }
+        if case .task(let p) = body, p.needsAcceptance == true {
+            // Demo people accept tasks assigned to them, so the acceptance flow can be tried alone.
+            let convID = conv.id
+            for who in p.assignees where who.hasPrefix("demo_") {
+                Task { @MainActor in
+                    try? await Task.sleep(for: .seconds(2.5))
+                    let ok = Event(id: UUID().uuidString, conv: convID, from: who, at: .now,
+                                   body: .taskAccept(taskID: p.id, accept: true, note: "On it 👍"))
+                    _ = EventApplier(engine: engine).apply(ok, local: false)
+                    engine.save()
+                }
+            }
+            return e
+        }
         if case .poll(let poll) = body {
             engine.message(poll.messageID)?.status = .sent
             engine.save()

@@ -242,6 +242,8 @@ extension SyncEngine {
         var sourceMessageID: String?
         var reminderOffset = 60
         var repeatRule = "none"
+        /// Shared with everyone in the chat (starts at once) rather than assigned to specific people (they accept first).
+        var everyone = false
     }
 
     @discardableResult
@@ -253,7 +255,8 @@ extension SyncEngine {
         let p = TaskPayload(id: id, sourceMessageID: d.sourceMessageID, title: d.title, notes: d.notes, status: .open,
                             priority: d.priority, dueAt: d.dueAt, policy: d.policy, assignees: d.assignees,
                             createdBy: me, createdAt: now, completedAt: nil, completedBy: nil, stamps: stamps, change: nil,
-                            repeatRule: d.repeatRule)
+                            repeatRule: d.repeatRule,
+                            needsAcceptance: d.assignees.contains { $0 != me } && !d.everyone ? true : nil)
         if let conv {
             let who = d.assignees.isEmpty ? "the group" : d.assignees.map { name(of: $0) }.joined(separator: ", ")
             send(.task(p), in: conv, loud: true, preview: "📋 New task for \(who): \(d.title)")
@@ -283,6 +286,14 @@ extension SyncEngine {
         } else {
             sendPersonal(.task(p))
         }
+    }
+
+    /// The assignee's answer to a task assigned to them.
+    func respondToTask(_ t: TaskItem, accept: Bool, note: String = "") {
+        let body: Event.Body = .taskAccept(taskID: t.id, accept: accept, note: note)
+        if let convID = t.convID, let conv = conversation(convID) { send(body, in: conv, loud: true, preview: "\(accept ? "🤝 Accepted" : "✋ Declined"): \(t.title)") }
+        save()
+        Reminders.shared.reschedule(context: context, me: me)
     }
 
     func setStatus(_ t: TaskItem, _ status: TaskStatus) {

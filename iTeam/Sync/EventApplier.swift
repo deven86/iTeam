@@ -490,6 +490,17 @@ struct EventApplier {
                 ctx.insert(PostSeen(postID: postID, user: e.from, at: e.at))
             }
 
+        case .taskAccept(let taskID, let accept, let note):
+            guard let t = engine.task(taskID), t.assignees.contains(e.from) else { return .ignored }
+            var a = t.acceptance
+            a[e.from] = (accept ? "accepted" : "declined") + (note.isEmpty ? "" : "|" + note)
+            t.acceptance = a
+            t.updatedAt = .now
+            if !local && e.from != me && t.createdBy == me {
+                ctx.insert(ActivityItem(kind: .taskUpdated, text: "\(engine.name(of: e.from)) \(accept ? "accepted" : "declined") “\(t.title)”\(note.isEmpty ? "" : ": " + note)",
+                                        convID: conv?.id, taskID: t.id, actorID: e.from, date: e.at))
+            }
+
         case .facetime(let handle):
             if e.from != me, let c = engine.contact(e.from) { c.facetime = handle }
 
@@ -582,6 +593,8 @@ struct EventApplier {
         t.completedBy = p.completedBy
         t.stamps = p.stamps
         t.repeatRule = p.repeatRule ?? "none"
+        t.needsAcceptance = p.needsAcceptance ?? false
+        if let fu = p.followUp { t.followUpRaw = fu }
         ctx.insert(t)
         if let src = p.sourceMessageID, let m = engine.message(src) { m.taskID = t.id }
         if let convID, let conv = engine.conversation(convID) {
@@ -589,7 +602,7 @@ struct EventApplier {
         }
         if e.from != me && !local && t.involves(me) {
             let text = p.assignees.contains(me)
-                ? "\(engine.name(of: e.from)) assigned you “\(p.title)”"
+                ? "\(engine.name(of: e.from)) assigned you “\(p.title)”\(t.needsAcceptance ? " — accept or decline" : "")"
                 : "\(engine.name(of: e.from)) created a group task “\(p.title)”"
             ctx.insert(ActivityItem(kind: .taskAssigned, text: text, convID: convID, taskID: t.id, actorID: e.from, date: e.at))
         }
@@ -684,7 +697,11 @@ struct EventApplier {
             line = task.map { "🗑 \(who) deleted the task “\($0.title)”" }
         case .checklist(let c):
             task = engine.task(c.taskID)
-            if !c.deleted, let t = task { line = "\(c.done ? "☑︎" : "☐") \(who) \(c.done ? "ticked" : "updated") “\(c.title)” in “\(t.title)”" }
+            // Only ticks are worth a line; adding or renaming steps would flood the chat.
+            if !c.deleted && c.done, let t = task { line = "☑︎ \(who) ticked “\(c.title)” in “\(t.title)”" }
+        case .taskAccept(let taskID, let accept, let note):
+            task = engine.task(taskID)
+            if let t = task { line = "\(accept ? "🤝" : "✋") \(who) \(accept ? "accepted" : "declined") the task “\(t.title)”\(note.isEmpty ? "" : " — " + note)" }
         case .comment(let c):
             task = engine.task(c.taskID)
             if let t = task { line = "💬 \(who) on “\(t.title)”: \(c.body.prefix(140))" }

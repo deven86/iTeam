@@ -4,6 +4,7 @@ import PhotosUI
 import UserNotifications
 
 struct SettingsView: View {
+    @EnvironmentObject var router: Router
     @EnvironmentObject var engine: SyncEngine
     @EnvironmentObject var lock: AppLock
     @EnvironmentObject var modules: ModuleRegistry
@@ -80,6 +81,10 @@ struct SettingsView: View {
                 .lookRows()
 
                 Section {
+                    ModuleTilesSection()
+                    Button {
+                        router.openMyDay = Calendar.current.component(.hour, from: .now) >= 17 ? "evening" : "morning"
+                    } label: { Label("My Day", systemImage: "sun.max.fill") }
                     NavigationLink { ModuleStoreView() } label: {
                         HStack(spacing: 12) {
                             ModuleIcon(module: ModuleRegistry.businessPro, size: 36)

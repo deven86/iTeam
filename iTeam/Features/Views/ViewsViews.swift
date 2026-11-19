@@ -306,7 +306,7 @@ struct NewPostView: View {
             .lookRows()
             Section {
                 Picker("Who can see it", selection: $audienceMode) {
-                    Text("All my contacts").tag(0)
+                    Text("Everyone I chat with").tag(0)
                     Text("Choose chats & groups").tag(1)
                     if !Audience.saved.isEmpty { Text("A saved audience").tag(2) }
                 }
@@ -327,6 +327,9 @@ struct NewPostView: View {
                         ForEach(Audience.saved) { Text($0.name).tag($0.id) }
                     }
                 }
+                if audienceMode != 0 && targets.isEmpty {
+                    Text("Pick at least one chat to post.").font(.caption).foregroundStyle(look.warning)
+                }
             } header: {
                 Text("Audience")
             } footer: {
@@ -341,7 +344,7 @@ struct NewPostView: View {
             ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
             ToolbarItem(placement: .confirmationAction) {
                 Button(status ? "Share" : "Post") { publish() }.bold()
-                    .disabled(preparing || (text.trimmingCharacters(in: .whitespaces).isEmpty && media.isEmpty) || (audienceMode == 0 ? contacts.isEmpty : targets.isEmpty))
+                    .disabled(preparing || (text.trimmingCharacters(in: .whitespaces).isEmpty && media.isEmpty) || (audienceMode == 0 ? (targets.isEmpty && contacts.isEmpty) : targets.isEmpty))
             }
         }
         .onAppear {
@@ -359,9 +362,9 @@ struct NewPostView: View {
             let ids = Set(Audience.saved.first { $0.id == audienceID }?.convIDs ?? [])
             return realConvs.filter { ids.contains($0.id) }
         default:
-            // Existing chats only here (this runs while drawing); missing direct chats are created on publish.
-            let ids = Set(contacts.map { SyncEngine.directID(engine.me, $0.userID) })
-            return realConvs.filter { ids.contains($0.id) }
+            // Every one-to-one chat (existing chats only here, because this runs while drawing;
+            // direct chats for contacts I haven't messaged yet are created on publish).
+            return realConvs.filter { !$0.isGroup }
         }
     }
 
@@ -386,7 +389,10 @@ struct NewPostView: View {
     }
 
     private func publish() {
-        let to = audienceMode == 0 ? contacts.map { engine.directConversation(with: $0) } : targets
+        var to = targets
+        if audienceMode == 0 {
+            for c in contacts where !to.contains(where: { $0.peerID == c.userID }) { to.append(engine.directConversation(with: c)) }
+        }
         engine.publishPost(kind: status ? .moment : postKind, text: text.trimmingCharacters(in: .whitespacesAndNewlines),
                            media: media, uploads: uploads, status: status, to: to)
         Haptics.success()

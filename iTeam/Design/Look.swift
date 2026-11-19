@@ -419,15 +419,23 @@ private struct LookScreenModifier: ViewModifier {
     }
 }
 
+/// A tint under glass so text stays readable on busy photo wallpapers.
+private func readabilityTint(_ scheme: ColorScheme, clear: Bool) -> Color {
+    scheme == .dark ? Color.black.opacity(clear ? 0.38 : 0.30) : Color.white.opacity(clear ? 0.45 : 0.35)
+}
+
 private struct LookCardModifier: ViewModifier {
     @Environment(\.look) private var look
+    @Environment(\.colorScheme) private var scheme
     let cornerRadius: CGFloat
     let padding: CGFloat
 
     func body(content: Content) -> some View {
         let shaped = content.padding(padding).frame(maxWidth: .infinity, alignment: .leading)
         if look.glassCards {
-            shaped.glassEffect(look.glassClear ? .clear : .regular, in: .rect(cornerRadius: cornerRadius))
+            shaped
+                .background(readabilityTint(scheme, clear: look.glassClear), in: RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
+                .glassEffect(look.glassClear ? .clear : .regular, in: .rect(cornerRadius: cornerRadius))
         } else {
             shaped
                 .background(look.surface, in: RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
@@ -438,11 +446,12 @@ private struct LookCardModifier: ViewModifier {
 
 private struct LookRowsModifier: ViewModifier {
     @Environment(\.look) private var look
+    @Environment(\.colorScheme) private var scheme
     func body(content: Content) -> some View {
         if look.glassCards {
             content.listRowBackground(
-                Rectangle().fill(.ultraThinMaterial).opacity(look.glassClear ? 0.55 : 1)
-                    .overlay(Color.white.opacity(look.glassClear ? 0.10 : 0.06))
+                Rectangle().fill(.ultraThinMaterial).opacity(look.glassClear ? 0.7 : 1)
+                    .overlay(readabilityTint(scheme, clear: look.glassClear))
             )
         } else if look.style == .calm {
             content.listRowBackground(look.surface)
@@ -454,6 +463,7 @@ private struct LookRowsModifier: ViewModifier {
 
 private struct LookFloatingModifier<S: Shape>: ViewModifier {
     @Environment(\.look) private var look
+    @Environment(\.colorScheme) private var scheme
     @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
     let shape: S
     let interactive: Bool
@@ -464,7 +474,9 @@ private struct LookFloatingModifier<S: Shape>: ViewModifier {
                 .background(Color(.secondarySystemBackground), in: shape)
                 .overlay(shape.stroke(look.separator, lineWidth: 0.5))
         } else {
-            content.glassEffect(interactive ? Glass.regular.interactive() : Glass.regular, in: shape)
+            content
+                .background(readabilityTint(scheme, clear: false), in: shape)
+                .glassEffect(interactive ? Glass.regular.interactive() : Glass.regular, in: shape)
         }
     }
 }

@@ -86,6 +86,8 @@ final class Router: ObservableObject {
     @Published var availableTabs: [TabID] = [.tasks, .activity]
     /// The module shown inside the Modules hub, if any.
     @Published var hubOpen: TabID?
+    /// A module that isn't in the bottom bar, opened as a sheet (from Settings → Modules or a notification).
+    @Published var moduleSheet: TabID?
     @Published var openConversation: String?
     @Published var openTask: String?
     @Published var openCare: String?
@@ -127,7 +129,7 @@ final class Router: ObservableObject {
         case .chats, .settings, .hub:
             tab = t
         default:
-            if barTabs.contains(t) { tab = t } else { hubOpen = t; tab = .hub }
+            if barTabs.contains(t) { tab = t } else { moduleSheet = t }
         }
     }
 }
@@ -221,3 +223,5 @@ final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCent
         }
     }
 }
+
+extension Router.TabID: Identifiable { var id: String { rawValue } }

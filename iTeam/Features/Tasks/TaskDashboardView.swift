@@ -336,6 +336,13 @@ struct FlowChips: View {
 
     var body: some View {
         HStack(spacing: 6) {
+            if task.awaitsMe(engine.me) {
+                Chip(text: "Accept?", icon: "hand.raised.fill", color: look.warning)
+            } else if !task.pendingAcceptance.isEmpty {
+                Chip(text: "Awaiting \(task.pendingAcceptance.map { engine.name(of: $0) }.joined(separator: ", "))", icon: "hourglass", color: look.warning)
+            } else if !task.declinedBy.isEmpty {
+                Chip(text: "Declined", icon: "xmark.circle", color: look.danger)
+            }
             if let due = task.dueAt {
                 Chip(text: Fmt.due(due), icon: "calendar", color: task.isOverdue ? look.danger : (Calendar.current.isDateInToday(due) ? look.warning : look.textSecondary))
             }

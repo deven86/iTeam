@@ -313,6 +313,24 @@ enum WorkPriority: Int, Codable, CaseIterable {
     var repeatRule: String = "none"
     /// Follow-up schedule (Business Tasks Pro): JSON of FollowUp, "" = off.
     var followUpRaw: String = ""
+    /// Assigned to specific people: each must accept before it starts.
+    var needsAcceptance: Bool = false
+    /// userID → "accepted" / "declined" (+ optional note after "|").
+    var acceptanceData: Data?
+
+    var acceptance: [String: String] {
+        get { Packed.decode([String: String].self, acceptanceData) ?? [:] }
+        set { acceptanceData = newValue.isEmpty ? nil : Packed.encode(newValue) }
+    }
+    /// Assignees (other than the creator) who still have to accept.
+    var pendingAcceptance: [String] {
+        guard needsAcceptance else { return [] }
+        return assignees.filter { $0 != createdBy && acceptance[$0] == nil }
+    }
+    var declinedBy: [String] {
+        acceptance.filter { $0.value.hasPrefix("declined") }.map(\.key)
+    }
+    func awaitsMe(_ me: String) -> Bool { pendingAcceptance.contains(me) }
 
     var followUp: FollowUp? {
         get { followUpRaw.isEmpty ? nil : (try? JSONDecoder().decode(FollowUp.self, from: Data(followUpRaw.utf8))) }

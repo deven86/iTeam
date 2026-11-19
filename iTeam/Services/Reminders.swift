@@ -44,7 +44,7 @@ final class Reminders {
         // Tasks
         let tasks = (try? context.fetch(FetchDescriptor<TaskItem>(predicate: #Predicate { !$0.deleted && $0.dueAt != nil }))) ?? []
         let snoozed = UserDefaults.standard.dictionary(forKey: "reminders.snoozed") as? [String: Date] ?? [:]
-        for t in tasks where !t.isDone && t.involves(me) {
+        for t in tasks where !t.isDone && t.involves(me) && !t.awaitsMe(me) && !t.declinedBy.contains(me) {
             guard let due = t.dueAt else { continue }
             var body = t.title
             if let conv = t.convID, let title = convTitles[conv] { body += " · \(title)" }
@@ -64,7 +64,7 @@ final class Reminders {
         let followTasks = ((try? context.fetch(FetchDescriptor<TaskItem>(predicate: #Predicate { !$0.deleted && $0.followUpRaw != "" }))) ?? [])
         let convMembers = Dictionary(uniqueKeysWithValues: ((try? context.fetch(FetchDescriptor<Conversation>())) ?? []).map { ($0.id, Set($0.members.map(\.id))) })
         let cal = Calendar.current
-        for t in followTasks where !t.isDone {
+        for t in followTasks where !t.isDone && !t.declinedBy.contains(me) {
             guard let fu = t.followUp else { continue }
             let inGroup = t.convID.flatMap { convMembers[$0]?.contains(me) } ?? false
             guard t.involves(me) || (fu.wholeGroup && inGroup) else { continue }

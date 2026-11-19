@@ -128,11 +128,11 @@ final class ModuleRegistry: ObservableObject {
     @Published private(set) var pinned: [String]
     /// The iPhone bar holds Chats, up to this many modules, Modules and Settings — five in all,
     /// the most iOS shows before it hides tabs behind “More”.
-    static let maxPinned = 2
+    static let maxPinned = 3
 
     private init() {
         enabled = UserDefaults.standard.dictionary(forKey: "modules.enabled") as? [String: Bool] ?? [:]
-        pinned = UserDefaults.standard.stringArray(forKey: "modules.pinned") ?? ["views", "tasks"]
+        pinned = UserDefaults.standard.stringArray(forKey: "modules.pinned2") ?? ["views", "tasks", "activity"]
     }
 
     /// Which of the available module tabs go in the bar: the user's pins first, then the rest in order.
@@ -144,7 +144,7 @@ final class ModuleRegistry: ObservableObject {
 
     func setPins(_ tabs: [Router.TabID]) {
         pinned = tabs.map(\.rawValue)
-        UserDefaults.standard.set(pinned, forKey: "modules.pinned")
+        UserDefaults.standard.set(pinned, forKey: "modules.pinned2")
     }
 
     /// The user has the right to use the module: included ones always; paid ones with an active subscription.

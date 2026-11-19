@@ -212,8 +212,20 @@ struct ContactInfoView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.look) private var look
     @State private var refreshing = false
+    @Query(filter: #Predicate<TaskItem> { !$0.deleted }, sort: \TaskItem.createdAt, order: .reverse) private var allTasks: [TaskItem]
 
     private var contact: Contact? { conv.peerID.flatMap { engine.contact($0) } }
+
+    /// Tasks between me and this person, from any chat.
+    private var shared: [TaskItem] {
+        guard let peer = conv.peerID else { return [] }
+        let me = engine.me
+        return allTasks.filter { t in
+            t.convID == conv.id
+                || (t.createdBy == me && t.assignees.contains(peer))
+                || (t.createdBy == peer && t.assignees.contains(me))
+        }
+    }
 
     var body: some View {
         List {
@@ -239,6 +251,22 @@ struct ContactInfoView: View {
                 NavigationLink { ChatWallpaperPicker(conv: conv) } label: { Label("Chat wallpaper", systemImage: "photo.artframe") }
             }
             .lookRows()
+
+            if !shared.isEmpty, let peer = conv.peerID {
+                Section("Tasks with \(contact?.name ?? conv.title)") {
+                    ForEach(shared.prefix(30)) { t in
+                        NavigationLink { TaskDetailView(taskID: t.id) } label: {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(t.title).strikethrough(t.isDone)
+                                Text(t.createdBy == engine.me ? (t.assignees.contains(peer) ? "You assigned · \(t.awaitsMe(peer) ? "waiting to accept" : t.status.title)" : t.status.title)
+                                     : "Assigned to you · \(t.awaitsMe(engine.me) ? "needs your answer" : t.status.title)")
+                                    .font(.caption).foregroundStyle(look.textSecondary)
+                            }
+                        }
+                    }
+                }
+                .lookRows()
+            }
 
             if let contact {
                 Section {

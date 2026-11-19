@@ -1,8 +1,8 @@
 import SwiftUI
 import SwiftData
 
-/// Bottom bar on iPhone: Chats · up to two modules · Modules · Settings (five tabs, so iOS never
-/// hides any behind “More”). Every other module opens from the Modules hub. On iPad the bar becomes
+/// Bottom bar on iPhone: Chats · three modules you pick · Settings (five tabs, so iOS never hides any
+/// behind “More”). Every other module opens from Settings → Modules. On iPad the bar becomes
 /// a sidebar with room for everything, so all modules are listed there.
 struct RootView: View {
     @EnvironmentObject var engine: SyncEngine
@@ -80,14 +80,10 @@ struct RootView: View {
                 .badge(unreadActivity.count)
                 .hidden(!inBar.contains(.activity))
 
-                Tab("Modules", systemImage: "square.grid.2x2.fill", value: Router.TabID.hub) {
-                    ModulesHubView(available: available, inBar: inBar)
-                }
-                .badge(inBar.contains(.activity) ? 0 : unreadActivity.count)
-
                 Tab("Settings", systemImage: "gearshape.fill", value: Router.TabID.settings) {
                     SettingsView()
                 }
+                .badge(inBar.contains(.activity) ? 0 : unreadActivity.count)
             }
             .tabViewStyle(.sidebarAdaptable)
             .onAppear { router.barTabs = inBar; router.availableTabs = available }
@@ -96,8 +92,11 @@ struct RootView: View {
                 router.barTabs = bar
                 // A tab that just left the bar reopens inside the hub instead of vanishing.
                 if [Router.TabID.views, .tasks, .care, .gym, .activity].contains(router.tab), !bar.contains(router.tab) {
-                    router.go(router.tab)
+                    router.tab = .chats
                 }
+            }
+            .sheet(item: $router.moduleSheet) { t in
+                ModulesHubView.content(t).presentationDragIndicator(.visible)
             }
             .sheet(isPresented: Binding(get: { router.openMyDay != nil }, set: { if !$0 { router.openMyDay = nil } })) {
                 NavigationStack { MyDayView(evening: router.openMyDay == "evening") }
@@ -269,7 +268,7 @@ struct BottomBarSettingsView: View {
             } header: {
                 Text("In the bottom bar (pick \(ModuleRegistry.maxPinned))")
             } footer: {
-                Text("iPhone shows five tabs: Chats, two modules, Modules and Settings. Everything else opens from the Modules tab, so adding more modules never crowds the bar. On iPad every module is listed in the sidebar.")
+                Text("iPhone shows five tabs: Chats, three modules you pick, and Settings. Every other module opens from Settings → Modules, so adding more modules never crowds the bar. On iPad every module is listed in the sidebar.")
             }
             .lookRows()
         }
@@ -289,5 +288,40 @@ struct BottomBarSettingsView: View {
             if next.count > ModuleRegistry.maxPinned { next.removeFirst() }
         }
         modules.setPins(next)
+    }
+}
+
+/// Settings → Modules: every module you can open, as app-style tiles, plus My Day, store and requests.
+struct ModuleTilesSection: View {
+    @EnvironmentObject var router: Router
+    @Environment(\.look) private var look
+    @Query(filter: #Predicate<ActivityItem> { !$0.read }) private var unreadActivity: [ActivityItem]
+    private let columns = [GridItem(.adaptive(minimum: 84), spacing: 14)]
+
+    var body: some View {
+        LazyVGrid(columns: columns, spacing: 16) {
+            ForEach(router.availableTabs, id: \.self) { t in
+                let info = ModulesHubView.tileInfo(t)
+                Button {
+                    Haptics.tap()
+                    if router.barTabs.contains(t) { router.tab = t } else { router.moduleSheet = t }
+                } label: {
+                    VStack(spacing: 6) {
+                        Image(systemName: info.icon)
+                            .font(.system(size: 24, weight: .semibold)).foregroundStyle(.white)
+                            .frame(width: 56, height: 56)
+                            .background(LinearGradient(colors: info.colors.map { Color(hex: $0) }, startPoint: .topLeading, endPoint: .bottomTrailing),
+                                        in: RoundedRectangle(cornerRadius: 15, style: .continuous))
+                            .overlay(alignment: .topTrailing) {
+                                if t == .activity, !unreadActivity.isEmpty { CountBadge(count: unreadActivity.count).offset(x: 6, y: -6) }
+                            }
+                        Text(info.title).font(.caption.weight(.medium)).foregroundStyle(Color.primary).lineLimit(1)
+                        if router.barTabs.contains(t) { Text("In bar").font(.caption2).foregroundStyle(look.textSecondary) }
+                    }
+                }
+                .buttonStyle(PressStyle())
+            }
+        }
+        .padding(.vertical, 6)
     }
 }

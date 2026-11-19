@@ -9,7 +9,8 @@ enum ITeamSchema {
         Contact.self, Conversation.self, Message.self, TaskItem.self, ChecklistItem.self, TaskComment.self,
         ActivityItem.self, OutboxItem.self, PendingEnvelope.self, SentRecord.self,
         TaskFile.self, Approval.self, Expense.self, Poll.self,
-        CareProfile.self, Medicine.self, DoseLog.self, HealthEvent.self, VaultItem.self
+        CareProfile.self, Medicine.self, DoseLog.self, HealthEvent.self, VaultItem.self,
+        GymMember.self, GymPlan.self, GymSession.self, GymPayment.self
     ]
 }
 
@@ -395,7 +396,7 @@ enum WorkPriority: Int, Codable, CaseIterable {
 // MARK: - Activity
 
 enum ActivityKind: String {
-    case mention, taskAssigned, taskUpdated, taskCompleted, taskComment, group, sync, contact, approval, expense, care
+    case mention, taskAssigned, taskUpdated, taskCompleted, taskComment, group, sync, contact, approval, expense, care, gym
     var icon: String {
         switch self {
         case .mention: "at"
@@ -409,6 +410,7 @@ enum ActivityKind: String {
         case .approval: "checkmark.seal"
         case .expense: "indianrupeesign.circle"
         case .care: "heart.text.square"
+        case .gym: "dumbbell.fill"
         }
     }
 }

@@ -366,6 +366,66 @@ struct EventApplier {
                 }
             }
 
+        case .gymMember(let g):
+            guard let conv else { return .needsConversation }
+            let gid = g.id
+            let existing = try? ctx.fetch(FetchDescriptor<GymMember>(predicate: #Predicate { $0.id == gid })).first
+            if let existing, g.at <= existing.updatedAt { return .ignored }
+            let m = existing ?? GymMember(id: g.id, convID: conv.id, name: g.name, createdBy: e.from)
+            if existing == nil {
+                m.createdAt = e.at
+                ctx.insert(m)
+                if !local && e.from != me {
+                    gymAlert("🏋️ \(engine.name(of: e.from)) added \(g.name) to Gym & Training in “\(conv.title)”", conv: conv, from: e.from, at: e.at)
+                }
+            }
+            m.name = g.name; m.relation = g.relation; m.phone = g.phone; m.goal = g.goal
+            m.trainer = g.trainer; m.feePerSession = g.fee; m.deleted = g.deleted; m.updatedAt = g.at
+            if let a = g.avatar { m.avatar = a }
+
+        case .gymPlan(let g):
+            let gid = g.id
+            let existing = try? ctx.fetch(FetchDescriptor<GymPlan>(predicate: #Predicate { $0.id == gid })).first
+            if let existing, g.at <= existing.updatedAt { return .ignored }
+            let p = existing ?? GymPlan(id: g.id, memberID: g.memberID)
+            if existing == nil {
+                ctx.insert(p)
+                if !local && e.from != me, let who = gymMember(g.memberID) {
+                    gymAlert("🏢 \(engine.name(of: e.from)) added a \(g.planName.isEmpty ? "membership" : g.planName) at \(g.gymName) for \(who.name)", conv: conv, from: e.from, at: e.at)
+                }
+            }
+            p.gymName = g.gymName; p.branch = g.branch; p.planName = g.planName; p.startDate = g.start; p.endDate = g.end
+            p.fee = g.fee; p.notes = g.notes; p.deleted = g.deleted; p.updatedAt = g.at
+
+        case .gymSession(let g):
+            let gid = g.id
+            let existing = try? ctx.fetch(FetchDescriptor<GymSession>(predicate: #Predicate { $0.id == gid })).first
+            if let existing, g.at <= existing.updatedAt { return .ignored }
+            let s = existing ?? GymSession(id: g.id, memberID: g.memberID)
+            if existing == nil {
+                s.by = e.from
+                ctx.insert(s)
+                if !local && e.from != me, let who = gymMember(g.memberID) {
+                    gymAlert("💪 \(engine.name(of: e.from)) logged a training session for \(who.name)\(g.workout.isEmpty ? "" : ": " + g.workout)", conv: conv, from: e.from, at: e.at)
+                }
+            }
+            s.date = g.date; s.trainer = g.trainer; s.workout = g.workout; s.notes = g.notes; s.deleted = g.deleted; s.updatedAt = g.at
+
+        case .gymPayment(let g):
+            let gid = g.id
+            let existing = try? ctx.fetch(FetchDescriptor<GymPayment>(predicate: #Predicate { $0.id == gid })).first
+            if let existing, g.at <= existing.updatedAt { return .ignored }
+            let p = existing ?? GymPayment(id: g.id, memberID: g.memberID)
+            if existing == nil {
+                p.by = e.from
+                ctx.insert(p)
+                if !local && e.from != me, let who = gymMember(g.memberID) {
+                    gymAlert("🧾 \(engine.name(of: e.from)) recorded \(Money.format(g.amount)) for \(who.name) — \(GymPaymentKind(rawValue: g.kind)?.title ?? "payment")", conv: conv, from: e.from, at: e.at)
+                }
+            }
+            p.kind = g.kind; p.amount = g.amount; p.date = g.date; p.method = g.method; p.sessions = g.sessions
+            p.notes = g.notes; p.receipts = g.receipts; p.deleted = g.deleted; p.updatedAt = g.at
+
         case .group, .receipt:
             break
         }
@@ -475,6 +535,14 @@ struct EventApplier {
 
     private func medicine(_ id: String) -> Medicine? {
         try? ctx.fetch(FetchDescriptor<Medicine>(predicate: #Predicate { $0.id == id })).first
+    }
+
+    private func gymMember(_ id: String) -> GymMember? {
+        try? ctx.fetch(FetchDescriptor<GymMember>(predicate: #Predicate { $0.id == id })).first
+    }
+
+    private func gymAlert(_ text: String, conv: Conversation?, from: String, at: Date) {
+        ctx.insert(ActivityItem(kind: .gym, text: text, convID: conv?.id, actorID: from, date: at))
     }
 
     private func careAlert(_ text: String, conv: Conversation?, from: String, at: Date) {

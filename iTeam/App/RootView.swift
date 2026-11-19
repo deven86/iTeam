@@ -12,6 +12,8 @@ struct RootView: View {
     @Environment(\.horizontalSizeClass) private var sizeClass
     @Query private var conversations: [Conversation]
     @Query(filter: #Predicate<ActivityItem> { !$0.read }) private var unreadActivity: [ActivityItem]
+    @Query(filter: #Predicate<CareProfile> { !$0.deleted }) private var careProfiles: [CareProfile]
+    @Query(filter: #Predicate<GymMember> { !$0.deleted }) private var gymMembers: [GymMember]
 
     private var unreadChats: Int { conversations.filter { !$0.muted && $0.unread > 0 }.count }
 
@@ -19,7 +21,13 @@ struct RootView: View {
     private var available: [Router.TabID] {
         var a: [Router.TabID] = []
         if modules.isOn(ModuleRegistry.businessTasks) { a.append(.tasks) }
-        if modules.isVisible(ModuleRegistry.iLifeCare) { a.append(.care) }
+        // Paid modules appear once bought (or unlocked for the owner / TestFlight testing) — or when
+        // someone else shared a profile with you, because members use shared profiles free.
+        let me = engine.me
+        let sharedCare = careProfiles.contains { $0.createdBy != me && !$0.id.hasPrefix("c_demo") }
+        let sharedGym = gymMembers.contains { $0.createdBy != me && !$0.id.hasPrefix("g_demo") }
+        if modules.isOn(ModuleRegistry.iLifeCare) || (sharedCare && modules.isVisible(ModuleRegistry.iLifeCare)) { a.append(.care) }
+        if modules.isOn(ModuleRegistry.gymTraining) || (sharedGym && modules.isVisible(ModuleRegistry.gymTraining)) { a.append(.gym) }
         a.append(.activity)
         return a
     }
@@ -48,6 +56,11 @@ struct RootView: View {
                 }
                 .hidden(!inBar.contains(.care))
 
+                Tab("Gym", systemImage: "dumbbell.fill", value: Router.TabID.gym) {
+                    GymHomeView()
+                }
+                .hidden(!inBar.contains(.gym))
+
                 Tab("Activity", systemImage: "bell.fill", value: Router.TabID.activity) {
                     ActivityView()
                 }
@@ -64,11 +77,12 @@ struct RootView: View {
                 }
             }
             .tabViewStyle(.sidebarAdaptable)
-            .onAppear { router.barTabs = inBar }
+            .onAppear { router.barTabs = inBar; router.availableTabs = available }
+            .onChange(of: available) { _, a in router.availableTabs = a }
             .onChange(of: inBar) { _, bar in
                 router.barTabs = bar
                 // A tab that just left the bar reopens inside the hub instead of vanishing.
-                if [Router.TabID.tasks, .care, .activity].contains(router.tab), !bar.contains(router.tab) {
+                if [Router.TabID.tasks, .care, .gym, .activity].contains(router.tab), !bar.contains(router.tab) {
                     router.go(router.tab)
                 }
             }
@@ -113,6 +127,7 @@ struct ModulesHubView: View {
         switch t {
         case .tasks: TaskDashboardView()
         case .care: CareHomeView()
+        case .gym: GymHomeView()
         default: ActivityView()
         }
     }
@@ -183,6 +198,7 @@ struct ModulesHubView: View {
         switch t {
         case .tasks: ("Tasks", ModuleRegistry.businessTasks.icon, ModuleRegistry.businessTasks.colors)
         case .care: ("Care", ModuleRegistry.iLifeCare.icon, ModuleRegistry.iLifeCare.colors)
+        case .gym: ("Gym", ModuleRegistry.gymTraining.icon, ModuleRegistry.gymTraining.colors)
         default: ("Activity", "bell.fill", [0xFFB347, 0xFF6F61])
         }
     }
@@ -204,15 +220,10 @@ struct ModulesHubView: View {
 /// Settings → Bottom bar: pick the two modules that sit next to Chats.
 struct BottomBarSettingsView: View {
     @EnvironmentObject var modules: ModuleRegistry
+    @EnvironmentObject var router: Router
     @Environment(\.look) private var look
 
-    private var options: [Router.TabID] {
-        var a: [Router.TabID] = []
-        if modules.isOn(ModuleRegistry.businessTasks) { a.append(.tasks) }
-        if modules.isVisible(ModuleRegistry.iLifeCare) { a.append(.care) }
-        a.append(.activity)
-        return a
-    }
+    private var options: [Router.TabID] { router.availableTabs }
 
     var body: some View {
         let bar = modules.barTabs(available: options)

@@ -447,6 +447,45 @@ extension SyncEngine {
         send(.vote(VotePayload(pollID: poll.id, optionIDs: options)), in: conv, loud: false)
     }
 
+    // MARK: - Gym & Training
+
+    func gymMember(_ id: String) -> GymMember? {
+        try? context.fetch(FetchDescriptor<GymMember>(predicate: #Predicate { $0.id == id })).first
+    }
+
+    @discardableResult
+    func saveGymMember(in conv: Conversation, id: String? = nil, name: String, relation: String, phone: String, goal: String,
+                       trainer: String, fee: Double, avatar: Data?, deleted: Bool = false) -> String {
+        let gid = id ?? "g_" + UUID().uuidString
+        let p = GymMemberPayload(id: gid, name: name, relation: relation, phone: phone, goal: goal, trainer: trainer, fee: fee,
+                                 avatar: avatar, deleted: deleted, at: .now)
+        send(.gymMember(p), in: conv, loud: id == nil, preview: "🏋️ Gym & Training: \(name)")
+        return gid
+    }
+
+    func saveGymPlan(_ m: GymMember, id: String? = nil, gymName: String, branch: String, planName: String, start: Date, end: Date,
+                     fee: Double, notes: String, deleted: Bool = false) {
+        guard let conv = conversation(m.convID) else { return }
+        let p = GymPlanPayload(id: id ?? UUID().uuidString, memberID: m.id, gymName: gymName, branch: branch, planName: planName,
+                               start: start, end: end, fee: fee, notes: notes, deleted: deleted, at: .now)
+        send(.gymPlan(p), in: conv, loud: id == nil, preview: "🏢 \(m.name): \(gymName)")
+    }
+
+    func saveGymSession(_ m: GymMember, id: String? = nil, date: Date, trainer: String, workout: String, notes: String, deleted: Bool = false) {
+        guard let conv = conversation(m.convID) else { return }
+        let p = GymSessionPayload(id: id ?? UUID().uuidString, memberID: m.id, date: date, trainer: trainer, workout: workout,
+                                  notes: notes, deleted: deleted, at: .now)
+        send(.gymSession(p), in: conv, loud: id == nil, preview: "💪 \(m.name): training session")
+    }
+
+    func saveGymPayment(_ m: GymMember, id: String? = nil, kind: GymPaymentKind, amount: Double, date: Date, method: String,
+                        sessions: Int, notes: String, receipts: [AttachmentRef], uploads: [String: String] = [:], deleted: Bool = false) {
+        guard let conv = conversation(m.convID) else { return }
+        let p = GymPaymentPayload(id: id ?? UUID().uuidString, memberID: m.id, kind: kind.rawValue, amount: amount, date: date,
+                                  method: method, sessions: sessions, notes: notes, receipts: receipts, deleted: deleted, at: .now)
+        send(.gymPayment(p), in: conv, loud: id == nil, preview: "🧾 \(m.name): \(Money.format(amount))", uploads: uploads)
+    }
+
     func careProfile(_ id: String) -> CareProfile? {
         try? context.fetch(FetchDescriptor<CareProfile>(predicate: #Predicate { $0.id == id })).first
     }

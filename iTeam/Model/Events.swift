@@ -34,6 +34,10 @@ struct Event: Codable {
         case dose(DosePayload)
         case healthEvent(HealthEventPayload)
         case vault(VaultPayload)
+        case gymMember(GymMemberPayload)
+        case gymPlan(GymPlanPayload)
+        case gymSession(GymSessionPayload)
+        case gymPayment(GymPaymentPayload)
     }
 }
 
@@ -281,4 +285,58 @@ extension TaskItem {
         if !changed.isEmpty { updatedAt = .now }
         return changed
     }
+}
+
+// MARK: Gym & Training
+
+struct GymMemberPayload: Codable {
+    var id: String
+    var name: String
+    var relation: String
+    var phone: String
+    var goal: String
+    var trainer: String
+    var fee: Double
+    var avatar: Data?
+    var deleted: Bool
+    var at: Date
+}
+
+struct GymPlanPayload: Codable {
+    var id: String
+    var memberID: String
+    var gymName: String
+    var branch: String
+    var planName: String
+    var start: Date
+    var end: Date
+    var fee: Double
+    var notes: String
+    var deleted: Bool
+    var at: Date
+}
+
+struct GymSessionPayload: Codable {
+    var id: String
+    var memberID: String
+    var date: Date
+    var trainer: String
+    var workout: String
+    var notes: String
+    var deleted: Bool
+    var at: Date
+}
+
+struct GymPaymentPayload: Codable {
+    var id: String
+    var memberID: String
+    var kind: String
+    var amount: Double
+    var date: Date
+    var method: String
+    var sessions: Int
+    var notes: String
+    var receipts: [AttachmentRef]
+    var deleted: Bool
+    var at: Date
 }

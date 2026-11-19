@@ -77,16 +77,19 @@ struct iTeamApp: App {
 @MainActor
 final class Router: ObservableObject {
     static let shared = Router()
-    enum TabID: String, Hashable { case chats, tasks, care, activity, hub, settings }
+    enum TabID: String, Hashable { case chats, tasks, care, gym, activity, hub, settings }
 
     @Published var tab: TabID = .chats
     /// Module tabs currently in the bottom bar (set by RootView). Others open inside the Modules hub.
-    @Published var barTabs: [TabID] = [.tasks, .care, .activity]
+    @Published var barTabs: [TabID] = [.tasks, .activity]
+    /// Every module tab the user can open right now (set by RootView).
+    @Published var availableTabs: [TabID] = [.tasks, .activity]
     /// The module shown inside the Modules hub, if any.
     @Published var hubOpen: TabID?
     @Published var openConversation: String?
     @Published var openTask: String?
     @Published var openCare: String?
+    @Published var openGym: String?
     @Published var pendingInvite: SyncEngine.Invite?
 
     func handle(_ url: URL) {
@@ -104,6 +107,11 @@ final class Router: ObservableObject {
     func show(care: String) {
         go(.care)
         openCare = care
+    }
+
+    func show(gym: String) {
+        go(.gym)
+        openGym = gym
     }
 
     func show(task: String) {

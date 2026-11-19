@@ -13,6 +13,7 @@ struct ModuleInfo: Identifiable {
         case recurring, templates, reports
         case careToday, careEvent, careVault
         case workspaces, library, assistant
+        case gymDashboard, gymForm, gymSessions
     }
 
     let id: String
@@ -80,6 +81,22 @@ final class ModuleRegistry: ObservableObject {
         previews: [.careDashboard, .medicineForm, .careToday, .careEvent, .careVault],
         note: "Only the person who creates care profiles needs the subscription; family members use them free.")
 
+    static let gymTraining = ModuleInfo(
+        id: "gym-training", title: "Gym & Training",
+        tagline: "Memberships, trainer sessions and payments — shared with your trainer, clients or family.",
+        icon: "dumbbell.fill", colors: [0x4FD1C5, 0x2B6CB0], availability: .paid,
+        productID: Store.gymProductID, fallbackPrice: "₹99 / $0.99 a month",
+        problems: ["Forgetting when the gym membership runs out",
+                   "Arguments over how many personal-training sessions are done and how many are paid",
+                   "Fees, supplement bills and receipts scattered across UPI apps and paper"],
+        benefits: ["Add yourself, family or clients — with relations like Client, or your own custom relation",
+                   "Membership with days left, renewal warnings, directions and call buttons",
+                   "One-tap “Trained today” — sessions counted per training day, visible to trainer and client",
+                   "Training balance: sessions paid vs done, so both sides always agree",
+                   "Payments with receipt photos; monthly and yearly spend; PDF statement to share"],
+        previews: [.gymDashboard, .gymForm, .gymSessions],
+        note: "Only the person who adds members needs the subscription; trainers, clients and family in the chat use it free.")
+
     static let teamWorkspace = ModuleInfo(
         id: "team-workspace", title: "Team Workspace",
         tagline: "Keep office, trust and family separate.",
@@ -104,7 +121,7 @@ final class ModuleRegistry: ObservableObject {
         benefits: ["“What did I miss?” summaries", "Suggested tasks from messages", "Runs on-device with Apple Intelligence (iPhone 15 Pro and newer)"],
         previews: [.assistant], note: "In development.")
 
-    static let all: [ModuleInfo] = [businessTasks, businessPro, iLifeCare, teamWorkspace, filesKnowledge, aiAssistant]
+    static let all: [ModuleInfo] = [businessTasks, businessPro, iLifeCare, gymTraining, teamWorkspace, filesKnowledge, aiAssistant]
 
     @Published private var enabled: [String: Bool]
     /// Modules the user wants in the iPhone bottom bar, in order (Router.TabID raw values).

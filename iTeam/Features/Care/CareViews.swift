@@ -396,11 +396,9 @@ struct CareProfileEditor: View {
                     PhotosPicker(selection: $photo, matching: .images) {
                         AvatarView(name: name.isEmpty ? "?" : name, imageData: avatar, size: 64)
                     }
-                    VStack {
-                        TextField("Name (e.g. Mom)", text: $name).font(.title3)
-                        TextField("Relation (e.g. Mother, Team member)", text: $relation)
-                    }
+                    TextField("Name (e.g. Mom)", text: $name).font(.title3)
                 }
+                RelationPicker(relation: $relation)
             }
             .lookRows()
             if profile == nil {

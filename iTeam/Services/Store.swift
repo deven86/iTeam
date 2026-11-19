@@ -7,7 +7,8 @@ final class Store: ObservableObject {
     static let shared = Store()
     static let careProductID = "com.jondhale.iteam.care.monthly"
     static let proProductID = "com.jondhale.iteam.pro.monthly"
-    static let allProducts = [careProductID, proProductID]
+    static let gymProductID = "com.jondhale.iteam.gym.monthly"
+    static let allProducts = [careProductID, proProductID, gymProductID]
 
     @Published private(set) var active: Set<String> = []
     @Published private(set) var products: [String: Product] = [:]

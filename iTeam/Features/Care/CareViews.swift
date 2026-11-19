@@ -64,7 +64,7 @@ struct CareHomeView: View {
     }
 
     private func startNew() {
-        if store.careUnlocked { showNew = true } else { showPaywall = true }
+        showNew = true   // Care is free for everyone
     }
 
     private var dueToday: [(Medicine, Date, CareProfile)] {
@@ -213,6 +213,8 @@ struct CareProfileView: View {
                     VStack(alignment: .leading, spacing: 4) {
                         Text(p.name).font(.title2.bold())
                         if !p.relation.isEmpty { Text(p.relation).foregroundStyle(look.textSecondary) }
+                        Text(p.createdBy == engine.me ? "Managed by you" : "Managed by \(engine.name(of: p.createdBy))")
+                            .font(.caption2).foregroundStyle(look.textSecondary)
                         if let conv = engine.conversation(p.convID) {
                             Button { router.show(conversation: conv.id) } label: {
                                 Label("Shared in \(conv.title)", systemImage: conv.isGroup ? "person.3" : "bubble.left").font(.caption)

@@ -69,8 +69,8 @@ final class ModuleRegistry: ObservableObject {
     static let iLifeCare = ModuleInfo(
         id: "ilife-care", title: "iLife Care",
         tagline: "Look after family health together.",
-        icon: "heart.text.square.fill", colors: [0xFF8A5B, 0xE5486B], availability: .paid,
-        productID: Store.careProductID, fallbackPrice: "₹99 / $0.99 a month",
+        icon: "heart.text.square.fill", colors: [0xFF8A5B, 0xE5486B], availability: .included,
+        productID: nil, fallbackPrice: "Free",
         problems: ["Missed or double doses when several people look after one person",
                    "Injury and recovery updates lost in family chats",
                    "Reports and prescriptions scattered across phones and paper files"],
@@ -80,7 +80,7 @@ final class ModuleRegistry: ObservableObject {
                    "Medical vault for reports, prescriptions, X-rays and insurance",
                    "Blood group, allergies, conditions and emergency contact in one place"],
         previews: [.careDashboard, .medicineForm, .careToday, .careEvent, .careVault],
-        note: "Only the person who creates care profiles needs the subscription; family members use them free.")
+        note: "Free for everyone — caring for family and patients is never charged.")
 
     static let gymTraining = ModuleInfo(
         id: "gym-training", title: "Gym & Training",
@@ -90,13 +90,16 @@ final class ModuleRegistry: ObservableObject {
         problems: ["Forgetting when the gym membership runs out",
                    "Arguments over how many personal-training sessions are done and how many are paid",
                    "Fees, supplement bills and receipts scattered across UPI apps and paper"],
-        benefits: ["Add yourself, family or clients — with relations like Client, or your own custom relation",
+        benefits: ["Full iLife fitness: exercise library with guides, workout logging with sets & reps, plans, live workout timer",
+                   "Nutrition: meals with photos, water, custom foods, daily macros; supplements with dose reminders",
+                   "Body: transformation photos, side-by-side compare, measurements",
+                   "Add yourself, family or clients — with relations like Client, or your own custom relation",
                    "Membership with days left, renewal warnings, directions and call buttons",
                    "One-tap “Trained today” — sessions counted per training day, visible to trainer and client",
                    "Training balance: sessions paid vs done, so both sides always agree",
                    "Payments with receipt photos; monthly and yearly spend; PDF statement to share"],
         previews: [.gymDashboard, .gymForm, .gymSessions],
-        note: "Only the person who adds members needs the subscription; trainers, clients and family in the chat use it free.")
+        note: "Only the trainer (or the person managing the gym records) pays. Clients never buy it: they just see the updates about themselves.")
 
     static let mindfulness = ModuleInfo(
         id: "mindfulness", title: "Mindfulness",

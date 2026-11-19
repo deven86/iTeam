@@ -2,6 +2,33 @@ import SwiftUI
 import SwiftData
 import PhotosUI
 
+/// The Gym & Training tab. People who own the module get the full iLife fitness module plus clients;
+/// clients a trainer shared with only see the records about themselves.
+struct GymModuleView: View {
+    @ObservedObject private var store = Store.shared
+    @State private var section = 0
+
+    var body: some View {
+        if store.isUnlocked(Store.gymProductID) {
+            Group {
+                if section == 0 { FitnessHomeView() } else { GymHomeView() }
+            }
+            .safeAreaInset(edge: .bottom, spacing: 0) {
+                Picker("Gym", selection: $section) {
+                    Label("My training", systemImage: "figure.strengthtraining.traditional").tag(0)
+                    Label("Clients & memberships", systemImage: "person.2.fill").tag(1)
+                }
+                .pickerStyle(.segmented)
+                .padding(8)
+                .lookFloating(in: Capsule())
+                .padding(.horizontal).padding(.bottom, 4)
+            }
+        } else {
+            GymHomeView()
+        }
+    }
+}
+
 /// Gym & Training: everyone you train or train with — you, family or clients — shared in a chat.
 struct GymHomeView: View {
     @EnvironmentObject var engine: SyncEngine
@@ -182,6 +209,8 @@ struct GymMemberView: View {
                     VStack(alignment: .leading, spacing: 3) {
                         Text(m.name).font(.title2.bold())
                         Text([m.relation, m.goal].filter { !$0.isEmpty }.joined(separator: " · ")).font(.subheadline).foregroundStyle(look.textSecondary)
+                        Label(m.createdBy == engine.me ? "Managed by you" : "Managed by \(engine.name(of: m.createdBy))",
+                              systemImage: "person.badge.shield.checkmark").font(.caption2).foregroundStyle(look.textSecondary)
                         if !m.trainer.isEmpty {
                             Label("Trainer \(m.trainer)\(m.feePerSession > 0 ? " · \(Money.format(m.feePerSession))/session" : "")",
                                   systemImage: "figure.strengthtraining.traditional").font(.caption)

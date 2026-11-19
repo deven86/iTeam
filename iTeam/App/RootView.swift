@@ -71,7 +71,7 @@ struct RootView: View {
                 .hidden(!inBar.contains(.care))
 
                 Tab("Gym", systemImage: "dumbbell.fill", value: Router.TabID.gym) {
-                    GymHomeView()
+                    GymModuleView()
                 }
                 .hidden(!inBar.contains(.gym))
 
@@ -149,7 +149,7 @@ struct ModulesHubView: View {
         case .views: ViewsHomeView()
         case .tasks: TaskDashboardView()
         case .care: CareHomeView()
-        case .gym: GymHomeView()
+        case .gym: GymModuleView()
         case .mind: MindHomeView()
         default: ActivityView()
         }

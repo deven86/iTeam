@@ -117,7 +117,7 @@ enum Skin: String, CaseIterable, Identifiable {
         case .nebula: "Nebula"
         case .forest: "Forest"
         case .graphite: "Graphite"
-        case .classic: "Classic Amp"
+        case .classic: "Retro Deck"
         case .photo: "My photo"
         }
     }

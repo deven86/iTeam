@@ -10,6 +10,8 @@ struct MessageBubble: View {
     var onEdit: () -> Void
     var onTask: () -> Void
     var onOpen: (URL) -> Void
+    var onForward: () -> Void = {}
+    var onShare: () -> Void = {}
 
     @EnvironmentObject var engine: SyncEngine
     @EnvironmentObject var router: Router
@@ -61,6 +63,10 @@ struct MessageBubble: View {
                 .background(Color.black.opacity(0.08), in: RoundedRectangle(cornerRadius: 10))
             }
 
+            if message.forwarded && !message.deleted {
+                Label("Forwarded", systemImage: "arrowshape.turn.up.right.fill")
+                    .font(.caption2.italic()).opacity(0.75)
+            }
             if message.deleted {
                 Label("This message was deleted", systemImage: "nosign").font(.subheadline.italic()).opacity(0.7)
             } else if let approvalID = message.approvalID {
@@ -177,6 +183,10 @@ struct MessageBubble: View {
             Button("Reply", systemImage: "arrowshape.turn.up.left") { onReply() }
             if !message.text.isEmpty {
                 Button("Copy", systemImage: "doc.on.doc") { UIPasteboard.general.string = message.text }
+            }
+            if message.approvalID == nil && message.pollID == nil && (!message.text.isEmpty || !message.attachments.isEmpty) {
+                Button("Forward", systemImage: "arrowshape.turn.up.right") { onForward() }
+                Button("Share…", systemImage: "square.and.arrow.up") { onShare() }
             }
             Button("Create Business Task", systemImage: "checklist") { onTask() }
             if mine && !message.text.isEmpty && message.approvalID == nil && message.pollID == nil {

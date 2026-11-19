@@ -42,6 +42,8 @@ struct MessagePayload: Codable {
     var text: String
     var replyTo: String?
     var attachments: [AttachmentRef]
+    /// Forwarded from another chat.
+    var fwd: Bool?
 }
 
 struct GroupPayload: Codable {

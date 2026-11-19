@@ -50,17 +50,121 @@ extension View {
 
 // MARK: - Logo
 
+/// The iTeam mark, drawn from one family of circles whose radii shrink by the golden ratio
+/// (r, r/φ, r/φ², …) — the same construction idea behind classic logo grids. A clear glass
+/// "chat" bubble with a solid "done" bubble in front: talk, then get it done.
+struct LogoGeometry {
+    static let phi: CGFloat = (1 + CGFloat(5).squareRoot()) / 2
+    static let r1: CGFloat = 0.30
+    static var r2: CGFloat { r1 / phi }
+    static var r3: CGFloat { r2 / phi }
+    static var r4: CGFloat { r3 / phi }
+    static var r5: CGFloat { r4 / phi }
+    static let c1 = CGPoint(x: 0.43, y: 0.44)
+    static let c2 = CGPoint(x: 0.645, y: 0.625)
+    static let t1 = CGPoint(x: 0.215, y: 0.735)
+    static let t2 = CGPoint(x: 0.835, y: 0.845)
+    /// Construction circles shown on the "Our logo" screen.
+    static var grid: [(CGPoint, CGFloat)] {
+        [(c1, r1), (c2, r2), (t1, r4), (t2, r5),
+         (CGPoint(x: c1.x + r1 - r3, y: c1.y), r3), (CGPoint(x: c2.x, y: c2.y - r2 + r4), r4)]
+    }
+}
+
 struct AppLogo: View {
     var size: CGFloat = 40
+    var showGrid = false
+    var rounded = true
+
     var body: some View {
-        ZStack {
-            RoundedRectangle(cornerRadius: size * 0.28, style: .continuous)
-                .fill(LinearGradient(colors: [Color(hex: 0x28BEE6), Color(hex: 0x3A5BD9), Color(hex: 0x7850F0)],
-                                     startPoint: .topLeading, endPoint: .bottomTrailing))
-            Image(systemName: "checkmark.bubble.fill").font(.system(size: size * 0.5, weight: .semibold)).foregroundStyle(.white)
+        let s = size
+        ZStack(alignment: .topLeading) {
+            LinearGradient(colors: [Color(hex: 0x1FB6E8), Color(hex: 0x3A5BD9), Color(hex: 0x6E3FE0)],
+                           startPoint: .topLeading, endPoint: .bottomTrailing)
+            RadialGradient(colors: [.white.opacity(0.35), .clear], center: UnitPoint(x: 0.3, y: 0.2), startRadius: 0, endRadius: s * 0.8)
+            glass(LogoGeometry.c1, LogoGeometry.r1, rim: max(1, s * 0.009))
+            glass(LogoGeometry.t1, LogoGeometry.r4, rim: max(0.7, s * 0.006))
+            solid(LogoGeometry.c2, LogoGeometry.r2)
+                .shadow(color: Color(hex: 0x0B1A5C).opacity(0.35), radius: s * 0.02, y: s * 0.03)
+            solid(LogoGeometry.t2, LogoGeometry.r5)
+            CheckShape()
+                .stroke(.white, style: StrokeStyle(lineWidth: s * 0.042, lineCap: .round, lineJoin: .round))
+                .frame(width: s, height: s)
+            if showGrid {
+                ForEach(Array(LogoGeometry.grid.enumerated()), id: \.offset) { _, g in
+                    Circle().stroke(Color(hex: 0xFFE066), style: StrokeStyle(lineWidth: 1.5, dash: [6, 5]))
+                        .frame(width: g.1 * 2 * s, height: g.1 * 2 * s)
+                        .offset(x: (g.0.x - g.1) * s, y: (g.0.y - g.1) * s)
+                }
+            }
         }
-        .frame(width: size, height: size)
-        .shadow(color: Color(hex: 0x28BEE6).opacity(0.45), radius: size * 0.18)
+        .frame(width: s, height: s)
+        .clipShape(RoundedRectangle(cornerRadius: rounded ? s * 0.225 : 0, style: .continuous))
+        .shadow(color: Color(hex: 0x28BEE6).opacity(0.35), radius: s * 0.12)
+        .accessibilityLabel("iTeam")
+    }
+
+    private func glass(_ c: CGPoint, _ r: CGFloat, rim: CGFloat) -> some View {
+        Circle()
+            .fill(LinearGradient(colors: [.white.opacity(0.38), .white.opacity(0.16)], startPoint: .topLeading, endPoint: .bottomTrailing))
+            .overlay(Circle().stroke(LinearGradient(colors: [.white.opacity(0.95), .white.opacity(0.25), .white.opacity(0.7)],
+                                                    startPoint: .topLeading, endPoint: .bottomTrailing), lineWidth: rim))
+            .overlay(alignment: .topLeading) {
+                Ellipse().fill(.white.opacity(0.5)).blur(radius: r * size * 0.12)
+                    .frame(width: r * size * 0.85, height: r * size * 0.33)
+                    .rotationEffect(.degrees(-32))
+                    .offset(x: r * size * 0.3, y: r * size * 0.35)
+            }
+            .frame(width: r * 2 * size, height: r * 2 * size)
+            .offset(x: (c.x - r) * size, y: (c.y - r) * size)
+    }
+
+    private func solid(_ c: CGPoint, _ r: CGFloat) -> some View {
+        Circle()
+            .fill(LinearGradient(colors: [Color(hex: 0x7CF5E0), Color(hex: 0x19C2A0)], startPoint: .topLeading, endPoint: .bottomTrailing))
+            .overlay(Circle().stroke(.white.opacity(0.85), lineWidth: max(0.8, size * 0.007)))
+            .frame(width: r * 2 * size, height: r * 2 * size)
+            .offset(x: (c.x - r) * size, y: (c.y - r) * size)
+    }
+
+    /// The tick inside the "done" bubble.
+    private struct CheckShape: Shape {
+        func path(in rect: CGRect) -> Path {
+            let c = LogoGeometry.c2, w = rect.width
+            var p = Path()
+            p.move(to: CGPoint(x: (c.x - 0.085) * w, y: (c.y + 0.005) * w))
+            p.addLine(to: CGPoint(x: (c.x - 0.022) * w, y: (c.y + 0.065) * w))
+            p.addLine(to: CGPoint(x: (c.x + 0.095) * w, y: (c.y - 0.06) * w))
+            return p
+        }
+    }
+}
+
+/// Settings → About → Our logo: the golden-ratio construction behind the icon.
+struct LogoStoryView: View {
+    @State private var grid = true
+    @Environment(\.look) private var look
+
+    var body: some View {
+        ScrollView {
+            VStack(spacing: 20) {
+                AppLogo(size: 260, showGrid: grid).padding(.top, 20)
+                Toggle("Show construction circles", isOn: $grid.animation()).lookCard()
+                VStack(alignment: .leading, spacing: 10) {
+                    Text("Built on the golden ratio").font(.headline)
+                    Text("Every circle in the mark comes from one family: each is the previous one divided by φ ≈ 1.618. The big clear bubble is the conversation, the smaller solid bubble is the work that comes out of it, and the two tiny bubbles are the tails that make them speech bubbles.")
+                        .font(.subheadline).foregroundStyle(look.textSecondary)
+                    Text("Glass on top, colour underneath — the same Liquid Glass idea as iOS itself.")
+                        .font(.subheadline).foregroundStyle(look.textSecondary)
+                }
+                .lookCard()
+            }
+            .padding()
+            .frame(maxWidth: 560)
+            .frame(maxWidth: .infinity)
+        }
+        .lookScreen()
+        .navigationTitle("Our logo")
     }
 }
 

@@ -35,7 +35,7 @@ enum VividTheme: String, CaseIterable, Identifiable {
         case .sunsetDream: "Warm · golden hour"
         case .minimalClear: "Light · clean"
         case .oceanDepth: "Deep · cool"
-        case .neonPulse: "Electric · gym night"
+        case .neonPulse: "Electric · late night"
         case .lavaEnergy: "High energy"
         case .roseGold: "Soft · premium"
         case .forestMist: "Fresh · green"

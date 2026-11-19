@@ -153,6 +153,7 @@ struct SettingsView: View {
                         .contentShape(Rectangle())
                         .onTapGesture(count: 5) { showOwnerVerify = true }
                     NavigationLink { AboutView() } label: { Label("How iTeam keeps your data", systemImage: "lock.shield") }
+                    NavigationLink { LogoStoryView() } label: { Label { Text("Our logo") } icon: { AppLogo(size: 26) } }
                 }
                 .lookRows()
             }
@@ -195,6 +196,8 @@ struct EditProfileView: View {
     @State private var name = ""
     @State private var avatar: Data?
     @State private var photo: PhotosPickerItem?
+    @State private var email = MyDetails.isRelay ? "" : MyDetails.email
+    @State private var phone = MyDetails.phone
     @State private var busy = false
     @State private var error: String?
 
@@ -211,6 +214,15 @@ struct EditProfileView: View {
                 .listRowBackground(Color.clear)
                 TextField("Name", text: $name)
                 if avatar != nil { Button("Remove photo", role: .destructive) { avatar = nil } }
+            }
+            .lookRows()
+            Section {
+                TextField("Email", text: $email).keyboardType(.emailAddress).textInputAutocapitalization(.never).textContentType(.emailAddress)
+                TextField("Mobile number (optional)", text: $phone).keyboardType(.phonePad).textContentType(.telephoneNumber)
+            } header: {
+                Text("Contact details")
+            } footer: {
+                Text("Email comes from Sign in with Apple. Both stay on this device.")
             }
             .lookRows()
             if let error { Text(error).foregroundStyle(look.danger) }
@@ -237,6 +249,8 @@ struct EditProfileView: View {
         do {
             try await engine.cloud.saveProfile(userID: engine.me, name: clean, publicKey: engine.myPublicKey, avatar: avatar)
             engine.saveIdentity(id: engine.me, name: clean, avatar: avatar)
+            MyDetails.email = email.trimmingCharacters(in: .whitespaces)
+            MyDetails.phone = phone.trimmingCharacters(in: .whitespaces)
             dismiss()
         } catch {
             self.error = "Couldn't save: \(error.cloudMessage)"

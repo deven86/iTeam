@@ -309,6 +309,14 @@ struct CareProfileView: View {
         .lookScreen()
         .navigationTitle(p.name)
         .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                ShareMenu(title: "Health summary – \(p.name)",
+                          text: { ShareText.care(p, meds: meds, events: events) },
+                          html: { ShareText.careHTML(p, meds: meds, events: events) })
+                    .labelStyle(.iconOnly)
+            }
+        }
         .onAppear { remindMe = !(UserDefaults.standard.stringArray(forKey: "care.remindOff") ?? []).contains(p.id) }
         .sheet(isPresented: $editProfile) { NavigationStack { CareProfileEditor(profile: p) { _ in } } }
         .sheet(isPresented: $addMed) { NavigationStack { MedicineEditor(profile: p, med: nil) } }

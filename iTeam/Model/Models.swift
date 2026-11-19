@@ -173,6 +173,8 @@ enum MessageStatus: Int {
     var approvalID: String? = nil
     /// This message is a poll card.
     var pollID: String? = nil
+    /// Forwarded from another chat.
+    var forwarded: Bool = false
 
     init(id: String, convID: String, senderID: String, text: String, createdAt: Date, replyToID: String? = nil,
          attachments: [AttachmentRef] = [], status: MessageStatus, isSystem: Bool = false) {

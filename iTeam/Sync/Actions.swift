@@ -191,13 +191,14 @@ extension SyncEngine {
 
     // MARK: - Messages
 
-    func sendText(_ text: String, in conv: Conversation, replyTo: String? = nil, attachments: [AttachmentRef] = [], uploads: [String: String] = [:]) {
+    func sendText(_ text: String, in conv: Conversation, replyTo: String? = nil, attachments: [AttachmentRef] = [],
+                  uploads: [String: String] = [:], forwarded: Bool = false) {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty || !attachments.isEmpty, !conv.left else { return }
-        let p = MessagePayload(id: UUID().uuidString, text: trimmed, replyTo: replyTo, attachments: attachments)
+        let p = MessagePayload(id: UUID().uuidString, text: trimmed, replyTo: replyTo, attachments: attachments, fwd: forwarded ? true : nil)
         let preview = trimmed.isEmpty ? (attachments.first?.kind == "image" ? "📷 Photo" : "📎 File") : trimmed
         send(.message(p), in: conv, loud: true, preview: preview, uploads: uploads)
-        conv.draft = ""
+        if !forwarded { conv.draft = "" }
     }
 
     func edit(_ m: Message, text: String) {

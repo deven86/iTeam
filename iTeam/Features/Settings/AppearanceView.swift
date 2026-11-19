@@ -113,7 +113,7 @@ struct AppearanceView: View {
             }
             .lookCard()
 
-            Text("iLife themes").font(.headline)
+            Text("Prism themes").font(.headline)
             LazyVGrid(columns: [GridItem(.adaptive(minimum: 150), spacing: 14)], spacing: 14) {
                 ForEach(Array(VividTheme.allCases.enumerated()), id: \.element.id) { i, t in
                     let selected = !looks.vividAuto && looks.vivid == t && !looks.vividPhoto
@@ -218,7 +218,7 @@ struct AppearanceView: View {
                         Slider(value: $looks.skinDim, in: 0...0.7)
                         Image(systemName: "moon.fill")
                     }
-                    Text("Like Winamp skins: the wallpaper sits behind every screen and everything on top is glass. A skin switches to the dark look so text stays readable.")
+                    Text("Like music-player skins: the wallpaper sits behind every screen and everything on top is glass. A skin switches to the dark look so text stays readable.")
                         .font(.caption).foregroundStyle(look.textSecondary)
                 }
                 .lookCard()

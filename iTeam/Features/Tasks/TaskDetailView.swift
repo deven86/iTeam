@@ -205,6 +205,14 @@ struct TaskDetailView: View {
         .lookScreen()
         .navigationTitle("Task")
         .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                ShareMenu(title: t.title,
+                          text: { ShareText.task(t, checklist: checklist, comments: comments, engine: engine) },
+                          html: { ShareText.taskHTML(t, checklist: checklist, comments: comments, engine: engine) })
+                    .labelStyle(.iconOnly)
+            }
+        }
         .onAppear { notesText = t.notes }
         .onChange(of: t.notes) { _, n in notesText = n }
         .alert("Save as template", isPresented: $askTemplate) {

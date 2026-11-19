@@ -54,6 +54,7 @@ struct EventApplier {
             guard let conv, engine.message(p.id) == nil else { return .ignored }
             let m = Message(id: p.id, convID: conv.id, senderID: e.from, text: p.text, createdAt: e.at,
                             replyToID: p.replyTo, attachments: p.attachments, status: local ? .queued : .sent)
+            m.forwarded = p.fwd ?? false
             ctx.insert(m)
             touch(conv, at: e.at, preview: m.preview, from: e.from)
             if !local && e.from != me {

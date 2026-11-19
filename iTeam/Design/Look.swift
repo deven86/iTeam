@@ -3,9 +3,9 @@ import UIKit
 
 /// The three looks the user can choose in Settings → Appearance.
 enum UIStyle: String, CaseIterable, Identifiable {
-    /// iLife: animated wallpapers, glass everywhere, vivid gradients.
+    /// Prism Glass: animated wallpapers, glass everywhere, vivid gradients.
     case vivid
-    /// Third Eye: calm palettes, optional glass, Winamp-style skins.
+    /// Zen Calm: calm palettes, optional glass, music-player-style skins.
     case calm
     /// Plain iOS look with a soft pastel accent.
     case classic
@@ -14,9 +14,9 @@ enum UIStyle: String, CaseIterable, Identifiable {
 
     var title: String {
         switch self {
-        case .vivid: "iLife Glass"
-        case .calm: "Third Eye Calm"
-        case .classic: "Classic Pastel"
+        case .vivid: "Prism Glass"
+        case .calm: "Zen Calm"
+        case .classic: "Pastel Breeze"
         }
     }
 

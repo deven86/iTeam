@@ -26,6 +26,8 @@ struct ChatView: View {
     @State private var linkText = ""
     @State private var showApproval = false
     @State private var showPoll = false
+    @State private var forwarding: Message?
+    @State private var shareItems: ShareItems?
     @FocusState private var focused: Bool
 
     init(convID: String) {
@@ -64,7 +66,9 @@ struct ChatView: View {
                                   onReply: { replyTo = m; editing = nil; focused = true },
                                   onEdit: { editing = m; text = m.text; replyTo = nil; focused = true },
                                   onTask: { taskFrom = m },
-                                  onOpen: { url in quickLook = url })
+                                  onOpen: { url in quickLook = url },
+                                  onForward: { forwarding = m },
+                                  onShare: { Task { await share(m) } })
                         .id(m.id)
                 }
             }
@@ -97,7 +101,40 @@ struct ChatView: View {
                 Button { taskFrom = nil; showInfo = false; newTaskInChat = true } label: { Image(systemName: "checklist") }
                     .accessibilityLabel("New task in this chat")
             }
+            ToolbarItem(placement: .topBarTrailing) {
+                Menu {
+                    Button("Export chat as PDF", systemImage: "doc.richtext") {
+                        let html = ShareText.chatHTML(conv, messages, engine: engine)
+                        if let url = PDFMaker.make(title: conv.title, bodyHTML: html, fileName: "Chat – \(conv.title)") {
+                            shareItems = ShareItems(items: [url])
+                        }
+                    }
+                    Button("Share chat as text", systemImage: "text.alignleft") {
+                        shareItems = ShareItems(items: [ShareText.chatText(conv, messages, engine: engine)])
+                    }
+                    Button("Copy whole chat", systemImage: "doc.on.doc") {
+                        UIPasteboard.general.string = ShareText.chatText(conv, messages, engine: engine)
+                        Haptics.success()
+                    }
+                } label: { Image(systemName: "square.and.arrow.up") }
+                .accessibilityLabel("Share or export chat")
+            }
         }
+    }
+
+    /// Share one message: its text plus its files (downloaded and decrypted first).
+    private func share(_ m: Message) async {
+        var items: [Any] = []
+        if !m.text.isEmpty { items.append(m.text) }
+        for a in m.attachments {
+            if let url = try? await Attachments.load(a) {
+                // Share under the original file name, not the internal cache name.
+                let named = FileManager.default.temporaryDirectory.appendingPathComponent(PDFMaker.safe(a.name))
+                try? FileManager.default.removeItem(at: named)
+                items.append((try? FileManager.default.copyItem(at: url, to: named)) != nil ? named : url)
+            }
+        }
+        if !items.isEmpty { shareItems = ShareItems(items: items) }
     }
 
     private func sheets<V: View>(_ v: V, _ conv: Conversation) -> some View {
@@ -107,6 +144,10 @@ struct ChatView: View {
                 if conv.isGroup { GroupInfoView(conv: conv) } else { ContactInfoView(conv: conv) }
             }
         }
+        .sheet(item: $forwarding) { m in
+            NavigationStack { ForwardSheet(messages: [m]) }
+        }
+        .shareSheet($shareItems)
         .sheet(item: $taskFrom) { m in
             NavigationStack { TaskEditorView(conv: conv, source: m) }
         }

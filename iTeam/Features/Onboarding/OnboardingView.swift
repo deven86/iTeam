@@ -17,6 +17,8 @@ struct OnboardingView: View {
     @State private var name = ""
     @State private var avatar: Data?
     @State private var photoItem: PhotosPickerItem?
+    @State private var phone = MyDetails.phone
+    @State private var showCamera = false
     @State private var busy = false
     @State private var error: String?
     /// iCloud already has a profile for this account but this device has no key yet.
@@ -117,9 +119,13 @@ struct OnboardingView: View {
     private var profile: some View {
         VStack(spacing: 18) {
             Text("Your profile").font(.largeTitle.bold()).padding(.top, 40)
-            PhotosPicker(selection: $photoItem, matching: .images) {
-                ZStack(alignment: .bottomTrailing) {
-                    AvatarView(name: name.isEmpty ? "?" : name, imageData: avatar, size: 110)
+            ZStack(alignment: .bottomTrailing) {
+                AvatarView(name: name.isEmpty ? "?" : name, imageData: avatar, size: 110)
+                Menu {
+                    Button("Take photo", systemImage: "camera") { showCamera = true }
+                    PhotosPicker(selection: $photoItem, matching: .images) { Label("Choose from Photos", systemImage: "photo") }
+                    if avatar != nil { Button("Remove photo", systemImage: "trash", role: .destructive) { avatar = nil } }
+                } label: {
                     Image(systemName: "camera.circle.fill").font(.system(size: 32)).foregroundStyle(.white, look.accent)
                 }
             }
@@ -128,13 +134,32 @@ struct OnboardingView: View {
                     if let data = try? await item?.loadTransferable(type: Data.self) { avatar = Self.avatarData(data) }
                 }
             }
+            .fullScreenCover(isPresented: $showCamera) {
+                CameraPicker { img in
+                    if let d = img.jpegData(compressionQuality: 0.9) { avatar = Self.avatarData(d) }
+                }
+                .ignoresSafeArea()
+            }
+            Text("Apple doesn't share your Apple ID photo with apps, so pick one here.")
+                .font(.caption2).foregroundStyle(look.textSecondary)
             TextField("Your name", text: $name)
                 .textContentType(.name)
                 .font(.title3)
                 .padding(14)
                 .lookCard(cornerRadius: 16, padding: 0)
-            Text("People you chat with see this name and photo.").font(.caption).foregroundStyle(look.textSecondary)
+            if !MyDetails.email.isEmpty && !MyDetails.isRelay {
+                Label(MyDetails.email, systemImage: "envelope.fill")
+                    .font(.subheadline).frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(14).lookCard(cornerRadius: 16, padding: 0)
+            }
+            TextField("Mobile number (optional)", text: $phone)
+                .textContentType(.telephoneNumber).keyboardType(.phonePad)
+                .padding(14)
+                .lookCard(cornerRadius: 16, padding: 0)
+            Text("People you chat with see your name and photo. Email and mobile stay on this device.")
+                .font(.caption).foregroundStyle(look.textSecondary)
             Button {
+                MyDetails.phone = phone.trimmingCharacters(in: .whitespaces)
                 Task { await saveProfile() }
             } label: {
                 Group { if busy { ProgressView() } else { Text("Continue") } }.frame(maxWidth: .infinity)

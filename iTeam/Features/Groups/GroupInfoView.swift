@@ -282,13 +282,13 @@ struct ChatWallpaperPicker: View {
                 }
                 .lookCard()
 
-                Text("iLife themes").font(.headline)
+                Text("Prism themes").font(.headline)
                 LazyVGrid(columns: columns, spacing: 12) {
                     ForEach(VividTheme.allCases) { t in
                         tile(key: "vivid:\(t.rawValue)", title: t.title) { VividWallpaper(theme: t, animated: false) }
                     }
                 }
-                Text("Third Eye skins").font(.headline)
+                Text("Zen skins").font(.headline)
                 LazyVGrid(columns: columns, spacing: 12) {
                     ForEach(Skin.builtIn) { s in
                         tile(key: "skin:\(s.rawValue)", title: s.title) { SkinArt(skin: s) }

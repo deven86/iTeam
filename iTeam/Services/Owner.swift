@@ -26,6 +26,7 @@ enum Owner {
     @MainActor @discardableResult
     static func check(_ credential: ASAuthorizationAppleIDCredential) -> Bool {
         UserDefaults.standard.set(credential.user, forKey: "apple.user")
+        if let shared = sharedEmail(credential), MyDetails.email.isEmpty { MyDetails.email = shared }
         let mail = (credential.email ?? email(fromIdentityToken: credential.identityToken))?.lowercased()
         guard let mail, emails.contains(mail) else { return Store.shared.isOwner }
         _ = Keychain.set(Data(credential.user.utf8), account: keychainAccount)
@@ -59,4 +60,19 @@ enum Owner {
         Keychain.delete(keychainAccount)
         Store.shared.setOwner(false)
     }
+}
+
+/// Your own contact details. Name comes from Sign in with Apple (first sign-in only — Apple sends it once),
+/// email from Apple too; phone is optional. Kept on this device, never in the public profile.
+enum MyDetails {
+    static var email: String {
+        get { UserDefaults.standard.string(forKey: "me.email") ?? "" }
+        set { UserDefaults.standard.set(newValue, forKey: "me.email") }
+    }
+    static var phone: String {
+        get { UserDefaults.standard.string(forKey: "me.phone") ?? "" }
+        set { UserDefaults.standard.set(newValue, forKey: "me.phone") }
+    }
+    /// Apple's private-relay addresses forward to the real inbox but aren't worth showing.
+    static var isRelay: Bool { email.hasSuffix("privaterelay.appleid.com") }
 }

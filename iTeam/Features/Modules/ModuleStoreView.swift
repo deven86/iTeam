@@ -1,21 +1,40 @@
 import SwiftUI
+import StoreKit
 
 /// Settings → Modules: every module, what it solves, previews, price and Subscribe.
 struct ModuleStoreView: View {
     @EnvironmentObject var modules: ModuleRegistry
     @ObservedObject private var store = Store.shared
     @Environment(\.look) private var look
+    @State private var redeem = false
 
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 14) {
                 Text("Chat is always free. Add only what your team needs.")
                     .font(.subheadline).foregroundStyle(look.textSecondary)
+                if store.isOwner {
+                    Label("Owner — every module is free on your Apple ID", systemImage: "crown.fill")
+                        .font(.caption.weight(.semibold)).foregroundStyle(look.accent)
+                }
                 ForEach(Array(ModuleRegistry.all.enumerated()), id: \.element.id) { i, m in
                     NavigationLink { ModuleDetailView(module: m) } label: { card(m) }
                         .buttonStyle(PressStyle())
                         .appear(i)
                 }
+                NavigationLink { ModuleRequestView() } label: {
+                    HStack(spacing: 14) {
+                        Image(systemName: "lightbulb.max.fill").font(.title2).foregroundStyle(look.accent).frame(width: 56)
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("Don't see what you need?").font(.headline).foregroundStyle(Color.primary)
+                            Text("Request a module — tell us the problem and how it should work.").font(.caption).foregroundStyle(look.textSecondary)
+                        }
+                        Spacer(minLength: 0)
+                        Image(systemName: "chevron.right").foregroundStyle(look.textSecondary)
+                    }
+                    .lookCard()
+                }
+                .buttonStyle(PressStyle())
             }
             .padding()
             .frame(maxWidth: 760)
@@ -23,6 +42,12 @@ struct ModuleStoreView: View {
         }
         .lookScreen()
         .navigationTitle("Module Store")
+        .toolbar {
+            ToolbarItem(placement: .primaryAction) {
+                Button("Redeem code", systemImage: "giftcard") { redeem = true }
+            }
+        }
+        .offerCodeRedemption(isPresented: $redeem) { _ in Task { await store.refresh() } }
         .task { await store.loadProducts() }
     }
 
@@ -68,7 +93,8 @@ struct ModuleBadge: View {
             Chip(text: "Coming soon", icon: "clock", color: look.textSecondary)
         case .paid:
             if let id = module.productID, store.isUnlocked(id) {
-                Chip(text: store.active.contains(id) ? "Active" : "Unlocked for testing", icon: "checkmark.seal.fill", color: look.success)
+                Chip(text: store.active.contains(id) ? "Active" : (store.isOwner ? "Owner · free" : "Unlocked for testing"),
+                     icon: store.isOwner ? "crown.fill" : "checkmark.seal.fill", color: look.success)
             } else {
                 Chip(text: ModuleDetailView.price(module, store), icon: "creditcard", color: look.accent)
             }
@@ -83,6 +109,7 @@ struct ModuleDetailView: View {
     @Environment(\.look) private var look
     @Environment(\.dismiss) private var dismiss
     @State private var busy = false
+    @State private var redeem = false
 
     static func price(_ m: ModuleInfo, _ store: Store) -> String {
         if let id = m.productID, let p = store.products[id] { return "\(p.displayPrice) / month" }
@@ -127,7 +154,7 @@ struct ModuleDetailView: View {
                     action
                     if let e = store.lastError { Text(e).font(.caption).foregroundStyle(look.danger) }
                     if module.availability == .paid {
-                        Text("Billed monthly through your Apple ID. Auto-renews until cancelled in Settings → Apple ID → Subscriptions. If a subscription ends, everything you created stays readable and exportable.")
+                        Text("Billed monthly through your Apple ID. Auto-renews until cancelled in Settings → Apple ID → Subscriptions. Have an offer code? Tap Redeem offer code — Apple applies the free or discounted period. If a subscription ends, everything you created stays readable and exportable.")
                             .font(.caption2).foregroundStyle(look.textSecondary)
                     }
                 }
@@ -140,6 +167,7 @@ struct ModuleDetailView: View {
         .lookScreen()
         .navigationTitle(module.title)
         .navigationBarTitleDisplayMode(.inline)
+        .offerCodeRedemption(isPresented: $redeem) { _ in Task { await store.refresh() } }
     }
 
     @ViewBuilder
@@ -151,7 +179,8 @@ struct ModuleDetailView: View {
             Label("We're building this. It will appear here when ready.", systemImage: "hammer").font(.subheadline)
         case .paid:
             if unlocked {
-                Label("Active on this Apple ID", systemImage: "checkmark.seal.fill").foregroundStyle(look.success)
+                Label(store.isOwner ? "Free for you as the owner" : "Active on this Apple ID",
+                      systemImage: store.isOwner ? "crown.fill" : "checkmark.seal.fill").foregroundStyle(look.success)
                 Toggle("Show in the app", isOn: Binding(get: { modules.isVisible(module) }, set: { modules.setOn(module, $0) }))
             } else if let id = module.productID {
                 Button {
@@ -160,7 +189,12 @@ struct ModuleDetailView: View {
                     Group { if busy { ProgressView() } else { Text("Subscribe · \(Self.price(module, store))") } }.frame(maxWidth: .infinity)
                 }
                 .buttonStyle(.glassProminent).controlSize(.large)
-                Button("Restore purchases") { Task { await store.restore() } }.font(.subheadline)
+                HStack {
+                    Button("Redeem offer code") { redeem = true }
+                    Spacer()
+                    Button("Restore purchases") { Task { await store.restore() } }
+                }
+                .font(.subheadline)
             }
             if store.isSandbox, let id = module.productID, !store.active.contains(id) {
                 Toggle("Unlock free for testing (TestFlight only)", isOn: Binding(get: { store.testUnlocked.contains(id) },
@@ -212,6 +246,11 @@ struct ModulePreviewScreen: View {
 
     private var title: String {
         switch preview {
+        case .taskDashboard: "Tasks dashboard"
+        case .taskForm: "New task form"
+        case .proForm: "Recurring task form"
+        case .careDashboard: "Care dashboard"
+        case .medicineForm: "Add medicine form"
         case .taskList: "Tasks"
         case .approval: "Approval in chat"
         case .expenses: "Task expenses"
@@ -255,9 +294,68 @@ struct ModulePreviewScreen: View {
         }
     }
 
+    private func field(_ label: String, _ value: String, _ icon: String? = nil) -> some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(label).font(.system(size: 9, weight: .semibold)).opacity(0.75)
+            card {
+                HStack(spacing: 4) {
+                    if let icon { Image(systemName: icon).font(.caption2) }
+                    Text(value).font(.caption2).lineLimit(1)
+                    Spacer(minLength: 0)
+                }
+            }
+        }
+    }
+
+    private func stat(_ value: String, _ label: String) -> some View {
+        card {
+            VStack(alignment: .leading, spacing: 0) {
+                Text(value).font(.headline)
+                Text(label).font(.system(size: 9))
+            }
+        }
+    }
+
+    private func button(_ text: String) -> some View {
+        Text(text).font(.caption.bold()).frame(maxWidth: .infinity).padding(.vertical, 7)
+            .background(.white.opacity(0.3), in: Capsule())
+    }
+
     @ViewBuilder
     private var content: some View {
         switch preview {
+        case .taskDashboard:
+            HStack(spacing: 6) { stat("7", "Open"); stat("3", "Overdue") }
+            HStack(spacing: 6) { stat("12", "Done"); stat("2", "Approvals") }
+            bar("This week · 64%", 0.64)
+            row("exclamationmark.triangle.fill", "File reply in court", "Today")
+            row("person.2.fill", "Site visit · Asha, Rahul", "Fri")
+        case .taskForm:
+            field("Title", "Prepare client agreement")
+            field("Assign to", "Asha, Rahul", "person.2")
+            field("Due", "Fri 22 Nov · 5:00 PM", "calendar")
+            field("Priority", "High", "flag.fill")
+            field("Checklist", "Draft · Review · Sign", "checklist")
+            button("Create task")
+        case .proForm:
+            field("Title", "Monthly trust accounts")
+            field("Repeat", "Monthly on the 1st", "repeat")
+            field("Template", "Monthly audit · 5 steps", "doc.on.doc")
+            field("Assign to", "Accounts team", "person.3")
+            button("Save")
+        case .careDashboard:
+            HStack(spacing: 6) { stat("3/4", "Doses today"); stat("40%", "Recovery") }
+            card { Text("Aai · B+ · Allergic to penicillin").font(.caption2) }
+            row("checkmark.circle.fill", "9:00 Metformin", "Taken")
+            row("exclamationmark.circle.fill", "10:00 Amlodipine", "Due")
+            row("bell.badge.fill", "Family alerted: dose skipped")
+        case .medicineForm:
+            field("Medicine", "Metformin")
+            field("Dose", "500 mg · 1 tablet", "pills.fill")
+            field("Times", "9:00 AM · 9:00 PM", "clock")
+            field("Days", "Every day · 30 days", "calendar")
+            field("Alert family if skipped", "On", "bell.fill")
+            button("Save medicine")
         case .taskList:
             row("exclamationmark.triangle.fill", "File reply in court", "Overdue")
             row("circle", "Review draft agreement", "Today")

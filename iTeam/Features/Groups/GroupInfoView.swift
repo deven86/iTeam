@@ -49,7 +49,7 @@ struct GroupInfoView: View {
                 }
                 Button {
                     dismiss()
-                    router.tab = .tasks
+                    router.go(.tasks)
                 } label: {
                     Label("Group tasks", systemImage: "checklist")
                 }

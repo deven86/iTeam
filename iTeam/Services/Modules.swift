@@ -8,6 +8,7 @@ struct ModuleInfo: Identifiable {
 
     /// Screens shown as previews on the module's page.
     enum Preview: Hashable {
+        case taskDashboard, taskForm, proForm, careDashboard, medicineForm
         case taskList, approval, expenses, poll
         case recurring, templates, reports
         case careToday, careEvent, careVault
@@ -45,7 +46,7 @@ final class ModuleRegistry: ObservableObject {
                    "Approval requests with notes and approved amounts",
                    "Expenses with photos of bills and vouchers, against the approved budget",
                    "Polls to decide quickly"],
-        previews: [.taskList, .approval, .expenses, .poll],
+        previews: [.taskDashboard, .taskForm, .taskList, .approval, .expenses, .poll],
         note: "Included free with iTeam.")
 
     static let businessPro = ModuleInfo(
@@ -60,7 +61,7 @@ final class ModuleRegistry: ObservableObject {
                    "Templates: save any task with its checklist and start new ones in one tap",
                    "Reports: done, open and overdue per person; expenses by category and month",
                    "Export reports and expenses to Excel (CSV) to share or file"],
-        previews: [.recurring, .templates, .reports],
+        previews: [.reports, .proForm, .recurring, .templates],
         note: "Only the person who sets up recurring tasks and templates needs Pro; everyone can work on them.")
 
     static let iLifeCare = ModuleInfo(
@@ -76,7 +77,7 @@ final class ModuleRegistry: ObservableObject {
                    "Injuries and major health events with severity and recovery progress",
                    "Medical vault for reports, prescriptions, X-rays and insurance",
                    "Blood group, allergies, conditions and emergency contact in one place"],
-        previews: [.careToday, .careEvent, .careVault],
+        previews: [.careDashboard, .medicineForm, .careToday, .careEvent, .careVault],
         note: "Only the person who creates care profiles needs the subscription; family members use them free.")
 
     static let teamWorkspace = ModuleInfo(
@@ -106,9 +107,27 @@ final class ModuleRegistry: ObservableObject {
     static let all: [ModuleInfo] = [businessTasks, businessPro, iLifeCare, teamWorkspace, filesKnowledge, aiAssistant]
 
     @Published private var enabled: [String: Bool]
+    /// Modules the user wants in the iPhone bottom bar, in order (Router.TabID raw values).
+    @Published private(set) var pinned: [String]
+    /// The iPhone bar holds Chats, up to this many modules, Modules and Settings — five in all,
+    /// the most iOS shows before it hides tabs behind “More”.
+    static let maxPinned = 2
 
     private init() {
         enabled = UserDefaults.standard.dictionary(forKey: "modules.enabled") as? [String: Bool] ?? [:]
+        pinned = UserDefaults.standard.stringArray(forKey: "modules.pinned") ?? ["tasks", "care"]
+    }
+
+    /// Which of the available module tabs go in the bar: the user's pins first, then the rest in order.
+    func barTabs(available: [Router.TabID]) -> [Router.TabID] {
+        let pins = pinned.compactMap(Router.TabID.init(rawValue:)).filter(available.contains)
+        let rest = available.filter { !pins.contains($0) }
+        return Array((pins + rest).prefix(Self.maxPinned))
+    }
+
+    func setPins(_ tabs: [Router.TabID]) {
+        pinned = tabs.map(\.rawValue)
+        UserDefaults.standard.set(pinned, forKey: "modules.pinned")
     }
 
     /// The user has the right to use the module: included ones always; paid ones with an active subscription.

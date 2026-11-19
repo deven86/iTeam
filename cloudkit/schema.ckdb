@@ -32,6 +32,26 @@ DEFINE SCHEMA
         GRANT READ TO "_world"
     );
 
+    RECORD TYPE ModuleRequest (
+        "___createTime" TIMESTAMP QUERYABLE SORTABLE,
+        "___createdBy"  REFERENCE,
+        "___etag"       STRING,
+        "___modTime"    TIMESTAMP,
+        "___modifiedBy" REFERENCE,
+        "___recordID"   REFERENCE QUERYABLE,
+        contact STRING,
+        details STRING,
+        name STRING,
+        pay INT64,
+        problem STRING,
+        title STRING,
+        users STRING,
+        ver STRING,
+        GRANT WRITE TO "_creator",
+        GRANT CREATE TO "_icloud",
+        GRANT READ TO "_icloud"
+    );
+
     RECORD TYPE Profile (
         "___createTime" TIMESTAMP,
         "___createdBy"  REFERENCE,

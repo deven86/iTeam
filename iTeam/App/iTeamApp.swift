@@ -77,9 +77,13 @@ struct iTeamApp: App {
 @MainActor
 final class Router: ObservableObject {
     static let shared = Router()
-    enum TabID: Hashable { case chats, tasks, care, activity, settings }
+    enum TabID: String, Hashable { case chats, tasks, care, activity, hub, settings }
 
     @Published var tab: TabID = .chats
+    /// Module tabs currently in the bottom bar (set by RootView). Others open inside the Modules hub.
+    @Published var barTabs: [TabID] = [.tasks, .care, .activity]
+    /// The module shown inside the Modules hub, if any.
+    @Published var hubOpen: TabID?
     @Published var openConversation: String?
     @Published var openTask: String?
     @Published var openCare: String?
@@ -98,13 +102,23 @@ final class Router: ObservableObject {
     }
 
     func show(care: String) {
-        tab = .care
+        go(.care)
         openCare = care
     }
 
     func show(task: String) {
-        tab = .tasks
+        go(.tasks)
         openTask = task
+    }
+
+    /// Opens a tab or module: in the bottom bar when it is there, otherwise inside the Modules hub.
+    func go(_ t: TabID) {
+        switch t {
+        case .chats, .settings, .hub:
+            tab = t
+        default:
+            if barTabs.contains(t) { tab = t } else { hubOpen = t; tab = .hub }
+        }
     }
 }
 

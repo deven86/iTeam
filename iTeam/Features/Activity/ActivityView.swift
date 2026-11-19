@@ -83,7 +83,7 @@ struct ActivityView: View {
         engine.save()
         if let t = a.taskID { router.show(task: t) }
         else if let c = a.convID { router.show(conversation: c) }
-        else if a.kind == .contact { router.tab = .chats }
+        else if a.kind == .contact { router.go(.chats) }
     }
 }
 

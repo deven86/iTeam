@@ -14,12 +14,15 @@ final class Store: ObservableObject {
     @Published private(set) var isSandbox = false
     @Published private(set) var testUnlocked: Set<String>
     @Published var lastError: String?
+    /// The app owner (super user): every module free on his Apple ID. See Owner.swift.
+    @Published private(set) var isOwner = false
 
     private var updates: Task<Void, Never>?
 
     private init() {
         testUnlocked = Set(UserDefaults.standard.stringArray(forKey: "store.testUnlocked") ?? [])
         if UserDefaults.standard.bool(forKey: "care.testUnlock") { testUnlocked.insert(Self.careProductID) }
+        isOwner = Owner.storedMatch()
         updates = Task { [weak self] in
             for await result in Transaction.updates {
                 if case .verified(let t) = result { await t.finish() }
@@ -32,13 +35,16 @@ final class Store: ObservableObject {
             if let app = try? await AppTransaction.shared, case .verified(let a) = app {
                 isSandbox = a.environment != .production
             }
+            if isOwner, !(await Owner.stillAuthorized()) { isOwner = false }
         }
     }
 
-    /// Subscribed — or, in TestFlight/sandbox builds only, unlocked for testing.
+    /// Subscribed, the owner, or — in TestFlight/sandbox builds only — unlocked for testing.
     func isUnlocked(_ productID: String) -> Bool {
-        active.contains(productID) || (isSandbox && testUnlocked.contains(productID))
+        isOwner || active.contains(productID) || (isSandbox && testUnlocked.contains(productID))
     }
+
+    func setOwner(_ on: Bool) { isOwner = on }
 
     var careUnlocked: Bool { isUnlocked(Self.careProductID) }
     var proUnlocked: Bool { isUnlocked(Self.proProductID) }

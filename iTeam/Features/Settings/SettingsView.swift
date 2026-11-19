@@ -20,6 +20,8 @@ struct SettingsView: View {
     @State private var exportURL: URL?
     @State private var confirmErase = false
     @State private var showPaywall = false
+    @State private var showOwnerVerify = false
+    @ObservedObject private var store = Store.shared
 
     var body: some View {
         NavigationStack {
@@ -92,12 +94,30 @@ struct SettingsView: View {
                             Label { Text(m.title) } icon: { Image(systemName: m.icon) }
                         }
                     }
+                    NavigationLink { BottomBarSettingsView() } label: { Label("Bottom bar", systemImage: "dock.rectangle") }
+                    NavigationLink { ModuleRequestView() } label: { Label("Request a module", systemImage: "lightbulb.max.fill") }
                 } header: {
                     Text("Modules")
                 } footer: {
                     Text("Chat is always free. Switch modules you own on or off here — turning one off hides it but never deletes its data.")
                 }
                 .lookRows()
+
+                if store.isOwner {
+                    Section {
+                        Label("Owner — all modules free on this Apple ID", systemImage: "crown.fill").foregroundStyle(look.accent)
+                        NavigationLink { OwnerRequestsView() } label: { Label("Module requests", systemImage: "tray.full.fill") }
+                        Link(destination: URL(string: "https://appstoreconnect.apple.com/apps")!) {
+                            Label("Prices & offer codes (App Store Connect)", systemImage: "tag.fill")
+                        }
+                        Button("Stop owner mode on this device", role: .destructive) { Owner.forget() }
+                    } header: {
+                        Text("Owner")
+                    } footer: {
+                        Text("Prices and offer codes are managed by Apple in App Store Connect. Changes show in iTeam automatically — no app update needed.")
+                    }
+                    .lookRows()
+                }
 
                 Section("Privacy & security") {
                     Toggle(isOn: $lock.lockEnabled) { Label("Lock with \(lock.biometryName)", systemImage: "faceid") }
@@ -130,6 +150,8 @@ struct SettingsView: View {
 
                 Section {
                     LabeledContent("Version", value: Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "–")
+                        .contentShape(Rectangle())
+                        .onTapGesture(count: 5) { showOwnerVerify = true }
                     NavigationLink { AboutView() } label: { Label("How iTeam keeps your data", systemImage: "lock.shield") }
                 }
                 .lookRows()
@@ -138,6 +160,7 @@ struct SettingsView: View {
             .lookScreen()
             .navigationTitle("Settings")
             .sheet(isPresented: $showQR) { AddContactView() }
+            .sheet(isPresented: $showOwnerVerify) { OwnerVerifyView() }
             .sheet(isPresented: $editProfile) { NavigationStack { EditProfileView() } }
             .sheet(isPresented: $showPaywall) { CarePaywall() }
             .confirmationDialog("Erase everything on this device?", isPresented: $confirmErase, titleVisibility: .visible) {

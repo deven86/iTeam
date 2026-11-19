@@ -59,12 +59,12 @@ struct OnboardingView: View {
             feature("checklist", .green, "Business Tasks", "Assign work from any message. Whole-group tasks, checklists, deadlines.").appear(4)
             feature("lock.shield.fill", .purple, "Private by design", "End-to-end encrypted. No servers, no phone number, no ads.").appear(5)
             SignInWithAppleButton(.continue) { request in
-                request.requestedScopes = [.fullName]
+                request.requestedScopes = [.fullName, .email]
             } onCompletion: { result in
                 switch result {
                 case .success(let auth):
                     if let cred = auth.credential as? ASAuthorizationAppleIDCredential {
-                        UserDefaults.standard.set(cred.user, forKey: "apple.user")
+                        Owner.check(cred)
                         if let n = cred.fullName {
                             let full = PersonNameComponentsFormatter().string(from: n).trimmingCharacters(in: .whitespaces)
                             if !full.isEmpty { name = full }

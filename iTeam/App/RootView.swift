@@ -18,6 +18,7 @@ struct RootView: View {
 
     @Query(filter: #Predicate<Post> { !$0.deleted && !$0.isStatus }) private var allPosts: [Post]
     @Query(filter: #Predicate<Prescription> { !$0.deleted && $0.status == "waiting" }) private var waitingRx: [Prescription]
+    @Query(filter: #Predicate<BizRecord> { !$0.deleted && $0.parentID == "" }) private var bizRecords: [BizRecord]
     private var rxToReview: [Prescription] { waitingRx.filter { $0.patientID == engine.me } }
     @AppStorage("views.lastVisit") private var viewsLastVisit: Double = 0
     private var newPosts: Int {
@@ -29,7 +30,12 @@ struct RootView: View {
 
     /// Module tabs the user can open right now.
     private var available: [Router.TabID] {
-        var a: [Router.TabID] = [.views, .rooms, .doctor]
+        var a: [Router.TabID] = [.views, .rooms, .doctor, .bills]
+        let sharedBiz = Set(bizRecords.filter { $0.subjectID == engine.me && $0.ownerID != engine.me }.map(\.module))
+        for (info, spec) in [(ModuleRegistry.khata, BizSpecs.khata), (ModuleRegistry.tuition, BizSpecs.tuition), (ModuleRegistry.rent, BizSpecs.rent),
+                             (ModuleRegistry.legal, BizSpecs.legal), (ModuleRegistry.clinic, BizSpecs.clinic)] {
+            if modules.isOn(info) || (sharedBiz.contains(spec.module) && modules.isVisible(info)) { a.append(spec.tab) }
+        }
         if modules.isOn(ModuleRegistry.businessTasks) { a.append(.tasks) }
         // Paid modules appear once bought (or unlocked for the owner / TestFlight testing) — or when
         // someone else shared a profile with you, because members use shared profiles free.
@@ -85,6 +91,13 @@ struct RootView: View {
                 .badge(rxToReview.count)
                 .hidden(!inBar.contains(.doctor))
 
+                ForEach(BizSpecs.all, id: \.module) { spec in
+                    Tab(spec.title, systemImage: spec.icon, value: spec.tab) {
+                        BizHomeView(spec: spec)
+                    }
+                    .hidden(!inBar.contains(spec.tab))
+                }
+
                 Tab("Tasks", systemImage: "checklist", value: Router.TabID.tasks) {
                     TaskDashboardView()
                 }
@@ -122,7 +135,7 @@ struct RootView: View {
             .onChange(of: inBar) { _, bar in
                 router.barTabs = bar
                 // A tab that just left the bar reopens inside the hub instead of vanishing.
-                if [Router.TabID.views, .rooms, .doctor, .tasks, .care, .gym, .mind, .activity].contains(router.tab), !bar.contains(router.tab) {
+                if [Router.TabID.views, .rooms, .doctor, .khata, .tuition, .rent, .legal, .clinic, .bills, .tasks, .care, .gym, .mind, .activity].contains(router.tab), !bar.contains(router.tab) {
                     router.tab = .chats
                 }
             }
@@ -176,6 +189,12 @@ struct ModulesHubView: View {
         case .views: ViewsHomeView()
         case .rooms: RoomsHomeView()
         case .doctor: DoctorHomeView()
+        case .khata: BizHomeView(spec: BizSpecs.khata)
+        case .tuition: BizHomeView(spec: BizSpecs.tuition)
+        case .rent: BizHomeView(spec: BizSpecs.rent)
+        case .legal: BizHomeView(spec: BizSpecs.legal)
+        case .clinic: BizHomeView(spec: BizSpecs.clinic)
+        case .bills: BizHomeView(spec: BizSpecs.bills)
         case .tasks: TaskDashboardView()
         case .care: CareHomeView()
         case .gym: GymModuleView()
@@ -256,6 +275,8 @@ struct ModulesHubView: View {
         case .views: ("Views", "play.rectangle.on.rectangle.fill", [0xFF5F6D, 0xFFC371])
         case .rooms: ("Rooms", "person.3.sequence.fill", [0x7F7FD5, 0x86A8E7])
         case .doctor: ("Doctor", "stethoscope", [0x36D1DC, 0x5B86E5])
+        case .khata, .tuition, .rent, .legal, .clinic, .bills:
+            BizSpecs.all.first { $0.tab == t }.map { ($0.title, $0.icon, $0.colors) } ?? ("", "square", [0, 0])
         case .tasks: ("Tasks", ModuleRegistry.businessTasks.icon, ModuleRegistry.businessTasks.colors)
         case .care: ("Care", ModuleRegistry.iLifeCare.icon, ModuleRegistry.iLifeCare.colors)
         case .gym: ("Gym", ModuleRegistry.gymTraining.icon, ModuleRegistry.gymTraining.colors)

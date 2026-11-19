@@ -579,6 +579,34 @@ struct EventApplier {
             }
             if e.from != me { CheckInAlerts.update(ci, name: engine.name(of: e.from)) }
 
+        case .biz(let p):
+            let rid = p.id
+            let existing = try? ctx.fetch(FetchDescriptor<BizRecord>(predicate: #Predicate { $0.id == rid })).first
+            let r: BizRecord
+            if let existing {
+                guard existing.ownerID == e.from, p.at > existing.updatedAt else { return .ignored }
+                r = existing
+            } else {
+                r = BizRecord(id: p.id)
+                r.ownerID = e.from
+                r.createdAt = e.at
+                r.convID = personal ? "" : (conv?.id ?? "")
+                ctx.insert(r)
+            }
+            if !personal, let conv { r.convID = conv.id }
+            let wasDeleted = r.deleted
+            r.module = p.module; r.kind = p.kind; r.parentID = p.parentID; r.subjectID = p.subjectID
+            r.title = p.title; r.subtitle = p.subtitle; r.phone = p.phone; r.amount = p.amount
+            r.date = p.date; r.due = p.due; r.status = p.status; r.notes = p.notes; r.updatedAt = p.at
+            if p.deleted && !wasDeleted { r.deleted = true; r.deletedBy = e.from }
+            if let conv, !personal {
+                let who = e.from == me ? "You" : engine.name(of: e.from)
+                system(conv, BizSpecs.logLine(p, who: who, isNew: existing == nil), at: e.at)
+                if e.from != me && p.subjectID == me {
+                    ctx.insert(ActivityItem(kind: .taskUpdated, text: BizSpecs.logLine(p, who: who, isNew: existing == nil), convID: conv.id, actorID: e.from, date: e.at))
+                }
+            }
+
         case .nowPlaying(let text):
             if e.from != me, let c = engine.contact(e.from), !c.blocked { c.nowPlaying = text; c.nowPlayingAt = e.at }
 

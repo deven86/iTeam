@@ -267,8 +267,18 @@ struct ModulePreviewScreen: View {
         case .careToday: "Today's medicines"
         case .careEvent: "Injury & recovery"
         case .careVault: "Medical vault"
+        case .bizDashboard(let m):
+            let spec = BizSpecs.spec(m)
+            row("person.2.fill", "\(spec?.parent?.plural ?? "Items") · 24", "")
+            row("indianrupeesign", spec?.balanceLabel ?? "Due", "₹12,450")
+            row("calendar", "Next 7 days", "5")
+        case .bizForm(let m):
+            let k = BizSpecs.spec(m).flatMap { $0.parent ?? $0.children.first }
+            ForEach(Array((k?.fields ?? []).prefix(4).enumerated()), id: \.offset) { _, f in row("square.and.pencil", f.label) }
         case .doctorDashboard: "Doctor dashboard"
         case .prescriptionForm: "New prescription"
+        case .bizDashboard(let m): "\(BizSpecs.spec(m)?.title ?? "Module") dashboard"
+        case .bizForm(let m): "New \((BizSpecs.spec(m)?.parent ?? BizSpecs.spec(m)?.children.first)?.label.lowercased() ?? "entry")"
         case .workspaces: "Workspaces"
         case .library: "Library"
         case .assistant: "What did I miss?"

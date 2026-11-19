@@ -16,6 +16,7 @@ struct ModuleInfo: Identifiable {
         case gymDashboard, gymForm, gymSessions
         case mindDashboard, mindForm, mindPlayer
         case doctorDashboard, prescriptionForm
+        case bizDashboard(String), bizForm(String)
     }
 
     let id: String
@@ -99,6 +100,49 @@ final class ModuleRegistry: ObservableObject {
         previews: [.doctorDashboard, .prescriptionForm],
         note: "Free for both doctor and patient — always.")
 
+    static func biz(_ id: String, _ spec: BizSpec, tagline: String, product: String?, problems: [String], benefits: [String], note: String) -> ModuleInfo {
+        ModuleInfo(id: id, title: spec.title, tagline: tagline, icon: spec.icon, colors: spec.colors,
+                   availability: product == nil ? .included : .paid, productID: product,
+                   fallbackPrice: product == nil ? "Free" : "₹99 / $0.99 a month",
+                   problems: problems, benefits: benefits, previews: [.bizDashboard(spec.module), .bizForm(spec.module)], note: note)
+    }
+
+    static let khata = biz("khata", BizSpecs.khata, tagline: "Udhaar khata for shops — who owes what, with UPI reminders.",
+        product: Store.khataProductID,
+        problems: ["Credit written in a notebook gets lost or disputed", "Awkward to remind customers for money", "No idea of total money pending"],
+        benefits: ["Customer-wise credit and payments with running balance", "Ask for payment with your UPI link in one tap",
+                   "Link a customer on iTeam and they see their own khata live", "Statement PDF to share", "Total to collect on the dashboard"],
+        note: "Only the shop owner pays. Customers never buy it — they just see their own khata.")
+    static let tuition = biz("tuition", BizSpecs.tuition, tagline: "Students, attendance, fees and homework — parents see their child's.",
+        product: Store.tuitionProductID,
+        problems: ["Fee follow-ups with every parent", "Attendance kept on paper", "Parents keep asking about homework and progress"],
+        benefits: ["Student list by class/batch", "Attendance, fees due/paid, homework, test marks", "Fee reminders with UPI link",
+                   "Parents linked on iTeam see only their child's records", "Progress statement PDF"],
+        note: "Only the teacher or institute pays. Parents never buy it.")
+    static let rent = biz("rent", BizSpecs.rent, tagline: "Tenants, rent due, payments and repairs in one place.",
+        product: Store.rentProductID,
+        problems: ["Chasing rent every month", "No record of who paid when", "Repair requests lost in calls"],
+        benefits: ["Tenants with monthly rent and next due date", "Rent charges, payments received, receipts as PDF",
+                   "Maintenance requests with status", "Tenants on iTeam see their own rent and requests"],
+        note: "Only the owner or property manager pays. Tenants never buy it.")
+    static let legal = biz("legal", BizSpecs.legal, tagline: "Matters, hearing dates and client updates for advocates.",
+        product: Store.legalProductID,
+        problems: ["Missing hearing dates across many courts", "Clients calling for every update", "Fee tracking across matters"],
+        benefits: ["Matters with court, case number and stage", "Hearings with reminders an hour before",
+                   "Client updates shared with the client on iTeam", "Fees due per matter, statement PDF"],
+        note: "Only the advocate pays. Clients never buy it — they see only their own matter.")
+    static let clinic = biz("clinic", BizSpecs.clinic, tagline: "Appointments, visit notes and bills for small clinics.",
+        product: Store.clinicProductID,
+        problems: ["Appointment book on paper", "Patients forgetting visits", "Visit history scattered"],
+        benefits: ["Patients with history", "Appointments with status and reminders", "Visit notes and bills",
+                   "Patients on iTeam see their own appointments", "Prescriptions stay free in Doctor & Patient"],
+        note: "Only the clinic pays. Patients are always free.")
+    static let bills = biz("bills", BizSpecs.bills, tagline: "Never miss a bill, EMI, insurance or PUC renewal.",
+        product: nil,
+        problems: ["Late fees for forgotten bills", "Insurance and PUC expiring unnoticed"],
+        benefits: ["Bills and renewals with due dates and reminders", "Repeating monthly, quarterly or yearly", "Mark paid with a swipe — the next one is created"],
+        note: "Free for everyone.")
+
     static let gymTraining = ModuleInfo(
         id: "gym-training", title: "Gym & Training",
         tagline: "Memberships, trainer sessions and payments — shared with your trainer, clients or family.",
@@ -159,7 +203,7 @@ final class ModuleRegistry: ObservableObject {
         benefits: ["“What did I miss?” summaries", "Suggested tasks from messages", "Runs on-device with Apple Intelligence (iPhone 15 Pro and newer)"],
         previews: [.assistant], note: "In development.")
 
-    static let all: [ModuleInfo] = [businessTasks, businessPro, iLifeCare, doctorPatient, gymTraining, mindfulness, teamWorkspace, filesKnowledge, aiAssistant]
+    static let all: [ModuleInfo] = [businessTasks, businessPro, iLifeCare, doctorPatient, bills, khata, tuition, rent, legal, clinic, gymTraining, mindfulness, teamWorkspace, filesKnowledge, aiAssistant]
 
     @Published private var enabled: [String: Bool]
     /// Modules the user wants in the iPhone bottom bar, in order (Router.TabID raw values).

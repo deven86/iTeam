@@ -60,6 +60,8 @@ struct Event: Codable {
         case checkIn(CheckInPayload)
         /// What I'm listening to on Apple Music ("" = nothing / hidden).
         case nowPlaying(String)
+        /// A record in a business module (Khata, Tuition, Rent, Legal, Clinic, Bills).
+        case biz(BizPayload)
     }
 }
 

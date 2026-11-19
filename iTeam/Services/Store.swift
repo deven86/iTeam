@@ -10,7 +10,13 @@ final class Store: ObservableObject {
     static let gymProductID = "com.jondhale.iteam.gym.monthly"
     static let mindProductID = "com.jondhale.iteam.mind.monthly"
     static let plusProductID = "com.jondhale.iteam.plus.monthly"
-    static let allProducts = [careProductID, proProductID, gymProductID, mindProductID, plusProductID]
+    static let khataProductID = "com.jondhale.iteam.khata.monthly"
+    static let tuitionProductID = "com.jondhale.iteam.tuition.monthly"
+    static let rentProductID = "com.jondhale.iteam.rent.monthly"
+    static let legalProductID = "com.jondhale.iteam.legal.monthly"
+    static let clinicProductID = "com.jondhale.iteam.clinic.monthly"
+    static let allProducts = [careProductID, proProductID, gymProductID, mindProductID, plusProductID,
+                              khataProductID, tuitionProductID, rentProductID, legalProductID, clinicProductID]
     /// iTeam Plus ✓ supporter badge (the owner has it free).
     var hasPlus: Bool { isOwner || active.contains(Self.plusProductID) }
 

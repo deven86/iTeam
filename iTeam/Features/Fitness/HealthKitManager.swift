@@ -328,15 +328,3 @@ extension HKWorkoutActivityType {
         }
     }
 }
-
-enum NotificationService {
-    static func requestAuthorization() async {
-        _ = try? await UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound, .badge])
-    }
-
-    static func post(title: String, body: String) {
-        let c = UNMutableNotificationContent()
-        c.title = title; c.body = body; c.sound = .default
-        UNUserNotificationCenter.current().add(UNNotificationRequest(identifier: UUID().uuidString, content: c, trigger: nil))
-    }
-}

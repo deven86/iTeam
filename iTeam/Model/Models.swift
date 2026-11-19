@@ -15,7 +15,8 @@ enum ITeamSchema {
         MeditationLog.self, CustomMeditation.self,
         FoodEntry.self, WaterEntry.self, WorkoutLog.self, ExerciseSet.self, WorkoutPlan.self, PlanExercise.self,
         EmergencyContact.self, HealthProfile.self, ProgressPhoto.self, LibraryPhoto.self, CustomFood.self, CustomExercise.self,
-        Trainer.self, BodyMeasurement.self, Supplement.self, SupplementDose.self, ExerciseMedia.self
+        Trainer.self, BodyMeasurement.self, Supplement.self, SupplementDose.self, ExerciseMedia.self,
+        WalletDoc.self
     ]
 }
 

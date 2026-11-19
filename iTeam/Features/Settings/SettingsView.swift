@@ -138,6 +138,7 @@ struct SettingsView: View {
                 .lookRows()
 
                 Section {
+                    NavigationLink { WalletView() } label: { Label("Personal Wallet", systemImage: "wallet.pass.fill") }
                     NavigationLink { BackupView() } label: {
                         Label {
                             HStack {

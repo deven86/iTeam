@@ -52,6 +52,10 @@ struct Event: Codable {
         case chatTimer(seconds: Int)
         /// My "About" line ("" = hidden).
         case about(String)
+        /// Doctor → patient prescription (create / update / delete).
+        case prescription(PrescriptionPayload)
+        /// Patient accepts or declines a prescription.
+        case rxAnswer(id: String, accept: Bool, note: String)
     }
 }
 
@@ -386,4 +390,17 @@ struct PostCommentPayload: Codable {
     var postID: String
     var text: String
     var deleted: Bool
+}
+
+
+struct PrescriptionPayload: Codable {
+    var id: String
+    var patientID: String
+    var patientName: String
+    var diagnosis: String
+    var advice: String
+    var items: [RxItem]
+    var nextVisit: Date?
+    var deleted: Bool
+    var at: Date
 }

@@ -96,6 +96,29 @@ extension SyncEngine {
         save()
     }
 
+    // MARK: - Doctor & Patient
+
+    func sendPrescription(_ p: PrescriptionPayload, in conv: Conversation) {
+        send(.prescription(p), in: conv, loud: true, preview: "🩺 New prescription: \(p.items.map(\.name).joined(separator: ", "))")
+    }
+
+    /// Patient's answer. Accepting copies each medicine into the chosen Care profile (with reminders).
+    func answerPrescription(_ rx: Prescription, accept: Bool, note: String, into profile: CareProfile?) {
+        guard let conv = conversation(rx.convID) else { return }
+        if accept, let profile {
+            for item in rx.items {
+                let end = item.days > 0 ? Calendar.current.date(byAdding: .day, value: item.days, to: .now) : nil
+                let doc = name(of: rx.doctorID)
+                saveMedicine(profile, name: item.name, dose: item.dose, form: item.form, times: item.times,
+                             instructions: [item.instructions, "Prescribed by Dr. \(doc)"].filter { !$0.isEmpty }.joined(separator: " · "),
+                             startDate: .now, endDate: end, stock: nil)
+            }
+            rx.careProfileID = profile.id
+        }
+        send(.rxAnswer(id: rx.id, accept: accept, note: note), in: conv, loud: true,
+             preview: accept ? "✅ Prescription accepted" : "✋ Prescription declined")
+    }
+
     /// Disappearing messages for a chat — applies to everyone in it.
     func setTimer(_ conv: Conversation, _ seconds: Int) {
         guard !conv.isDemo else { conv.timer = seconds; save(); return }

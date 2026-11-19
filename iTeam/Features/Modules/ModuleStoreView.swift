@@ -267,6 +267,8 @@ struct ModulePreviewScreen: View {
         case .careToday: "Today's medicines"
         case .careEvent: "Injury & recovery"
         case .careVault: "Medical vault"
+        case .doctorDashboard: "Doctor dashboard"
+        case .prescriptionForm: "New prescription"
         case .workspaces: "Workspaces"
         case .library: "Library"
         case .assistant: "What did I miss?"
@@ -461,6 +463,15 @@ struct ModulePreviewScreen: View {
             bar("40% recovered", 0.4)
             row("text.bubble", "“Swelling down, follow-up Monday”")
             row("photo", "X-ray attached")
+        case .doctorDashboard:
+            row("person.fill", "Aai · BP follow-up", "Accepted")
+            row("person.fill", "Rahul · Fever", "Waiting")
+            row("calendar", "Next visits this week", "4")
+        case .prescriptionForm:
+            row("pills.fill", "Amlodipine 5 mg · 9:00", "30 days")
+            row("pills.fill", "Paracetamol 650 · 9:00, 21:00", "5 days")
+            row("text.bubble", "Advice: low salt, walk 30 min")
+            row("calendar.badge.clock", "Next visit", "2 Dec")
         case .careVault:
             row("doc.text.magnifyingglass", "Blood test – Nov")
             row("pills.fill", "Prescription – Dr. K")

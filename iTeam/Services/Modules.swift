@@ -15,6 +15,7 @@ struct ModuleInfo: Identifiable {
         case workspaces, library, assistant
         case gymDashboard, gymForm, gymSessions
         case mindDashboard, mindForm, mindPlayer
+        case doctorDashboard, prescriptionForm
     }
 
     let id: String
@@ -82,6 +83,22 @@ final class ModuleRegistry: ObservableObject {
         previews: [.careDashboard, .medicineForm, .careToday, .careEvent, .careVault],
         note: "Free for everyone — caring for family and patients is never charged.")
 
+    static let doctorPatient = ModuleInfo(
+        id: "doctor-patient", title: "Doctor & Patient",
+        tagline: "Prescriptions that land straight in your Care reminders.",
+        icon: "stethoscope", colors: [0x36D1DC, 0x5B86E5], availability: .included,
+        productID: nil, fallbackPrice: "Free",
+        problems: ["Paper prescriptions get lost and doses are misread",
+                   "Patients forget when to take which medicine",
+                   "Doctors don't know if the patient actually started the treatment"],
+        benefits: ["Doctor writes the prescription in the chat: medicines, dose, times, days",
+                   "Patient taps Accept — medicines go into Care with reminders automatically",
+                   "Doctor sees Waiting / Accepted / Declined for every prescription",
+                   "Next visit date, advice and notes kept with each prescription",
+                   "PDF prescription to print or share, end-to-end encrypted"],
+        previews: [.doctorDashboard, .prescriptionForm],
+        note: "Free for both doctor and patient — always.")
+
     static let gymTraining = ModuleInfo(
         id: "gym-training", title: "Gym & Training",
         tagline: "Memberships, trainer sessions and payments — shared with your trainer, clients or family.",
@@ -142,7 +159,7 @@ final class ModuleRegistry: ObservableObject {
         benefits: ["“What did I miss?” summaries", "Suggested tasks from messages", "Runs on-device with Apple Intelligence (iPhone 15 Pro and newer)"],
         previews: [.assistant], note: "In development.")
 
-    static let all: [ModuleInfo] = [businessTasks, businessPro, iLifeCare, gymTraining, mindfulness, teamWorkspace, filesKnowledge, aiAssistant]
+    static let all: [ModuleInfo] = [businessTasks, businessPro, iLifeCare, doctorPatient, gymTraining, mindfulness, teamWorkspace, filesKnowledge, aiAssistant]
 
     @Published private var enabled: [String: Bool]
     /// Modules the user wants in the iPhone bottom bar, in order (Router.TabID raw values).

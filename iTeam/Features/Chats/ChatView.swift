@@ -44,6 +44,7 @@ struct ChatView: View {
 
     private var conv: Conversation? { convs.first }
     @State private var magicOpen = false
+    @State private var showRx = false
     @State private var lastSeen: Date?
     private let ticker = Timer.publish(every: 20, on: .main, in: .common).autoconnect()
 
@@ -275,6 +276,11 @@ struct ChatView: View {
                 lastSeen = profile.flatMap { $0 }?.seen
             }
         }
+        .sheet(isPresented: $showRx) {
+            if let peer = conv.peerID {
+                NavigationStack { PrescriptionEditor(conv: conv, patientID: peer, patientName: engine.name(of: peer)) }
+            }
+        }
         .sheet(isPresented: $magicOpen) {
             MagicMomentSheet(text: text) { when in
                 engine.sendText(text, in: conv, replyTo: replyTo?.id, showAt: when)
@@ -378,6 +384,9 @@ struct ChatView: View {
                     if conv.members.count > 1 {
                         Button("Poll", systemImage: "chart.bar") { showPoll = true }
                         Button("Request approval", systemImage: "checkmark.seal") { showApproval = true }
+                    }
+                    if !conv.isGroup, let peer = conv.peerID, peer != engine.me {
+                        Button("Prescription (doctor)", systemImage: "stethoscope") { showRx = true }
                     }
                 } label: {
                     Image(systemName: "plus").font(.title3.weight(.semibold))

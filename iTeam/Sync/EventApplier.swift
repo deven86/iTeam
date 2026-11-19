@@ -520,6 +520,46 @@ struct EventApplier {
         case .about(let text):
             if e.from != me, let c = engine.contact(e.from), !c.blocked { c.about = text }
 
+        case .prescription(let p):
+            guard let conv else { return .needsConversation }
+            let pid = p.id
+            let existing = try? ctx.fetch(FetchDescriptor<Prescription>(predicate: #Predicate { $0.id == pid })).first
+            if let rx = existing {
+                guard rx.doctorID == e.from, p.at > rx.updatedAt else { return .ignored }
+                rx.diagnosis = p.diagnosis; rx.advice = p.advice; rx.items = p.items; rx.nextVisit = p.nextVisit
+                rx.updatedAt = p.at
+                if p.deleted && !rx.deleted {
+                    rx.deleted = true
+                    system(conv, "🩺 \(e.from == me ? "You" : engine.name(of: e.from)) cancelled a prescription", at: e.at)
+                } else {
+                    system(conv, "🩺 \(e.from == me ? "You" : engine.name(of: e.from)) updated the prescription — \(p.diagnosis.isEmpty ? "\(p.items.count) medicine(s)" : p.diagnosis)", at: e.at)
+                }
+            } else {
+                let rx = Prescription(id: p.id)
+                rx.convID = conv.id; rx.doctorID = e.from; rx.patientID = p.patientID; rx.patientName = p.patientName
+                rx.diagnosis = p.diagnosis; rx.advice = p.advice; rx.items = p.items; rx.nextVisit = p.nextVisit
+                rx.createdAt = e.at; rx.updatedAt = p.at; rx.deleted = p.deleted
+                ctx.insert(rx)
+                let doc = e.from == me ? "You" : "Dr. " + engine.name(of: e.from)
+                system(conv, "🩺 \(doc) prescribed \(p.items.map(\.name).joined(separator: ", ")) — waiting for \(p.patientID == me ? "your" : p.patientName + "'s") OK", at: e.at)
+                if p.patientID == me && e.from != me {
+                    ctx.insert(ActivityItem(kind: .care, text: "Dr. \(engine.name(of: e.from)) sent you a prescription — review and accept", convID: conv.id, actorID: e.from, date: e.at))
+                }
+            }
+
+        case .rxAnswer(let id, let accept, let note):
+            guard let conv else { return .needsConversation }
+            guard let rx = try? ctx.fetch(FetchDescriptor<Prescription>(predicate: #Predicate { $0.id == id })).first,
+                  rx.patientID == e.from else { return .ignored }
+            rx.status = accept ? "accepted" : "declined"
+            rx.answerNote = note
+            rx.answeredAt = e.at
+            let who = e.from == me ? "You" : engine.name(of: e.from)
+            system(conv, accept ? "✅ \(who) accepted the prescription — medicines added to Care" : "✋ \(who) declined the prescription\(note.isEmpty ? "" : " — " + note)", at: e.at)
+            if rx.doctorID == me && e.from != me {
+                ctx.insert(ActivityItem(kind: .care, text: "\(who) \(accept ? "accepted" : "declined") your prescription", convID: conv.id, actorID: e.from, date: e.at))
+            }
+
         case .chatTimer(let seconds):
             guard let conv else { return .ignored }
             conv.timer = seconds

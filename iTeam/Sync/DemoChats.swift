@@ -1,5 +1,6 @@
 import Foundation
 import SwiftData
+import UIKit
 
 /// Practice chats so one person can try everything: a "Notes to self" chat (syncs to your own iPad)
 /// and a demo team with two simulated colleagues who reply. Demo chats never leave this device.
@@ -26,14 +27,46 @@ enum DemoChats {
         return c
     }
 
+    /// Illustrated display pictures for the demo people (drawn on device, no photos of real people).
+    static func demoAvatar(_ id: String) -> Data? {
+        let (emoji, top, bottom): (String, UIColor, UIColor) = id == asha
+            ? ("👩🏽‍💼", UIColor(red: 1.0, green: 0.54, blue: 0.36, alpha: 1), UIColor(red: 0.90, green: 0.28, blue: 0.42, alpha: 1))
+            : ("👨🏻‍💻", UIColor(red: 0.16, green: 0.75, blue: 0.90, alpha: 1), UIColor(red: 0.23, green: 0.36, blue: 0.85, alpha: 1))
+        let size = CGSize(width: 256, height: 256)
+        let img = UIGraphicsImageRenderer(size: size).image { ctx in
+            let space = CGColorSpaceCreateDeviceRGB()
+            if let g = CGGradient(colorsSpace: space, colors: [top.cgColor, bottom.cgColor] as CFArray, locations: [0, 1]) {
+                ctx.cgContext.drawLinearGradient(g, start: .zero, end: CGPoint(x: size.width, y: size.height), options: [])
+            }
+            let text = emoji as NSString
+            let attrs: [NSAttributedString.Key: Any] = [.font: UIFont.systemFont(ofSize: 150)]
+            let t = text.size(withAttributes: attrs)
+            text.draw(at: CGPoint(x: (size.width - t.width) / 2, y: (size.height - t.height) / 2 + 6), withAttributes: attrs)
+        }
+        return img.jpegData(compressionQuality: 0.85)
+    }
+
+    /// Gives already-created demo people their pictures.
+    static func ensureAvatars(_ engine: SyncEngine) {
+        var changed = false
+        for id in [asha, rahul] { if let c = engine.contact(id), c.avatar == nil { c.avatar = demoAvatar(id); changed = true } }
+        if changed { engine.save() }
+    }
+
     /// Creates the demo team (and a one-to-one demo chat) with sample messages and tasks.
     @discardableResult
     static func create(_ engine: SyncEngine) -> Conversation {
         if let c = engine.conversation(teamID) { return c }
         let ctx = engine.context!
         let me = engine.me
-        for (id, name) in [(asha, "Asha (demo)"), (rahul, "Rahul (demo)")] where engine.contact(id) == nil {
-            ctx.insert(Contact(userID: id, name: name, publicKey: "", saved: false))
+        for (id, name) in [(asha, "Asha (demo)"), (rahul, "Rahul (demo)")] {
+            if let c = engine.contact(id) {
+                if c.avatar == nil { c.avatar = demoAvatar(id) }
+            } else {
+                let c = Contact(userID: id, name: name, publicKey: "", saved: false)
+                c.avatar = demoAvatar(id)
+                ctx.insert(c)
+            }
         }
 
         let team = Conversation(id: teamID, kind: "group", title: "Demo Team", ownerID: me,

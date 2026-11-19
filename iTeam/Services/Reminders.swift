@@ -148,8 +148,9 @@ final class Reminders {
         reschedule(context: context, me: me)
     }
 
-    /// The badge on the app icon: unread chats + overdue tasks.
+    /// The badge on the app icon: unread chats + tasks waiting for my answer + my overdue tasks.
     func updateBadge(_ count: Int) {
+        AppGroup.badge = count
         Task { try? await center.setBadgeCount(count) }
     }
 }

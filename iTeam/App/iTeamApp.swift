@@ -52,6 +52,7 @@ struct iTeamApp: App {
             switch phase {
             case .active:
                 engine.setForeground(true)
+                Reminders.shared.updateBadge(totalUnread(engine))
                 Task {
                     await lock.unlock()
                     await engine.sync()
@@ -69,7 +70,11 @@ struct iTeamApp: App {
 
     private func totalUnread(_ engine: SyncEngine) -> Int {
         let convs = (try? container.mainContext.fetch(FetchDescriptor<Conversation>())) ?? []
-        return convs.filter { !$0.muted }.reduce(0) { $0 + $1.unread }
+        let chats = convs.filter { !$0.muted && !$0.archived }.reduce(0) { $0 + $1.unread }
+        let me = engine.me
+        let tasks = ((try? container.mainContext.fetch(FetchDescriptor<TaskItem>())) ?? [])
+            .filter { $0.deletedAt == nil && ($0.awaitsMe(me) || ($0.isOverdue && $0.assignees.contains(me))) }.count
+        return chats + tasks
     }
 }
 

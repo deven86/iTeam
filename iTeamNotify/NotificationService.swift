@@ -27,6 +27,9 @@ final class NotificationService: UNNotificationServiceExtension {
         if muted {
             content.sound = nil
             content.interruptionLevel = .passive
+        } else {
+            AppGroup.badge += 1
+            content.badge = NSNumber(value: AppGroup.badge)
         }
 
         guard let hintString = fields["hint"] as? String,

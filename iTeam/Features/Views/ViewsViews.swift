@@ -11,7 +11,6 @@ struct ViewsHomeView: View {
     @Environment(\.look) private var look
     @Query(filter: #Predicate<Post> { !$0.deleted }, sort: \Post.createdAt, order: .reverse) private var posts: [Post]
     @State private var compose: Bool?   // nil = closed, true = status, false = post
-    @State private var viewing: StatusGroup?
     @AppStorage("views.lastVisit") private var lastVisit: Double = 0
 
     struct StatusGroup: Identifiable {
@@ -20,18 +19,11 @@ struct ViewsHomeView: View {
     }
 
     private var feed: [Post] { posts.filter { !$0.isStatus } }
-    private var statuses: [StatusGroup] {
-        let live = posts.filter { $0.isStatus && $0.isLive }
-        let groups = Dictionary(grouping: live, by: \.author)
-        return groups.map { StatusGroup(id: $0.key, items: $0.value.sorted { $0.createdAt < $1.createdAt }) }
-            .sorted { ($0.id == engine.me ? 0 : 1, -($0.items.last?.createdAt.timeIntervalSince1970 ?? 0)) < ($1.id == engine.me ? 0 : 1, -($1.items.last?.createdAt.timeIntervalSince1970 ?? 0)) }
-    }
-
     var body: some View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 14) {
-                    statusRow
+                    MiniRow()
                     if feed.isEmpty {
                         EmptyStateView(icon: "play.rectangle.on.rectangle", title: "Views",
                                        message: "Share photos, 30-second videos, achievements, finished tasks and recovery milestones — only with the people and groups you choose.")
@@ -51,7 +43,7 @@ struct ViewsHomeView: View {
                 ToolbarItem(placement: .topBarTrailing) {
                     Menu {
                         Button("New post", systemImage: "square.and.pencil") { compose = false }
-                        Button("New status (24 h)", systemImage: "circle.dashed") { compose = true }
+                        Button("New mini (24 h)", systemImage: "circle.dashed") { compose = true }
                         NavigationLink { AudiencesView() } label: { Label("My audiences", systemImage: "person.2.badge.gearshape") }
                     } label: { Image(systemName: "plus") }
                 }
@@ -60,9 +52,32 @@ struct ViewsHomeView: View {
             .sheet(isPresented: Binding(get: { compose != nil }, set: { if !$0 { compose = nil } })) {
                 NavigationStack { NewPostView(status: compose ?? false) }
             }
-            .fullScreenCover(item: $viewing) { g in StatusViewer(items: g.items) }
             .onAppear { lastVisit = Date.now.timeIntervalSince1970 }
         }
+    }
+
+}
+
+
+/// "mini" — 24-hour photos and videos, shown in a row above Chats and at the top of Views.
+struct MiniRow: View {
+    @EnvironmentObject var engine: SyncEngine
+    @Environment(\.look) private var look
+    @Query(filter: #Predicate<Post> { !$0.deleted && $0.isStatus }, sort: \Post.createdAt, order: .reverse) private var posts: [Post]
+    @State private var compose = false
+    @State private var viewing: ViewsHomeView.StatusGroup?
+
+    private var statuses: [ViewsHomeView.StatusGroup] {
+        let live = posts.filter { $0.isLive }
+        let groups = Dictionary(grouping: live, by: \.author)
+        return groups.map { ViewsHomeView.StatusGroup(id: $0.key, items: $0.value.sorted { $0.createdAt < $1.createdAt }) }
+            .sorted { ($0.id == engine.me ? 0 : 1, -($0.items.last?.createdAt.timeIntervalSince1970 ?? 0)) < ($1.id == engine.me ? 0 : 1, -($1.items.last?.createdAt.timeIntervalSince1970 ?? 0)) }
+    }
+
+    var body: some View {
+        statusRow
+            .sheet(isPresented: $compose) { NavigationStack { NewPostView(status: true) } }
+            .fullScreenCover(item: $viewing) { g in StatusViewer(items: g.items) }
     }
 
     private var statusRow: some View {
@@ -75,7 +90,7 @@ struct ViewsHomeView: View {
                                 AvatarView(name: engine.myName, imageData: engine.myAvatar, size: 62)
                                 Image(systemName: "plus.circle.fill").font(.title3).foregroundStyle(.white, look.accent)
                             }
-                            Text("My status").font(.caption2).foregroundStyle(Color.primary)
+                            Text("My mini").font(.caption2).foregroundStyle(Color.primary)
                         }
                     }
                     .buttonStyle(.plain)
@@ -87,7 +102,7 @@ struct ViewsHomeView: View {
                             AvatarView(name: engine.name(of: g.id), imageData: g.id == engine.me ? engine.myAvatar : engine.contact(g.id)?.avatar, size: 62)
                                 .padding(3)
                                 .overlay(Circle().stroke(seenAll ? AnyShapeStyle(Color.secondary.opacity(0.4)) : AnyShapeStyle(look.gradient), lineWidth: 3))
-                            Text(g.id == engine.me ? "My status" : engine.name(of: g.id)).font(.caption2).lineLimit(1).frame(width: 70)
+                            Text(g.id == engine.me ? "My mini" : engine.name(of: g.id)).font(.caption2).lineLimit(1).frame(width: 70)
                                 .foregroundStyle(Color.primary)
                         }
                     }
@@ -335,12 +350,12 @@ struct NewPostView: View {
             } header: {
                 Text("Audience")
             } footer: {
-                Text(status ? "Your status disappears after 24 hours." : "Only these people can see it, like it and comment. Comments in a group are visible to that group.")
+                Text(status ? "Your mini disappears after 24 hours." : "Only these people can see it, like it and comment. Comments in a group are visible to that group.")
             }
             .lookRows()
         }
         .lookScreen()
-        .navigationTitle(status ? "New status" : "New post")
+        .navigationTitle(status ? "New mini" : "New post")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
@@ -473,7 +488,7 @@ struct StatusViewer: View {
                     HStack {
                         AvatarView(name: engine.name(of: p.author), imageData: p.author == engine.me ? engine.myAvatar : engine.contact(p.author)?.avatar, size: 34)
                         VStack(alignment: .leading) {
-                            Text(p.author == engine.me ? "My status" : engine.name(of: p.author)).font(.subheadline.bold())
+                            Text(p.author == engine.me ? "My mini" : engine.name(of: p.author)).font(.subheadline.bold())
                             Text(p.createdAt.formatted(.relative(presentation: .named))).font(.caption2).opacity(0.8)
                         }
                         Spacer()
@@ -539,7 +554,7 @@ struct StatusViewer: View {
         let t = reply.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !t.isEmpty else { return }
         if let c = engine.contact(p.author) {
-            engine.sendText("↩︎ Replied to your status: \(t)", in: engine.directConversation(with: c))
+            engine.sendText("↩︎ Replied to your mini: \(t)", in: engine.directConversation(with: c))
         } else {
             engine.commentOnPost(p, text: t)
         }

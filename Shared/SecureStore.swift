@@ -14,6 +14,11 @@ enum AppGroup {
     static let previewsKey = "notificationPreviews"
     /// The conversation open on screen right now (no banner for it).
     static let openConversationKey = "openConversation"
+    /// App icon badge, shared so the notification extension can add 1 while iTeam is closed.
+    static var badge: Int {
+        get { defaults.integer(forKey: "badgeCount") }
+        set { defaults.set(max(0, newValue), forKey: "badgeCount") }
+    }
 
     static var mutedConversations: Set<String> {
         get { Set(defaults.stringArray(forKey: mutedKey) ?? []) }

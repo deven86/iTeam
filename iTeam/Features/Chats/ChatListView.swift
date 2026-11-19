@@ -18,6 +18,7 @@ struct ChatListView: View {
     @State private var search = ""
     @State private var showNewChat = false
     @State private var showAddContact = false
+    @State private var editProfile = false
     @State private var path: [String] = []
     @State private var selection: String?
 
@@ -59,6 +60,8 @@ struct ChatListView: View {
             NewChatView { conv in open(conv.id) }
         }
         .sheet(isPresented: $showAddContact) { AddContactView() }
+        .sheet(isPresented: $editProfile) { NavigationStack { EditProfileView() } }
+        .task { DemoChats.ensureAvatars(engine) }
         .sheet(item: $router.pendingInvite) { invite in AddContactView(invite: invite) }
         .onChange(of: router.openConversation) { _, id in
             guard let id else { return }
@@ -81,6 +84,14 @@ struct ChatListView: View {
                 .listRowBackground(Color.clear)
                 .listRowInsets(EdgeInsets(top: 4, leading: 0, bottom: 4, trailing: 0))
                 syncBanner
+            }
+
+            if filter == .all && search.isEmpty {
+                Section {
+                    MiniRow()
+                        .listRowBackground(Color.clear)
+                        .listRowInsets(EdgeInsets(top: 0, leading: 4, bottom: 0, trailing: 4))
+                } header: { Text("mini") }
             }
 
             if !requests.isEmpty && filter == .all {
@@ -134,10 +145,15 @@ struct ChatListView: View {
         .navigationTitle("Chats")
         .toolbar {
             ToolbarItem(placement: .topBarLeading) {
-                Button { showAddContact = true } label: { Image(systemName: "qrcode.viewfinder") }
-                    .accessibilityLabel("Add contact")
+                Button { editProfile = true } label: {
+                    AvatarView(name: engine.myName, imageData: engine.myAvatar, size: 32)
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("My profile")
             }
-            ToolbarItem(placement: .topBarTrailing) {
+            ToolbarItemGroup(placement: .topBarTrailing) {
+                Button { showAddContact = true } label: { Image(systemName: "qrcode.viewfinder") }
+                    .accessibilityLabel("Scan or show QR code")
                 Button { showNewChat = true } label: { Image(systemName: "square.and.pencil") }
                     .accessibilityLabel("New chat")
             }

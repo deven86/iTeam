@@ -1,0 +1,93 @@
+name: Dev install (one-time push setup)
+
+# Builds iTeam signed for ONE registered iPhone, pointed at the Development iCloud environment.
+# Opening it once creates the CloudKit push subscriptions in Development; then "Deploy Schema Changes"
+# copies them to Production so TestFlight / App Store builds can create them too.
+on:
+  workflow_dispatch:
+    inputs:
+      udid:
+        description: 'iPhone UDID'
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: macos-15-intel
+    timeout-minutes: 60
+    env:
+      TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+      ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+      ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+      APP_IDS: com.jondhale.iteam,com.jondhale.iteam.notify,com.jondhale.iteam.widgets
+      DEV_UDID: ${{ inputs.udid }}
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Select Xcode 26
+        run: |
+          X=$(ls -d /Applications/Xcode_26*.app 2>/dev/null | sort -V | tail -1)
+          [ -n "$X" ] || { echo "::error::No Xcode 26"; exit 1; }
+          sudo xcode-select -s "$X/Contents/Developer"
+
+      - name: Credentials (runner only)
+        run: |
+          mkdir -p "$RUNNER_TEMP/keys"
+          printf '%s' "${{ secrets.ASC_KEY_P8_BASE64 }}" > "$RUNNER_TEMP/keys/raw"
+          if grep -q "BEGIN PRIVATE KEY" "$RUNNER_TEMP/keys/raw"; then cp "$RUNNER_TEMP/keys/raw" "$RUNNER_TEMP/keys/AuthKey.p8"; else tr -d ' \r\n' < "$RUNNER_TEMP/keys/raw" | base64 --decode > "$RUNNER_TEMP/keys/AuthKey.p8"; fi
+          rm -f "$RUNNER_TEMP/keys/raw"
+          echo "ASC_KEY_PATH=$RUNNER_TEMP/keys/AuthKey.p8" >> "$GITHUB_ENV"
+          PW="${{ secrets.MATCH_PASSWORD }}"; echo "::add-mask::$PW"; echo "MATCH_PASSWORD=$PW" >> "$GITHUB_ENV"
+          AUTH=$(printf 'x-access-token:%s' "${{ secrets.MATCH_GIT_TOKEN }}" | base64 | tr -d '\n'); echo "::add-mask::$AUTH"
+          echo "MATCH_GIT_AUTH=$AUTH" >> "$GITHUB_ENV"
+
+      - name: Register iPhone + Development profiles
+        run: |
+          set +e
+          fastlane dev_setup > "$RUNNER_TEMP/fl.log" 2>&1; status=$?
+          set -e
+          tail -40 "$RUNNER_TEMP/fl.log"
+          [ $status -eq 0 ] || { grep -iE "error|fail|\[!\]" "$RUNNER_TEMP/fl.log" | tail -8 | cut -c1-600 | while read -r l; do echo "::error title=dev_setup::$l"; done; exit $status; }
+
+      - name: Generate project with Development signing
+        run: |
+          brew install xcodegen
+          sed -i '' 's/match AppStore /match Development /g; s/"Apple Distribution"/"Apple Development"/g' project.yml
+          xcodegen generate
+
+      - name: Archive
+        run: |
+          set +e
+          xcodebuild archive -project iTeam.xcodeproj -scheme iTeam -configuration Release \
+            -destination 'generic/platform=iOS' -archivePath "$RUNNER_TEMP/iTeam.xcarchive" \
+            DEVELOPMENT_TEAM="$TEAM_ID" CURRENT_PROJECT_VERSION="${{ github.run_number }}" > "$RUNNER_TEMP/archive.log" 2>&1
+          status=$?
+          set -e
+          tail -30 "$RUNNER_TEMP/archive.log"
+          [ $status -eq 0 ] || { grep -E "error:|Provisioning profile|No profiles" "$RUNNER_TEMP/archive.log" | sort -u | tail -10 | cut -c1-600 | while read -r l; do echo "::error title=archive::$l"; done; exit $status; }
+
+      - name: Export (Development iCloud)
+        run: |
+          sed "s/__TEAM_ID__/$TEAM_ID/" ci/ExportOptions-dev.plist > "$RUNNER_TEMP/ExportOptions.plist"
+          set +e
+          xcodebuild -exportArchive -archivePath "$RUNNER_TEMP/iTeam.xcarchive" -exportOptionsPlist "$RUNNER_TEMP/ExportOptions.plist" \
+            -exportPath "$RUNNER_TEMP/export" > "$RUNNER_TEMP/export.log" 2>&1
+          status=$?
+          set -e
+          tail -30 "$RUNNER_TEMP/export.log"
+          [ $status -eq 0 ] || { grep -iE "error|fail" "$RUNNER_TEMP/export.log" | tail -8 | cut -c1-600 | while read -r l; do echo "::error title=export::$l"; done; exit $status; }
+          APP_DIR=$(mktemp -d); cd "$APP_DIR"; unzip -q "$RUNNER_TEMP"/export/*.ipa
+          codesign -d --entitlements :- Payload/*.app 2>/dev/null | grep -A1 icloud-container-environment | tr -d '\t\n' | sed 's/^/::notice title=entitlement::/'; echo
+          mkdir -p "$RUNNER_TEMP/out"; cp "$RUNNER_TEMP"/export/*.ipa "$RUNNER_TEMP/out/iTeam-dev.ipa"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: iTeam-dev
+          path: ${{ runner.temp }}/out/iTeam-dev.ipa
+          retention-days: 3
+
+      - name: Remove key
+        if: always()
+        run: rm -rf "$RUNNER_TEMP/keys"

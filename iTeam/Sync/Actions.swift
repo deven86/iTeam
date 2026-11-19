@@ -229,6 +229,7 @@ extension SyncEngine {
         var checklist: [String] = []
         var sourceMessageID: String?
         var reminderOffset = 60
+        var repeatRule = "none"
     }
 
     @discardableResult
@@ -239,7 +240,8 @@ extension SyncEngine {
         for f in TaskItem.sharedFields { stamps[f] = now }
         let p = TaskPayload(id: id, sourceMessageID: d.sourceMessageID, title: d.title, notes: d.notes, status: .open,
                             priority: d.priority, dueAt: d.dueAt, policy: d.policy, assignees: d.assignees,
-                            createdBy: me, createdAt: now, completedAt: nil, completedBy: nil, stamps: stamps, change: nil)
+                            createdBy: me, createdAt: now, completedAt: nil, completedBy: nil, stamps: stamps, change: nil,
+                            repeatRule: d.repeatRule)
         if let conv {
             let who = d.assignees.isEmpty ? "the group" : d.assignees.map { name(of: $0) }.joined(separator: ", ")
             send(.task(p), in: conv, loud: true, preview: "📋 New task for \(who): \(d.title)")
@@ -272,11 +274,41 @@ extension SyncEngine {
     }
 
     func setStatus(_ t: TaskItem, _ status: TaskStatus) {
+        let wasDone = t.isDone
         updateTask(t, fields: ["status"], change: status == .done ? "completed" : "moved to \(status.title)", loud: status == .done) {
             $0.status = status
             $0.completedAt = status == .done ? .now : nil
             $0.completedBy = status == .done ? self.me : nil
         }
+        if status == .done && !wasDone && t.repeatRule != "none" { spawnNextOccurrence(t) }
+    }
+
+    /// Recurring tasks (Pro): when one is finished, the person who finished it creates the next one.
+    func spawnNextOccurrence(_ t: TaskItem) {
+        let cal = Calendar.current
+        let component: Calendar.Component
+        switch t.repeatRule {
+        case "daily": component = .day
+        case "weekly": component = .weekOfYear
+        case "monthly": component = .month
+        default: return
+        }
+        let base = t.dueAt ?? .now
+        var next = cal.date(byAdding: component, value: 1, to: base) ?? base
+        while next < .now { next = cal.date(byAdding: component, value: 1, to: next) ?? .now.addingTimeInterval(86400) }
+        let items = ((try? context.fetch(FetchDescriptor<ChecklistItem>())) ?? []).filter { $0.taskID == t.id && !$0.deleted }
+            .sorted { $0.position < $1.position }.map(\.title)
+        var d = TaskDraft()
+        d.title = t.title
+        d.notes = t.notes
+        d.dueAt = t.dueAt == nil ? nil : next
+        d.priority = t.priority
+        d.policy = t.policy
+        d.assignees = t.assignees
+        d.checklist = items
+        d.reminderOffset = t.reminderOffset
+        d.repeatRule = t.repeatRule
+        createTask(d, in: t.convID.flatMap { conversation($0) })
     }
 
     func reopen(_ t: TaskItem, reason: String) {

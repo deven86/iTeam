@@ -16,6 +16,8 @@ struct TaskEditorView: View {
     @State private var due = Calendar.current.date(bySettingHour: 18, minute: 0, second: 0, of: .now.addingTimeInterval(86400)) ?? .now
     @State private var newItem = ""
     @State private var everyone = true
+    @ObservedObject private var store = Store.shared
+    @ObservedObject private var templates = TemplateStore.shared
 
     private var chat: Conversation? { conversations.first { $0.id == chatID } }
 
@@ -93,6 +95,24 @@ struct TaskEditorView: View {
             }
             .lookRows()
 
+            Section {
+                if store.proUnlocked {
+                    Picker("Repeat", selection: $draft.repeatRule) {
+                        ForEach(RepeatRule.allCases, id: \.rawValue) { Text($0.title).tag($0.rawValue) }
+                    }
+                    if !templates.templates.isEmpty {
+                        Menu {
+                            ForEach(templates.templates) { t in
+                                Button(t.name) { apply(t) }
+                            }
+                        } label: { Label("Start from a template", systemImage: "doc.on.doc") }
+                    }
+                } else {
+                    ProLockRow(text: "Repeat & templates")
+                }
+            } header: { Text("Business Tasks Pro") }
+            .lookRows()
+
             Section("Checklist") {
                 ForEach(Array(draft.checklist.enumerated()), id: \.offset) { i, item in
                     HStack {
@@ -127,6 +147,16 @@ struct TaskEditorView: View {
                 draft.sourceMessageID = source.id
             }
         }
+    }
+
+    private func apply(_ t: TaskTemplate) {
+        draft.title = t.title
+        draft.notes = t.notes
+        draft.checklist = t.checklist
+        draft.priority = WorkPriority(rawValue: t.priority) ?? .normal
+        draft.policy = CompletionPolicy(rawValue: t.policy) ?? .any
+        draft.repeatRule = t.repeatRule
+        draft.reminderOffset = t.reminderOffset
     }
 
     private func memberName(_ m: MemberInfo) -> String {

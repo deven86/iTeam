@@ -78,24 +78,24 @@ struct SettingsView: View {
                 .lookRows()
 
                 Section {
-                    ForEach(ModuleRegistry.all) { m in
-                        Toggle(isOn: Binding(get: { modules.isVisible(m) }, set: { modules.setOn(m, $0) })) {
-                            Label { VStack(alignment: .leading) { Text(m.title); Text(m.summary).font(.caption).foregroundStyle(look.textSecondary) } } icon: { Image(systemName: m.icon) }
+                    NavigationLink { ModuleStoreView() } label: {
+                        HStack(spacing: 12) {
+                            ModuleIcon(module: ModuleRegistry.businessPro, size: 36)
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("Module Store").font(.headline)
+                                Text("See all modules, what they solve, previews and prices").font(.caption).foregroundStyle(look.textSecondary)
+                            }
                         }
                     }
-                    Button {
-                        showPaywall = true
-                    } label: {
-                        Label(Store.shared.careUnlocked ? "iLife Care: active ✓" : "Subscribe to iLife Care", systemImage: "heart.text.square")
-                    }
-                    ForEach(ModuleRegistry.upcoming, id: \.0) { item in
-                        Label { VStack(alignment: .leading) { Text(item.0); Text(item.1).font(.caption).foregroundStyle(look.textSecondary) } } icon: { Image(systemName: item.2) }
-                            .foregroundStyle(look.textSecondary)
+                    ForEach(ModuleRegistry.all.filter { modules.isEntitled($0) }) { m in
+                        Toggle(isOn: Binding(get: { modules.isVisible(m) }, set: { modules.setOn(m, $0) })) {
+                            Label { Text(m.title) } icon: { Image(systemName: m.icon) }
+                        }
                     }
                 } header: {
                     Text("Modules")
                 } footer: {
-                    Text("Chat is always free. iLife Care is a monthly subscription for the person who creates care profiles; family members they share with use it free. Turning a module off hides it but never deletes its data.")
+                    Text("Chat is always free. Switch modules you own on or off here — turning one off hides it but never deletes its data.")
                 }
                 .lookRows()
 

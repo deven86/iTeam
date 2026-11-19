@@ -35,6 +35,9 @@ struct TaskDashboardView: View {
     @State private var path: [String] = []
     @State private var calendarMode = false
     @State private var showApprovals = false
+    @State private var showReports = false
+    @State private var showProPage = false
+    @ObservedObject private var store = Store.shared
 
     private var me: String { engine.me }
     private var open: [TaskItem] { tasks.filter { !$0.isDone } }
@@ -112,7 +115,20 @@ struct TaskDashboardView: View {
             .navigationTitle("Business Tasks")
             .navigationDestination(for: String.self) { TaskDetailView(taskID: $0) }
             .navigationDestination(isPresented: $showApprovals) { ApprovalsListView() }
+            .navigationDestination(isPresented: $showReports) { TaskReportsView() }
+            .sheet(isPresented: $showProPage) {
+                NavigationStack {
+                    ModuleDetailView(module: ModuleRegistry.businessPro)
+                        .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Close") { showProPage = false } } }
+                }
+            }
             .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    Button { if store.proUnlocked { showReports = true } else { showProPage = true } } label: {
+                        Image(systemName: "chart.bar.xaxis")
+                    }
+                    .accessibilityLabel("Reports")
+                }
                 ToolbarItem(placement: .topBarTrailing) {
                     Button { showNew = true } label: { Image(systemName: "plus") }.accessibilityLabel("New task")
                 }

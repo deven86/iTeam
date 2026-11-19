@@ -1,25 +1,25 @@
 import Foundation
 import StoreKit
 
-/// iLife Care subscription with StoreKit 2. Purchases are verified on the device — no server.
-/// The person who creates care profiles needs the subscription; family members they share with use them free.
+/// Paid modules with StoreKit 2. Purchases are verified on the device — no server.
 @MainActor
 final class Store: ObservableObject {
     static let shared = Store()
     static let careProductID = "com.jondhale.iteam.care.monthly"
+    static let proProductID = "com.jondhale.iteam.pro.monthly"
+    static let allProducts = [careProductID, proProductID]
 
-    @Published private(set) var careActive = false
-    @Published private(set) var product: Product?
+    @Published private(set) var active: Set<String> = []
+    @Published private(set) var products: [String: Product] = [:]
     @Published private(set) var isSandbox = false
-    @Published var testUnlock: Bool {
-        didSet { UserDefaults.standard.set(testUnlock, forKey: "care.testUnlock") }
-    }
+    @Published private(set) var testUnlocked: Set<String>
     @Published var lastError: String?
 
     private var updates: Task<Void, Never>?
 
     private init() {
-        testUnlock = UserDefaults.standard.bool(forKey: "care.testUnlock")
+        testUnlocked = Set(UserDefaults.standard.stringArray(forKey: "store.testUnlocked") ?? [])
+        if UserDefaults.standard.bool(forKey: "care.testUnlock") { testUnlocked.insert(Self.careProductID) }
         updates = Task { [weak self] in
             for await result in Transaction.updates {
                 if case .verified(let t) = result { await t.finish() }
@@ -28,7 +28,7 @@ final class Store: ObservableObject {
         }
         Task {
             await refresh()
-            await loadProduct()
+            await loadProducts()
             if let app = try? await AppTransaction.shared, case .verified(let a) = app {
                 isSandbox = a.environment != .production
             }
@@ -36,27 +36,36 @@ final class Store: ObservableObject {
     }
 
     /// Subscribed — or, in TestFlight/sandbox builds only, unlocked for testing.
-    var careUnlocked: Bool { careActive || (isSandbox && testUnlock) }
+    func isUnlocked(_ productID: String) -> Bool {
+        active.contains(productID) || (isSandbox && testUnlocked.contains(productID))
+    }
+
+    var careUnlocked: Bool { isUnlocked(Self.careProductID) }
+    var proUnlocked: Bool { isUnlocked(Self.proProductID) }
+
+    func setTestUnlock(_ productID: String, _ on: Bool) {
+        if on { testUnlocked.insert(productID) } else { testUnlocked.remove(productID) }
+        UserDefaults.standard.set(Array(testUnlocked), forKey: "store.testUnlocked")
+    }
 
     func refresh() async {
-        var active = false
+        var now: Set<String> = []
         for await result in Transaction.currentEntitlements {
-            if case .verified(let t) = result, t.productID == Self.careProductID, t.revocationDate == nil {
-                active = true
-            }
+            if case .verified(let t) = result, t.revocationDate == nil { now.insert(t.productID) }
         }
-        careActive = active
+        active = now
     }
 
-    func loadProduct() async {
-        product = try? await Product.products(for: [Self.careProductID]).first
+    func loadProducts() async {
+        let list = (try? await Product.products(for: Self.allProducts)) ?? []
+        products = Dictionary(uniqueKeysWithValues: list.map { ($0.id, $0) })
     }
 
-    func purchase() async {
+    func purchase(_ productID: String) async {
         lastError = nil
-        if product == nil { await loadProduct() }
-        guard let product else {
-            lastError = "The subscription isn't available yet. It must be set up in App Store Connect first."
+        if products[productID] == nil { await loadProducts() }
+        guard let product = products[productID] else {
+            lastError = "This subscription isn't on sale yet — it must first be set up in App Store Connect."
             return
         }
         do {

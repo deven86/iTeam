@@ -1,40 +1,109 @@
 import SwiftUI
 
-/// Paid modules can be added later without touching the chat core.
-/// Each module has an ID, a version and an entitlement state. Today every module is free;
-/// a StoreKit 2 purchase (verified on the device, no server) can later flip `entitled`.
-/// If a paid module ever lapses, its data stays readable and exportable — nothing is locked or deleted.
+/// Every module in the Module Store. New modules are added here; chat itself is always free.
+/// Paid modules are monthly StoreKit 2 subscriptions verified on the device. If one lapses,
+/// its data stays readable and exportable — nothing is locked away or deleted.
 struct ModuleInfo: Identifiable {
+    enum Availability { case included, paid, comingSoon }
+
+    /// Screens shown as previews on the module's page.
+    enum Preview: Hashable {
+        case taskList, approval, expenses, poll
+        case recurring, templates, reports
+        case careToday, careEvent, careVault
+        case workspaces, library, assistant
+    }
+
     let id: String
     let title: String
-    let summary: String
+    let tagline: String
     let icon: String
-    let version: Int
-    /// Product ID in App Store Connect when the module becomes paid (nil = free).
+    let colors: [UInt32]
+    let availability: Availability
     let productID: String?
+    /// Shown before the App Store price loads.
+    let fallbackPrice: String
+    let problems: [String]
+    let benefits: [String]
+    let previews: [Preview]
+    let note: String
 }
 
 @MainActor
 final class ModuleRegistry: ObservableObject {
     static let shared = ModuleRegistry()
 
-    static let businessTasks = ModuleInfo(id: "business-tasks", title: "Business Tasks",
-                                          summary: "Turn messages into tasks, assign them, track group progress and deadlines.",
-                                          icon: "checklist", version: 1, productID: nil)
+    static let businessTasks = ModuleInfo(
+        id: "business-tasks", title: "Business Tasks",
+        tagline: "Turn any message into work that gets done.",
+        icon: "checklist", colors: [0x28BEE6, 0x3A5BD9], availability: .included, productID: nil, fallbackPrice: "Free",
+        problems: ["Work gets lost in long chat threads",
+                   "Nobody knows who is doing what, or by when",
+                   "Approvals and spending are scattered across calls and slips of paper"],
+        benefits: ["Long-press a message → Create Business Task, with the chat linked",
+                   "Assign people, set due dates and reminders, track each person's part",
+                   "Approval requests with notes and approved amounts",
+                   "Expenses with photos of bills and vouchers, against the approved budget",
+                   "Polls to decide quickly"],
+        previews: [.taskList, .approval, .expenses, .poll],
+        note: "Included free with iTeam.")
 
-    static let iLifeCare = ModuleInfo(id: "ilife-care", title: "iLife Care",
-                                      summary: "Medicines, injuries, health events, recovery and a medical vault — shared with family or team.",
-                                      icon: "heart.text.square.fill", version: 1, productID: Store.careProductID)
+    static let businessPro = ModuleInfo(
+        id: "business-pro", title: "Business Tasks Pro",
+        tagline: "Repeat work automatically and see how the team is doing.",
+        icon: "chart.bar.doc.horizontal.fill", colors: [0x7850F0, 0xC2378C], availability: .paid,
+        productID: Store.proProductID, fallbackPrice: "₹99 / $0.99 a month",
+        problems: ["Recreating the same weekly or monthly tasks by hand",
+                   "Typing the same checklist every time a new case, client or job starts",
+                   "No clear picture of who finished what, what is overdue and what was spent"],
+        benefits: ["Recurring tasks: daily, weekly or monthly — the next one appears when you finish",
+                   "Templates: save any task with its checklist and start new ones in one tap",
+                   "Reports: done, open and overdue per person; expenses by category and month",
+                   "Export reports and expenses to Excel (CSV) to share or file"],
+        previews: [.recurring, .templates, .reports],
+        note: "Only the person who sets up recurring tasks and templates needs Pro; everyone can work on them.")
 
-    static let all: [ModuleInfo] = [businessTasks, iLifeCare]
+    static let iLifeCare = ModuleInfo(
+        id: "ilife-care", title: "iLife Care",
+        tagline: "Look after family health together.",
+        icon: "heart.text.square.fill", colors: [0xFF8A5B, 0xE5486B], availability: .paid,
+        productID: Store.careProductID, fallbackPrice: "about $0.49 a month",
+        problems: ["Missed or double doses when several people look after one person",
+                   "Injury and recovery updates lost in family chats",
+                   "Reports and prescriptions scattered across phones and paper files"],
+        benefits: ["Medicine schedule with reminders on everyone's phone — Taken or Skip",
+                   "The whole group is alerted when a dose is skipped or a new event is logged",
+                   "Injuries and major health events with severity and recovery progress",
+                   "Medical vault for reports, prescriptions, X-rays and insurance",
+                   "Blood group, allergies, conditions and emergency contact in one place"],
+        previews: [.careToday, .careEvent, .careVault],
+        note: "Only the person who creates care profiles needs the subscription; family members use them free.")
 
-    /// Modules shown as "coming later" in Settings.
-    static let upcoming: [(String, String, String)] = [
-        ("Business Tasks Pro", "Recurring tasks, templates and reports", "repeat"),
-        ("Team Workspace", "Several workspaces, advanced roles and audit history", "building.2"),
-        ("Files & Knowledge", "A structured library for shared documents", "folder"),
-        ("AI Assistant", "On-device chat summaries and task extraction", "sparkles")
-    ]
+    static let teamWorkspace = ModuleInfo(
+        id: "team-workspace", title: "Team Workspace",
+        tagline: "Keep office, trust and family separate.",
+        icon: "building.2.fill", colors: [0x4CD38A, 0x1E9A6E], availability: .comingSoon, productID: nil, fallbackPrice: "Coming soon",
+        problems: ["Work, trust and family chats and tasks mixed in one list", "No record of who changed what"],
+        benefits: ["Separate workspaces with their own chats, tasks and care profiles", "More roles and an audit history"],
+        previews: [.workspaces], note: "In development.")
+
+    static let filesKnowledge = ModuleInfo(
+        id: "files-knowledge", title: "Files & Knowledge",
+        tagline: "Every document your group shares, in one library.",
+        icon: "folder.fill", colors: [0xFFC94D, 0xF07B2C], availability: .comingSoon, productID: nil, fallbackPrice: "Coming soon",
+        problems: ["Hunting through months of chat for one PDF"],
+        benefits: ["Folders and search across chats and tasks", "Pinned important documents"],
+        previews: [.library], note: "In development.")
+
+    static let aiAssistant = ModuleInfo(
+        id: "ai-assistant", title: "AI Assistant",
+        tagline: "Catch up in seconds — privately, on your iPhone.",
+        icon: "sparkles", colors: [0xB57CFF, 0x6F5BD6], availability: .comingSoon, productID: nil, fallbackPrice: "Coming soon",
+        problems: ["Too many unread messages to read", "Tasks hidden inside conversations"],
+        benefits: ["“What did I miss?” summaries", "Suggested tasks from messages", "Runs on-device with Apple Intelligence (iPhone 15 Pro and newer)"],
+        previews: [.assistant], note: "In development.")
+
+    static let all: [ModuleInfo] = [businessTasks, businessPro, iLifeCare, teamWorkspace, filesKnowledge, aiAssistant]
 
     @Published private var enabled: [String: Bool]
 
@@ -42,16 +111,19 @@ final class ModuleRegistry: ObservableObject {
         enabled = UserDefaults.standard.dictionary(forKey: "modules.enabled") as? [String: Bool] ?? [:]
     }
 
-    /// The user has the right to use the module: free modules always; paid ones with an active subscription.
+    /// The user has the right to use the module: included ones always; paid ones with an active subscription.
     func isEntitled(_ m: ModuleInfo) -> Bool {
-        if m.productID == Store.careProductID { return Store.shared.careUnlocked }
-        return m.productID == nil
+        switch m.availability {
+        case .included: true
+        case .paid: m.productID.map { Store.shared.isUnlocked($0) } ?? false
+        case .comingSoon: false
+        }
     }
 
     /// Entitled and switched on in Settings.
-    func isOn(_ m: ModuleInfo) -> Bool { isEntitled(m) && (enabled[m.id] ?? true) }
+    func isOn(_ m: ModuleInfo) -> Bool { isEntitled(m) && isVisible(m) }
 
-    /// Shown in the app (paid modules show their paywall until subscribed).
+    /// Shown in the app (paid modules show their store page until subscribed).
     func isVisible(_ m: ModuleInfo) -> Bool { enabled[m.id] ?? true }
 
     func setOn(_ m: ModuleInfo, _ on: Bool) {

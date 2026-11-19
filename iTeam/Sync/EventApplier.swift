@@ -146,6 +146,10 @@ struct EventApplier {
                     t.completedAt = e.at
                     t.completedBy = e.from
                     st["status"] = e.at
+                    if local && t.repeatRule != "none" {
+                        let task = t
+                        Task { @MainActor in engine.spawnNextOccurrence(task) }
+                    }
                     if e.from != me {
                         ctx.insert(ActivityItem(kind: .taskCompleted, text: "Everyone finished “\(t.title)”", convID: t.convID, taskID: t.id, actorID: e.from, date: e.at))
                     }
@@ -448,6 +452,7 @@ struct EventApplier {
         t.completedAt = p.completedAt
         t.completedBy = p.completedBy
         t.stamps = p.stamps
+        t.repeatRule = p.repeatRule ?? "none"
         ctx.insert(t)
         if let src = p.sourceMessageID, let m = engine.message(src) { m.taskID = t.id }
         if let convID, let conv = engine.conversation(convID) {

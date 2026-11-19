@@ -700,63 +700,13 @@ struct VaultAddView: View {
 
 // MARK: - Paywall
 
+/// The iLife Care page from the Module Store.
 struct CarePaywall: View {
-    @ObservedObject private var store = Store.shared
     @Environment(\.dismiss) private var dismiss
-    @Environment(\.look) private var look
-    @State private var busy = false
-
     var body: some View {
         NavigationStack {
-            ScrollView {
-                VStack(spacing: 16) {
-                    Image(systemName: "heart.text.square.fill").font(.system(size: 64)).foregroundStyle(look.gradient).padding(.top, 24)
-                    Text("iLife Care").font(.largeTitle.bold())
-                    Text("Look after family together.").font(.title3).foregroundStyle(look.textSecondary)
-                    VStack(alignment: .leading, spacing: 12) {
-                        feature("pills.fill", "Medicines & doses", "Reminders on everyone's phone. Tap Taken or Skip — the group is alerted if a dose is skipped.")
-                        feature("bandage.fill", "Injuries & major health events", "Log what happened, severity and recovery progress with updates.")
-                        feature("folder.fill", "Medical vault", "Reports, prescriptions, X-rays and insurance in one place.")
-                        feature("person.3.fill", "Shared with your group", "Family or team members see and update it — only you subscribe.")
-                        feature("lock.fill", "End-to-end encrypted", "Health details never leave the family's phones readable.")
-                    }
-                    .lookCard()
-                    Button {
-                        Task { busy = true; await store.purchase(); busy = false; if store.careUnlocked { dismiss() } }
-                    } label: {
-                        Group {
-                            if busy { ProgressView() }
-                            else { Text(store.product.map { "Subscribe · \($0.displayPrice) / month" } ?? "Subscribe") }
-                        }
-                        .frame(maxWidth: .infinity)
-                    }
-                    .buttonStyle(.glassProminent).controlSize(.large)
-                    Button("Restore purchase") { Task { await store.restore(); if store.careUnlocked { dismiss() } } }
-                    if let e = store.lastError { Text(e).font(.caption).foregroundStyle(look.danger).multilineTextAlignment(.center) }
-                    if store.isSandbox {
-                        Divider()
-                        Toggle("Unlock free for testing (TestFlight only)", isOn: $store.testUnlock)
-                            .onChange(of: store.testUnlock) { _, on in if on { dismiss() } }
-                    }
-                    Text("Auto-renews monthly until cancelled in Settings → Apple ID → Subscriptions.")
-                        .font(.caption2).foregroundStyle(look.textSecondary).multilineTextAlignment(.center)
-                }
-                .padding()
-                .frame(maxWidth: 560)
-                .frame(maxWidth: .infinity)
-            }
-            .lookScreen()
-            .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Close") { dismiss() } } }
-        }
-    }
-
-    private func feature(_ icon: String, _ title: String, _ text: String) -> some View {
-        HStack(alignment: .top, spacing: 12) {
-            Image(systemName: icon).font(.title3).foregroundStyle(look.accent).frame(width: 30)
-            VStack(alignment: .leading, spacing: 2) {
-                Text(title).font(.headline)
-                Text(text).font(.caption).foregroundStyle(look.textSecondary)
-            }
+            ModuleDetailView(module: ModuleRegistry.iLifeCare)
+                .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Close") { dismiss() } } }
         }
     }
 }

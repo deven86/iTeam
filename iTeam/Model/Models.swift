@@ -291,6 +291,8 @@ enum WorkPriority: Int, Codable, CaseIterable {
     var reminderOffset: Int
     var deleted: Bool
     var updatedAt: Date
+    /// "none", "daily", "weekly", "monthly" (Business Tasks Pro)
+    var repeatRule: String = "none"
 
     init(id: String = UUID().uuidString, convID: String?, title: String, createdBy: String) {
         self.id = id

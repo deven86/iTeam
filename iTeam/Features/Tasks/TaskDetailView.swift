@@ -19,6 +19,9 @@ struct TaskDetailView: View {
     @State private var reopenReason = ""
     @State private var askReopen = false
     @State private var confirmDelete = false
+    @State private var askTemplate = false
+    @State private var templateName = ""
+    @ObservedObject private var store = Store.shared
 
     init(taskID: String) {
         self.taskID = taskID
@@ -108,6 +111,18 @@ struct TaskDetailView: View {
                         Text("1 day before").tag(1440)
                     }
                 }
+                if store.proUnlocked {
+                    Picker("Repeat", selection: Binding(get: { t.repeatRule }, set: { r in
+                        engine.updateTask(t, fields: ["repeat"], change: "set it to repeat \(RepeatRule(rawValue: r)?.title.lowercased() ?? r)") { $0.repeatRule = r }
+                    })) {
+                        ForEach(RepeatRule.allCases, id: \.rawValue) { Text($0.title).tag($0.rawValue) }
+                    }
+                    .disabled(!canEdit(t))
+                    Button { templateName = t.title; askTemplate = true } label: { Label("Save as template", systemImage: "doc.on.doc") }
+                } else {
+                    if t.repeatRule != "none" { LabeledContent("Repeats", value: RepeatRule(rawValue: t.repeatRule)?.title ?? t.repeatRule) }
+                    ProLockRow(text: "Repeat & templates")
+                }
                 if let c = conv(t) {
                     Button { router.show(conversation: c.id) } label: {
                         Label("Open chat: \(c.title)", systemImage: c.isGroup ? "person.3" : "bubble.left")
@@ -192,6 +207,14 @@ struct TaskDetailView: View {
         .navigationBarTitleDisplayMode(.inline)
         .onAppear { notesText = t.notes }
         .onChange(of: t.notes) { _, n in notesText = n }
+        .alert("Save as template", isPresented: $askTemplate) {
+            TextField("Template name", text: $templateName)
+            Button("Save") {
+                let n = templateName.trimmingCharacters(in: .whitespaces)
+                if !n.isEmpty { TemplateStore.shared.save(from: t, name: n, context: engine.context); Haptics.success() }
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: { Text("Title, notes, checklist, priority and repeat are saved. Start new tasks from it in “New task”.") }
         .alert("Rename task", isPresented: $editTitle) {
             TextField("Title", text: $titleText)
             Button("Save") {

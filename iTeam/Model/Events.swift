@@ -70,6 +70,8 @@ struct TaskPayload: Codable {
     var stamps: [String: Date]
     /// Short note for the activity feed ("changed the due date").
     var change: String?
+    /// Recurrence (Business Tasks Pro). nil from older versions = "none".
+    var repeatRule: String? = nil
 }
 
 struct ChecklistPayload: Codable {
@@ -238,12 +240,12 @@ struct KeyShare: Codable {
 
 extension TaskItem {
     /// Shared fields that take part in last-writer-wins merging.
-    static let sharedFields = ["title", "notes", "status", "priority", "dueAt", "policy", "assignees"]
+    static let sharedFields = ["title", "notes", "status", "priority", "dueAt", "policy", "assignees", "repeat"]
 
     var payload: TaskPayload {
         TaskPayload(id: id, sourceMessageID: sourceMessageID, title: title, notes: notes, status: status, priority: priority,
                     dueAt: dueAt, policy: policy, assignees: assignees, createdBy: createdBy, createdAt: createdAt,
-                    completedAt: completedAt, completedBy: completedBy, stamps: stamps, change: nil)
+                    completedAt: completedAt, completedBy: completedBy, stamps: stamps, change: nil, repeatRule: repeatRule)
     }
 
     /// Takes each field from `p` when its stamp is newer than ours. Returns the names of fields that changed.
@@ -267,6 +269,9 @@ extension TaskItem {
             case "dueAt": if dueAt != p.dueAt { dueAt = p.dueAt; changed.append(f) }
             case "policy": if policy != p.policy { policy = p.policy; changed.append(f) }
             case "assignees": if assignees != p.assignees { assignees = p.assignees; changed.append(f) }
+            case "repeat":
+                let r = p.repeatRule ?? "none"
+                if repeatRule != r { repeatRule = r; changed.append(f) }
             default: break
             }
         }

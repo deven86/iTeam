@@ -54,6 +54,7 @@ struct iTeamApp: App {
             switch phase {
             case .active:
                 engine.setForeground(true)
+                NowPlaying.shared.start()
                 Reminders.shared.updateBadge(totalUnread(engine))
                 Task {
                     await lock.unlock()
@@ -160,6 +161,7 @@ final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCent
         UNUserNotificationCenter.current().delegate = self
         MainActor.assumeIsolated {
             Reminders.shared.registerCategories()
+            _ = CheckInMonitor.shared
         }
         BGTaskScheduler.shared.register(forTaskWithIdentifier: Self.refreshID, using: nil) { task in
             Self.scheduleRefresh()

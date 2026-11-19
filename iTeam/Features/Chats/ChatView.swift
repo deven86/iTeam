@@ -45,6 +45,7 @@ struct ChatView: View {
     private var conv: Conversation? { convs.first }
     @State private var magicOpen = false
     @State private var showRx = false
+    @State private var showCheckIn = false
     @State private var lastSeen: Date?
     private let ticker = Timer.publish(every: 20, on: .main, in: .common).autoconnect()
 
@@ -103,7 +104,10 @@ struct ChatView: View {
                     .frame(maxWidth: .infinity).padding()
                     .lookFloating(in: Rectangle())
             } else {
-                composer(conv)
+                VStack(spacing: 6) {
+                    CheckInBanner(conv: conv)
+                    composer(conv)
+                }
             }
         }
     }
@@ -276,6 +280,7 @@ struct ChatView: View {
                 lastSeen = profile.flatMap { $0 }?.seen
             }
         }
+        .sheet(isPresented: $showCheckIn) { NavigationStack { CheckInSheet(conv: conv) } }
         .sheet(isPresented: $showRx) {
             if let peer = conv.peerID {
                 NavigationStack { PrescriptionEditor(conv: conv, patientID: peer, patientName: engine.name(of: peer)) }
@@ -309,7 +314,10 @@ struct ChatView: View {
             AvatarView(name: conv.title, imageData: conv.isGroup ? conv.avatar : conv.peerID.flatMap { engine.contact($0)?.avatar },
                        size: 32, isGroup: conv.isGroup)
             VStack(alignment: .leading, spacing: 0) {
-                Text(conv.title).font(.headline).lineLimit(1)
+                HStack(spacing: 3) {
+                    Text(conv.title).font(.headline).lineLimit(1)
+                    if !conv.isGroup, let p = conv.peerID, engine.contact(p)?.plus == true { PlusBadge(size: 11) }
+                }
                 Text(subtitle(conv)).font(.caption2).foregroundStyle(look.textSecondary).lineLimit(1)
             }
         }
@@ -322,6 +330,10 @@ struct ChatView: View {
         default:
             let timer = conv.timer > 0 ? "⏱ \(MyDetails.timerName(conv.timer)) · " : ""
             if conv.isGroup { return timer + "\(conv.members.count) members · tap for info" }
+            if let p = conv.peerID, let c = engine.contact(p), !c.nowPlaying.isEmpty,
+               Date.now.timeIntervalSince(c.nowPlayingAt ?? .distantPast) < 15 * 60 {
+                return timer + "🎵 " + c.nowPlaying
+            }
             if let seen = lastSeen {
                 if Date.now.timeIntervalSince(seen) < 180 { return timer + "online" }
                 return timer + "last seen " + (Calendar.current.isDateInToday(seen) ? "today at \(seen.formatted(date: .omitted, time: .shortened))"
@@ -384,6 +396,9 @@ struct ChatView: View {
                     if conv.members.count > 1 {
                         Button("Poll", systemImage: "chart.bar") { showPoll = true }
                         Button("Request approval", systemImage: "checkmark.seal") { showApproval = true }
+                    }
+                    if !conv.isDemo {
+                        Button("Check In", systemImage: "location.circle") { showCheckIn = true }
                     }
                     if !conv.isGroup, let peer = conv.peerID, peer != engine.me {
                         Button("Prescription (doctor)", systemImage: "stethoscope") { showRx = true }

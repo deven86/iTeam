@@ -23,6 +23,7 @@ final class CloudService {
         var publicKey: String
         var avatar: Data?
         var seen: Date? = nil
+        var plus: Bool = false
     }
 
     // MARK: Account
@@ -54,11 +55,19 @@ final class CloudService {
         _ = try? await db.modifyRecords(saving: [record], deleting: [], savePolicy: .changedKeys, atomically: true)
     }
 
+    /// Publishes whether I have the iTeam Plus badge.
+    func setPlus(userID: String, _ on: Bool) async {
+        let record = CKRecord(recordType: "Profile", recordID: profileID(userID))
+        record["plus"] = (on ? 1 : 0) as Int64 as CKRecordValue
+        _ = try? await db.modifyRecords(saving: [record], deleting: [], savePolicy: .changedKeys, atomically: true)
+    }
+
     func fetchProfile(_ userID: String) async throws -> RemoteProfile? {
         do {
             let r = try await db.record(for: profileID(userID))
             guard let name = r["name"] as? String, let key = r["pubkey"] as? String else { return nil }
-            return RemoteProfile(userID: userID, name: name, publicKey: key, avatar: r["pic"] as? Data, seen: r["seen"] as? Date)
+            return RemoteProfile(userID: userID, name: name, publicKey: key, avatar: r["pic"] as? Data, seen: r["seen"] as? Date,
+                                 plus: (r["plus"] as? Int64 ?? 0) == 1)
         } catch let e as CKError where e.code == .unknownItem {
             return nil
         }

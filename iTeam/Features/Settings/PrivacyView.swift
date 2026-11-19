@@ -88,6 +88,7 @@ struct PrivacyView: View {
                         engine.updateFaceTimeSharing()
                     }
                 Toggle("Share what I'm listening to", isOn: $nowPlaying)
+                    .onChange(of: nowPlaying) { _, v in if v { NowPlaying.shared.start() } else { NowPlaying.shared.stopSharing() } }
                 NavigationLink { BlockedView() } label: { Label("Blocked (\(blocked.count))", systemImage: "hand.raised") }
             } header: { Text("Calls, music & contacts") } footer: {
                 Text("Calls use FaceTime. Set the FaceTime number or email in Edit profile. Now Playing works with Apple Music.")

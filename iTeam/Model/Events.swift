@@ -56,6 +56,10 @@ struct Event: Codable {
         case prescription(PrescriptionPayload)
         /// Patient accepts or declines a prescription.
         case rxAnswer(id: String, accept: Bool, note: String)
+        /// Check In: started, arrived, extended or ended.
+        case checkIn(CheckInPayload)
+        /// What I'm listening to on Apple Music ("" = nothing / hidden).
+        case nowPlaying(String)
     }
 }
 

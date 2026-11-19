@@ -50,6 +50,11 @@ targets:
         NSFaceIDUsageDescription: iTeam uses Face ID to keep your chats and tasks private.
         NSCameraUsageDescription: iTeam uses the camera to scan a contact's invite QR code and to take photos for chats.
         NSMicrophoneUsageDescription: iTeam uses the microphone to record voice notes you send in chats.
+        NSLocationWhenInUseUsageDescription: iTeam uses your location for Check In, to find places and estimate when you'll arrive.
+        NSLocationAlwaysAndWhenInUseUsageDescription: With Always, iTeam can tell the person you checked in with that you arrived, even when iTeam is closed.
+        NSAppleMusicUsageDescription: iTeam can show the song you're playing in Apple Music to your contacts, only if you turn it on in Privacy.
+        LSApplicationQueriesSchemes:
+          - comgooglemaps
         NSPhotoLibraryUsageDescription: iTeam lets you send photos and pick chat wallpapers from your library.
         BGTaskSchedulerPermittedIdentifiers:
           - com.jondhale.iteam.refresh

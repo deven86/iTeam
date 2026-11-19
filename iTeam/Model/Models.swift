@@ -16,7 +16,7 @@ enum ITeamSchema {
         FoodEntry.self, WaterEntry.self, WorkoutLog.self, ExerciseSet.self, WorkoutPlan.self, PlanExercise.self,
         EmergencyContact.self, HealthProfile.self, ProgressPhoto.self, LibraryPhoto.self, CustomFood.self, CustomExercise.self,
         Trainer.self, BodyMeasurement.self, Supplement.self, SupplementDose.self, ExerciseMedia.self,
-        WalletDoc.self, Prescription.self
+        WalletDoc.self, Prescription.self, CheckIn.self
     ]
 }
 
@@ -47,6 +47,11 @@ enum Packed {
     var facetime: String = ""
     /// Their "About" line, sent to contacts only.
     var about: String = ""
+    /// "Song — Artist" they're listening to, if they share it.
+    var nowPlaying: String = ""
+    var nowPlayingAt: Date? = nil
+    /// iTeam Plus supporter badge.
+    var plus: Bool = false
     var blocked: Bool
 
     init(userID: String, name: String, publicKey: String, avatar: Data? = nil, saved: Bool, isRequest: Bool = false, verified: Bool = false) {

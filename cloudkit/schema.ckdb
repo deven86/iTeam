@@ -143,6 +143,7 @@ DEFINE SCHEMA
         "___recordID"   REFERENCE QUERYABLE,
         name STRING,
         pic BYTES,
+        plus INT64,
         pubkey STRING,
         seen TIMESTAMP,
         GRANT WRITE TO "_creator",

@@ -269,6 +269,7 @@ struct ConversationRow: View {
             VStack(alignment: .leading, spacing: 3) {
                 HStack {
                     Text(conv.title).font(.headline).lineLimit(1)
+                    if !conv.isGroup, let p = conv.peerID, engine.contact(p)?.plus == true { PlusBadge() }
                     if conv.pinned { Image(systemName: "pin.fill").font(.caption2).foregroundStyle(look.textSecondary) }
                     if conv.muted { Image(systemName: "bell.slash.fill").font(.caption2).foregroundStyle(look.textSecondary) }
                     Spacer()

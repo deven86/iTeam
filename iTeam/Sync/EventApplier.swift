@@ -560,6 +560,28 @@ struct EventApplier {
                 ctx.insert(ActivityItem(kind: .care, text: "\(who) \(accept ? "accepted" : "declined") your prescription", convID: conv.id, actorID: e.from, date: e.at))
             }
 
+        case .checkIn(let p):
+            guard let conv else { return .needsConversation }
+            let cid = p.id
+            let ci = (try? ctx.fetch(FetchDescriptor<CheckIn>(predicate: #Predicate { $0.id == cid })).first) ?? {
+                let n = CheckIn(id: cid); n.convID = conv.id; n.ownerID = e.from; n.createdAt = e.at; ctx.insert(n); return n
+            }()
+            guard ci.ownerID == e.from, p.at >= ci.updatedAt else { return .ignored }
+            let was = ci.status
+            ci.place = p.place; ci.lat = p.lat; ci.lon = p.lon; ci.eta = p.eta; ci.status = p.status; ci.updatedAt = p.at
+            let who = e.from == me ? "You" : engine.name(of: e.from)
+            switch p.status {
+            case "arrived": system(conv, "✅ \(who) arrived at \(p.place)", at: e.at)
+            case "ended": system(conv, "📍 \(who) ended the Check In", at: e.at)
+            default:
+                system(conv, was == "active" && ci.createdAt < e.at ? "📍 \(who) updated the Check In — now by \(p.eta.formatted(date: .omitted, time: .shortened))"
+                                                                    : "📍 \(who) started a Check In to \(p.place) — expected by \(p.eta.formatted(date: .omitted, time: .shortened))", at: e.at)
+            }
+            if e.from != me { CheckInAlerts.update(ci, name: engine.name(of: e.from)) }
+
+        case .nowPlaying(let text):
+            if e.from != me, let c = engine.contact(e.from), !c.blocked { c.nowPlaying = text; c.nowPlayingAt = e.at }
+
         case .chatTimer(let seconds):
             guard let conv else { return .ignored }
             conv.timer = seconds

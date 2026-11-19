@@ -129,6 +129,9 @@ struct SettingsView: View {
 
                 Section("Privacy & security") {
                     NavigationLink { PrivacyView() } label: { Label("Privacy", systemImage: "hand.raised.fingers.spread.fill") }
+                    NavigationLink { PlusView() } label: {
+                        Label { HStack(spacing: 4) { Text("iTeam Plus"); PlusBadge() } } icon: { Image(systemName: "star.circle.fill") }
+                    }
                     Toggle(isOn: $lock.lockEnabled) { Label("Lock with \(lock.biometryName)", systemImage: "faceid") }
                     LabeledContent("Your security code", value: E2E.fingerprint(engine.myPublicKey)).font(.callout)
                     NavigationLink { ContactsListView() } label: { Label("Contacts (\(contacts.count))", systemImage: "person.2") }

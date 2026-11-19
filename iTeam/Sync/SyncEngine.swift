@@ -156,6 +156,11 @@ final class SyncEngine: ObservableObject {
                 await cleanupIfDue()
                 MagicMoments.tick(self)
                 await touchLastSeen()
+                let plus = Store.shared.hasPlus
+                if UserDefaults.standard.object(forKey: "plus.published") as? Bool != plus {
+                    await cloud.setPlus(userID: me, plus)
+                    UserDefaults.standard.set(plus, forKey: "plus.published")
+                }
                 status = .idle
                 lastSync = .now
                 UserDefaults.standard.set(lastSync, forKey: "sync.lastSuccess")
@@ -487,6 +492,7 @@ final class SyncEngine: ObservableObject {
         guard let p = try? await cloud.fetchProfile(c.userID) else { return }
         c.name = p.name
         if let pic = p.avatar { c.avatar = pic }
+        c.plus = p.plus
         if p.publicKey != c.publicKey {
             c.publicKey = p.publicKey
             c.verified = false

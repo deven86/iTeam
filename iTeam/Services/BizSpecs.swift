@@ -142,7 +142,29 @@ enum BizSpecs {
         ],
         balanceLabel: "Due", clientWord: "", paid: false)
 
-    static let all: [BizSpec] = [khata, tuition, rent, legal, clinic, bills]
+    static let kids = BizSpec(
+        module: "kids", tab: .kids, title: "Kids", icon: "figure.and.child.holdinghands", colors: [0xFDC830, 0xF37335],
+        parent: BizKind(id: "child", label: "Child", plural: "Children", icon: "face.smiling",
+                        fields: [.init(key: .title, label: "Name"), .init(key: .subtitle, label: "School & class"), .init(key: .phone, label: "School / teacher phone"),
+                                 .init(key: .notes, label: "Allergies, blood group, notes")],
+                        linkable: true),
+        children: [
+            BizKind(id: "vaccine", label: "Vaccination", plural: "Vaccinations", icon: "syringe",
+                    fields: [.init(key: .title, label: "Vaccine"), .init(key: .due, label: "Due date"), .init(key: .status, label: "Status"), .init(key: .notes, label: "Doctor / notes")],
+                    statuses: ["Due", "Done"], doneStatuses: ["Done"]),
+            BizKind(id: "event", label: "School event", plural: "School events", icon: "calendar",
+                    fields: [.init(key: .title, label: "What (PTM, exam, trip…)"), .init(key: .date, label: "Date & time"), .init(key: .status, label: "Status"), .init(key: .notes, label: "Notes")],
+                    statuses: ["Upcoming", "Done"], doneStatuses: ["Done"]),
+            BizKind(id: "fee", label: "School fee", plural: "Fees", icon: "indianrupeesign.circle",
+                    fields: [.init(key: .title, label: "For"), .init(key: .amount, label: "Amount"), .init(key: .due, label: "Due"), .init(key: .status, label: "Status")],
+                    statuses: ["Due", "Paid"], doneStatuses: ["Paid"], sign: 1, countWhen: "Due"),
+            BizKind(id: "timetable", label: "Timetable / class", plural: "Timetable", icon: "clock",
+                    fields: [.init(key: .title, label: "Class / activity"), .init(key: .subtitle, label: "Day", options: ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]),
+                             .init(key: .notes, label: "Time, teacher, place")]),
+        ],
+        balanceLabel: "Fees due", clientWord: "family member", paid: false)
+
+    static let all: [BizSpec] = [khata, tuition, rent, legal, clinic, bills, kids]
     static func spec(_ module: String) -> BizSpec? { all.first { $0.module == module } }
 
     static func money(_ v: Double) -> String { "₹" + (v.rounded() == v ? String(Int(v)) : String(format: "%.2f", v)) }

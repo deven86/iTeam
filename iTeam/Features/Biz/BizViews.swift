@@ -564,6 +564,11 @@ enum BizDemo {
             let p = add("patient", title: "Sunita (demo)", subtitle: "54 · F")
             _ = add("appointment", parent: p, title: "BP review", date: day(1), status: "Booked")
             _ = add("visit", parent: p, title: "Headache", date: day(-7), notes: "BP 150/95, advised low salt")
+        case "kids":
+            let k = add("child", title: "Riya (demo)", subtitle: "Class 3 · St. Mary's")
+            _ = add("vaccine", parent: k, title: "Typhoid booster", due: day(12), status: "Due")
+            _ = add("event", parent: k, title: "Parent-teacher meeting", date: day(4), status: "Upcoming")
+            _ = add("timetable", parent: k, title: "Swimming", subtitle: "Saturday", notes: "7 AM, club pool")
         default:
             _ = add("bill", title: "Electricity (demo)", amount: 1240, due: day(4), status: "Due", notes: "Consumer no. 0001")
             _ = add("bill", title: "Car insurance (demo)", amount: 9800, due: day(25), status: "Due")

@@ -137,6 +137,12 @@ final class ModuleRegistry: ObservableObject {
         benefits: ["Patients with history", "Appointments with status and reminders", "Visit notes and bills",
                    "Patients on iTeam see their own appointments", "Prescriptions stay free in Doctor & Patient"],
         note: "Only the clinic pays. Patients are always free.")
+    static let kids = biz("kids", BizSpecs.kids, tagline: "School, vaccinations, fees and timetable — shared with your partner.",
+        product: nil,
+        problems: ["Missed vaccinations and school deadlines", "Both parents not knowing the same things"],
+        benefits: ["Each child with school, class and health notes", "Vaccination schedule with reminders", "School events, fees and weekly timetable",
+                   "Link your partner and you both see the same records"],
+        note: "Free for every family.")
     static let bills = biz("bills", BizSpecs.bills, tagline: "Never miss a bill, EMI, insurance or PUC renewal.",
         product: nil,
         problems: ["Late fees for forgotten bills", "Insurance and PUC expiring unnoticed"],
@@ -203,7 +209,7 @@ final class ModuleRegistry: ObservableObject {
         benefits: ["“What did I miss?” summaries", "Suggested tasks from messages", "Runs on-device with Apple Intelligence (iPhone 15 Pro and newer)"],
         previews: [.assistant], note: "In development.")
 
-    static let all: [ModuleInfo] = [businessTasks, businessPro, iLifeCare, doctorPatient, bills, khata, tuition, rent, legal, clinic, gymTraining, mindfulness, teamWorkspace, filesKnowledge, aiAssistant]
+    static let all: [ModuleInfo] = [businessTasks, businessPro, iLifeCare, doctorPatient, bills, kids, khata, tuition, rent, legal, clinic, gymTraining, mindfulness, teamWorkspace, filesKnowledge, aiAssistant]
 
     @Published private var enabled: [String: Bool]
     /// Modules the user wants in the iPhone bottom bar, in order (Router.TabID raw values).

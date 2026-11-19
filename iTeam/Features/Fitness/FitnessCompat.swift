@@ -1,3 +1,4 @@
+import UserNotifications
 import SwiftUI
 import SwiftData
 import UIKit
@@ -10,15 +11,6 @@ enum Member {
     static func prefix(_ uid: String) -> String { "" }
 }
 
-/// iTeam doesn't read Apple Health (no HealthKit entitlement); these keep the shared views simple.
-@MainActor
-final class HealthKitManager: ObservableObject {
-    static let shared = HealthKitManager()
-    @Published var weightKg: Double = UserDefaults.standard.double(forKey: "fit.weightKg")
-    func importWorkouts(into context: ModelContext, notify: Bool) async -> Int { 0 }
-    func saveFood(_ entry: FoodEntry) async {}
-    func saveWater(ml: Double) async {}
-}
 
 @MainActor
 final class Celebration {
@@ -29,6 +21,11 @@ final class Celebration {
 
 enum NotificationService {
     static func requestAuthorization() async { _ = await Reminders.shared.requestAuthorization() }
+    static func post(title: String, body: String) {
+        let c = UNMutableNotificationContent()
+        c.title = title; c.body = body
+        UNUserNotificationCenter.current().add(UNNotificationRequest(identifier: UUID().uuidString, content: c, trigger: nil))
+    }
 }
 
 /// AI tips inside Fitness and Nutrition, using the AI chosen in Settings → AI.
@@ -87,12 +84,15 @@ struct FitnessHomeView: View {
                 }
             }
             .safeAreaInset(edge: .top, spacing: 0) {
-                Picker("Section", selection: $section) {
-                    Text("Workouts").tag(0); Text("Nutrition").tag(1); Text("Body").tag(2)
+                VStack(spacing: 6) {
+                    Picker("Section", selection: $section) {
+                        Text("Workouts").tag(0); Text("Nutrition").tag(1); Text("Body").tag(2)
+                    }
+                    .pickerStyle(.segmented)
+                    .padding(.horizontal).padding(.vertical, 6)
+                    .lookFloating(in: Capsule())
+                    if section == 0 { HealthStrip(health: health) }
                 }
-                .pickerStyle(.segmented)
-                .padding(.horizontal).padding(.vertical, 6)
-                .lookFloating(in: Capsule())
                 .padding(.horizontal)
             }
         }
@@ -100,6 +100,48 @@ struct FitnessHomeView: View {
         .environmentObject(health)
         .fullScreenCover(isPresented: $showSession) { ActiveWorkoutView().environmentObject(session).environmentObject(health) }
         .onChange(of: session.isActive) { _, active in if active { showSession = true } }
+    }
+}
+
+/// Today's numbers from Apple Health (Apple Watch, iPhone and any app that writes to Health).
+struct HealthStrip: View {
+    @ObservedObject var health: HealthKitManager
+    @Environment(\.modelContext) private var context
+    @AppStorage("health.connected") private var connected = false
+
+    var body: some View {
+        Group {
+            if connected {
+                HStack {
+                    item("figure.walk", "\(Int(health.steps))", "steps")
+                    item("flame.fill", "\(Int(health.activeCalories))", "kcal")
+                    item("bed.double.fill", String(format: "%.1f", health.sleepHours), "h sleep")
+                    item("heart.fill", health.restingHeartRate > 0 ? "\(Int(health.restingHeartRate))" : "–", "rest bpm")
+                }
+            } else {
+                Button {
+                    Task { await health.requestAuthorization(); connected = true; await refresh() }
+                } label: { Label("Connect Apple Health", systemImage: "heart.text.square.fill").font(.subheadline.weight(.semibold)) }
+                .buttonStyle(.glass)
+            }
+        }
+        .padding(8)
+        .lookFloating(in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .task { if connected { await refresh() } }
+    }
+
+    private func refresh() async {
+        await health.refreshToday()
+        await health.importWorkouts(into: context, notify: false)
+    }
+
+    private func item(_ icon: String, _ value: String, _ label: String) -> some View {
+        VStack(spacing: 1) {
+            Image(systemName: icon).font(.caption).foregroundStyle(.pink)
+            Text(value).font(.subheadline.bold()).monospacedDigit()
+            Text(label).font(.caption2).foregroundStyle(.secondary)
+        }
+        .frame(maxWidth: .infinity)
     }
 }
 

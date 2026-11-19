@@ -52,6 +52,8 @@ targets:
         NSMicrophoneUsageDescription: iTeam uses the microphone to record voice notes you send in chats.
         NSLocationWhenInUseUsageDescription: iTeam uses your location for Check In, to find places and estimate when you'll arrive.
         NSLocationAlwaysAndWhenInUseUsageDescription: With Always, iTeam can tell the person you checked in with that you arrived, even when iTeam is closed.
+        NSHealthShareUsageDescription: iTeam reads your steps, workouts, heart rate, sleep and weight from Apple Health for the Gym & Training module.
+        NSHealthUpdateUsageDescription: iTeam saves your workouts, meals, water and weight to Apple Health so all your apps stay in sync.
         NSAppleMusicUsageDescription: iTeam can show the song you're playing in Apple Music to your contacts, only if you turn it on in Privacy.
         LSApplicationQueriesSchemes:
           - comgooglemaps
@@ -88,6 +90,8 @@ targets:
         com.apple.developer.icloud-container-environment: Development
         com.apple.developer.applesignin:
           - Default
+        com.apple.developer.healthkit: true
+        com.apple.developer.healthkit.access: []
         com.apple.security.application-groups:
           - group.com.jondhale.iteam
 

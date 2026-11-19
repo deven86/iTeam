@@ -49,9 +49,11 @@ jobs:
       - name: Install signing (read-only)
         run: |
           echo "ASC_KEY_PATH=$RUNNER_TEMP/keys/AuthKey.p8" >> "$GITHUB_ENV"
-          PW=$(printf '%s' "${{ secrets.ASC_KEY_P8_BASE64 }}" | shasum -a 256 | cut -d' ' -f1)
+          PW="${{ secrets.MATCH_PASSWORD }}"
+          [ -n "$PW" ] || { echo "::error title=secret::Add the MATCH_PASSWORD secret (same value in every app repo)"; exit 1; }
+          [ -n "${{ secrets.MATCH_GIT_TOKEN }}" ] || { echo "::error title=secret::Add the MATCH_GIT_TOKEN secret (GitHub token for deven86/apple-signing)"; exit 1; }
           echo "::add-mask::$PW"
-          AUTH=$(printf 'x-access-token:%s' "${{ github.token }}" | base64 | tr -d '\n')
+          AUTH=$(printf 'x-access-token:%s' "${{ secrets.MATCH_GIT_TOKEN }}" | base64 | tr -d '\n')
           echo "::add-mask::$AUTH"
           export ASC_KEY_PATH="$RUNNER_TEMP/keys/AuthKey.p8" MATCH_PASSWORD="$PW" MATCH_GIT_AUTH="$AUTH" APP_IDS=com.jondhale.iteam,com.jondhale.iteam.notify
           set +e

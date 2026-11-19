@@ -50,8 +50,10 @@ Notification Service Extension · local reminders. Built and shipped to TestFlig
 ## One-time setup (same pattern as iLife)
 
 1. **Create the GitHub repo** `deven86/iteam` (private) and push this code.
-2. **Repo secrets** (Settings → Secrets → Actions) — same values as iLife:
-   `APPLE_TEAM_ID`, `ASC_KEY_ID`, `ASC_ISSUER_ID`, `ASC_KEY_P8_BASE64`, `CLOUDKIT_MANAGEMENT_TOKEN`.
+2. **Repo secrets** (Settings → Secrets → Actions):
+   `APPLE_TEAM_ID`, `ASC_KEY_ID`, `ASC_ISSUER_ID`, `ASC_KEY_P8_BASE64`, `CLOUDKIT_MANAGEMENT_TOKEN`,
+   plus the two shared-signing secrets (identical in every app repo): `MATCH_PASSWORD`, `MATCH_GIT_TOKEN`.
+   All apps share ONE distribution certificate stored encrypted in the private repo `deven86/apple-signing`.
 3. **developer.apple.com → Identifiers** (the API can't do these):
    * App Groups → `group.com.jondhale.iteam`
    * iCloud Containers → `iCloud.com.jondhale.iteam`

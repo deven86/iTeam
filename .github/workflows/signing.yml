@@ -1,8 +1,8 @@
 name: Signing setup
 
 # Run once (and again only when App IDs/capabilities change).
-# Creates the distribution certificate + App Store profiles and stores them
-# encrypted on the `match-signing` branch of this repo.
+# Creates this app's App Store profiles (and the shared distribution certificate if none exists yet)
+# and stores them encrypted in deven86/apple-signing.
 on:
   workflow_dispatch:
     inputs:
@@ -16,7 +16,7 @@ on:
         default: ''
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   setup:
@@ -39,10 +39,12 @@ jobs:
           for s in TEAM_ID ASC_KEY_ID ASC_ISSUER_ID; do [ -n "${!s}" ] || echo "::error title=secret::Repository secret for $s is empty (APPLE_TEAM_ID / ASC_KEY_ID / ASC_ISSUER_ID)"; done
           grep -q "BEGIN PRIVATE KEY" "$RUNNER_TEMP/keys/AuthKey.p8" || { echo "::error title=secret::ASC_KEY_P8_BASE64 is empty or not a valid .p8 key"; exit 1; }
           echo "ASC_KEY_PATH=$RUNNER_TEMP/keys/AuthKey.p8" >> "$GITHUB_ENV"
-          PW=$(printf '%s' "${{ secrets.ASC_KEY_P8_BASE64 }}" | shasum -a 256 | cut -d' ' -f1)
+          PW="${{ secrets.MATCH_PASSWORD }}"
+          [ -n "$PW" ] || { echo "::error title=secret::Add the MATCH_PASSWORD secret (same value in every app repo)"; exit 1; }
+          [ -n "${{ secrets.MATCH_GIT_TOKEN }}" ] || { echo "::error title=secret::Add the MATCH_GIT_TOKEN secret (GitHub token for deven86/apple-signing)"; exit 1; }
           echo "::add-mask::$PW"
           echo "MATCH_PASSWORD=$PW" >> "$GITHUB_ENV"
-          AUTH=$(printf 'x-access-token:%s' "${{ github.token }}" | base64 | tr -d '\n')
+          AUTH=$(printf 'x-access-token:%s' "${{ secrets.MATCH_GIT_TOKEN }}" | base64 | tr -d '\n')
           echo "::add-mask::$AUTH"
           echo "MATCH_GIT_AUTH=$AUTH" >> "$GITHUB_ENV"
 

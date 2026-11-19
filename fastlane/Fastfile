@@ -1,8 +1,12 @@
 # iTeam signing, without a Mac (same approach as iLife and VISION).
 #
-# Certificates and App Store provisioning profiles are created once by `signing_setup`
-# and stored ENCRYPTED in this repository on the `match-signing` branch (fastlane match).
-# Every release build installs them read-only.
+# ONE distribution certificate is shared by all apps (iTeam, VISION, iLife, Third Eye, …).
+# It and each app's App Store profiles are stored ENCRYPTED (fastlane match) in the private repo
+# deven86/apple-signing. Every app repo needs the same two secrets:
+#   MATCH_PASSWORD   — the encryption passphrase (identical in every repo)
+#   MATCH_GIT_TOKEN  — a GitHub token that can read/write deven86/apple-signing
+# `signing_setup` adds this app's profiles (and creates the certificate only if the store has none);
+# every release build installs them read-only.
 #
 # Manual, one-time steps in developer.apple.com (the API can't do these):
 #   • App Group  group.com.jondhale.iteam          → assign to both App IDs
@@ -31,8 +35,8 @@ def run_match(readonly:, force: false)
     app_identifier: APP_IDS,
     team_id: TEAM_ID,
     storage_mode: "git",
-    git_url: "https://github.com/#{ENV.fetch('GITHUB_REPOSITORY')}.git",
-    git_branch: "match-signing",
+    git_url: ENV.fetch("MATCH_GIT_URL", "https://github.com/deven86/apple-signing.git"),
+    git_branch: ENV.fetch("MATCH_GIT_BRANCH", "main"),
     git_basic_authorization: ENV.fetch("MATCH_GIT_AUTH"),
     readonly: readonly,
     force: force,

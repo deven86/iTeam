@@ -22,6 +22,7 @@ final class CloudService {
         var name: String
         var publicKey: String
         var avatar: Data?
+        var seen: Date? = nil
     }
 
     // MARK: Account
@@ -46,11 +47,18 @@ final class CloudService {
         _ = try await db.modifyRecords(saving: [record], deleting: [], savePolicy: .allKeys, atomically: true)
     }
 
+    /// Updates only the "last seen" time on my public profile (nil removes it).
+    func touchSeen(userID: String, at: Date?) async {
+        let record = CKRecord(recordType: "Profile", recordID: profileID(userID))
+        record["seen"] = at as CKRecordValue?
+        _ = try? await db.modifyRecords(saving: [record], deleting: [], savePolicy: .changedKeys, atomically: true)
+    }
+
     func fetchProfile(_ userID: String) async throws -> RemoteProfile? {
         do {
             let r = try await db.record(for: profileID(userID))
             guard let name = r["name"] as? String, let key = r["pubkey"] as? String else { return nil }
-            return RemoteProfile(userID: userID, name: name, publicKey: key, avatar: r["pic"] as? Data)
+            return RemoteProfile(userID: userID, name: name, publicKey: key, avatar: r["pic"] as? Data, seen: r["seen"] as? Date)
         } catch let e as CKError where e.code == .unknownItem {
             return nil
         }

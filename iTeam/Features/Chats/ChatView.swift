@@ -2,6 +2,7 @@ import SwiftUI
 import SwiftData
 import PhotosUI
 import UniformTypeIdentifiers
+import Combine
 
 struct ChatView: View {
     let convID: String
@@ -42,6 +43,17 @@ struct ChatView: View {
     }
 
     private var conv: Conversation? { convs.first }
+    @State private var magicOpen = false
+    @State private var lastSeen: Date?
+    private let ticker = Timer.publish(every: 20, on: .main, in: .common).autoconnect()
+
+    /// Hides magic moments that haven't reached their time (on the recipient's phone) and expired disappearing messages.
+    private var shown: [Message] {
+        let now = Date.now
+        return messages.filter { m in
+            !(m.magicPending && m.senderID != engine.me) && (m.expiresAt ?? .distantFuture) > now
+        }
+    }
 
     var body: some View {
         Group {
@@ -61,13 +73,13 @@ struct ChatView: View {
         ScrollView {
             LazyVStack(spacing: 4) {
                 encryptionNote
-                ForEach(Array(messages.enumerated()), id: \.element.id) { i, m in
-                    if i == 0 || !Calendar.current.isDate(messages[i - 1].createdAt, inSameDayAs: m.createdAt) {
+                ForEach(Array(shown.enumerated()), id: \.element.id) { i, m in
+                    if i == 0 || !Calendar.current.isDate(shown[i - 1].createdAt, inSameDayAs: m.createdAt) {
                         dayHeader(m.createdAt)
                     }
                     let showName = conv.isGroup && m.senderID != engine.me &&
-                        (i == 0 || messages[i - 1].senderID != m.senderID || messages[i - 1].isSystem)
-                    MessageBubble(message: m, conv: conv, showSender: showName, all: messages,
+                        (i == 0 || shown[i - 1].senderID != m.senderID || shown[i - 1].isSystem)
+                    MessageBubble(message: m, conv: conv, showSender: showName, all: shown,
                                   onReply: { replyTo = m; editing = nil; focused = true },
                                   onEdit: { editing = m; text = m.text; replyTo = nil; focused = true },
                                   onTask: { taskFrom = m },
@@ -254,6 +266,20 @@ struct ChatView: View {
             engine.openConversation = conv.id
             engine.markRead(conv)
             if text.isEmpty { text = conv.draft }
+            MagicMoments.tick(engine)
+        }
+        .onReceive(ticker) { _ in MagicMoments.tick(engine) }
+        .task {
+            if !conv.isGroup, let peer = conv.peerID, peer != engine.me, !conv.isDemo {
+                let profile = try? await engine.cloud.fetchProfile(peer)
+                lastSeen = profile.flatMap { $0 }?.seen
+            }
+        }
+        .sheet(isPresented: $magicOpen) {
+            MagicMomentSheet(text: text) { when in
+                engine.sendText(text, in: conv, replyTo: replyTo?.id, showAt: when)
+                text = ""; replyTo = nil
+            }
         }
         .onDisappear {
             if engine.openConversation == conv.id { engine.openConversation = nil }
@@ -288,8 +314,14 @@ struct ChatView: View {
         case .offline: return "Offline · messages wait on this device"
         case .syncing: return "Syncing…"
         default:
-            if conv.isGroup { return "\(conv.members.count) members · tap for info" }
-            return "End-to-end encrypted · tap for info"
+            let timer = conv.timer > 0 ? "⏱ \(MyDetails.timerName(conv.timer)) · " : ""
+            if conv.isGroup { return timer + "\(conv.members.count) members · tap for info" }
+            if let seen = lastSeen {
+                if Date.now.timeIntervalSince(seen) < 180 { return timer + "online" }
+                return timer + "last seen " + (Calendar.current.isDateInToday(seen) ? "today at \(seen.formatted(date: .omitted, time: .shortened))"
+                                               : seen.formatted(date: .abbreviated, time: .shortened))
+            }
+            return timer + "End-to-end encrypted · tap for info"
         }
     }
 
@@ -399,6 +431,11 @@ struct ChatView: View {
                         .lookFloating(in: Circle(), interactive: true)
                 }
                 .disabled(!canSend)
+                .contextMenu {
+                    if editing == nil && canSend {
+                        Button("✨ Magic moment (send later)", systemImage: "sparkles") { magicOpen = true }
+                    }
+                }
                 .sensoryFeedback(.impact(weight: .light), trigger: messages.count)
                 .accessibilityLabel(editing != nil ? "Save edit" : "Send")
                 }

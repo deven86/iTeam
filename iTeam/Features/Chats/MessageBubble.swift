@@ -63,6 +63,14 @@ struct MessageBubble: View {
                 .background(Color.black.opacity(0.08), in: RoundedRectangle(cornerRadius: 10))
             }
 
+            if let at = message.showAt, !message.deleted {
+                Label(at > .now ? "Magic moment · appears \(at.formatted(date: .abbreviated, time: .shortened))" : "Magic moment",
+                      systemImage: "sparkles")
+                    .font(.caption2.weight(.semibold)).opacity(0.85)
+            }
+            if message.expiresAt != nil && !message.deleted {
+                Image(systemName: "timer").font(.caption2).opacity(0.6).accessibilityLabel("Disappearing message")
+            }
             if message.forwarded && !message.deleted {
                 Label("Forwarded", systemImage: "arrowshape.turn.up.right.fill")
                     .font(.caption2.italic()).opacity(0.75)

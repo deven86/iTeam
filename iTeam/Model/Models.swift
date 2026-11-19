@@ -45,6 +45,8 @@ enum Packed {
     var verified: Bool
     /// Phone or email they chose to share for FaceTime ("" = not shared).
     var facetime: String = ""
+    /// Their "About" line, sent to contacts only.
+    var about: String = ""
     var blocked: Bool
 
     init(userID: String, name: String, publicKey: String, avatar: Data? = nil, saved: Bool, isRequest: Bool = false, verified: Bool = false) {
@@ -105,6 +107,12 @@ struct ReceiptMark: Codable, Hashable {
     var draft: String
     /// A local practice chat with simulated people (never leaves this device).
     var isDemo: Bool = false
+    /// Disappearing messages: seconds after sending (0 = off). Set by either person, applies to both.
+    var timer: Int = 0
+    /// Chat lock: hidden in "Locked chats", opens with Face ID.
+    var locked: Bool = false
+    /// Someone outside my contacts added me to this group; waits for Join / Leave.
+    var pendingInvite: Bool = false
 
     init(id: String, kind: String, title: String, ownerID: String, peerID: String? = nil, members: [MemberInfo]) {
         self.id = id
@@ -186,6 +194,12 @@ enum MessageStatus: Int {
     var pollID: String? = nil
     /// Forwarded from another chat.
     var forwarded: Bool = false
+    /// Magic moment: hidden from the recipient until this time.
+    var showAt: Date? = nil
+    /// Disappearing message: removed from both phones after this time.
+    var expiresAt: Date? = nil
+    /// Magic moment not yet revealed in the chat list / unread count.
+    var magicPending: Bool = false
 
     init(id: String, convID: String, senderID: String, text: String, createdAt: Date, replyToID: String? = nil,
          attachments: [AttachmentRef] = [], status: MessageStatus, isSystem: Bool = false) {

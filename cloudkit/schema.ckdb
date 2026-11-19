@@ -144,6 +144,7 @@ DEFINE SCHEMA
         name STRING,
         pic BYTES,
         pubkey STRING,
+        seen TIMESTAMP,
         GRANT WRITE TO "_creator",
         GRANT CREATE TO "_icloud",
         GRANT READ TO "_world"

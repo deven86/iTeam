@@ -36,6 +36,7 @@ struct ChatListView: View {
     private var visible: [Conversation] {
         let q = search.trimmingCharacters(in: .whitespaces).lowercased()
         return conversations
+            .filter { !$0.locked && !$0.pendingInvite }
             .filter { c in
                 switch filter {
                 case .all: !c.archived
@@ -114,6 +115,25 @@ struct ChatListView: View {
                         .listRowBackground(Color.clear)
                         .listRowInsets(EdgeInsets(top: 0, leading: 4, bottom: 0, trailing: 4))
                 } header: { Text("mini") }
+            }
+
+            let invites = conversations.filter { $0.pendingInvite && !$0.left }
+            if !invites.isEmpty && filter == .all {
+                Section("Group invites") {
+                    ForEach(invites) { g in
+                        HStack(spacing: 12) {
+                            AvatarView(name: g.title, imageData: g.avatar, size: 40, isGroup: true)
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(g.title).font(.headline)
+                                Text("Added by someone not in your contacts").font(.caption).foregroundStyle(look.textSecondary)
+                            }
+                            Spacer()
+                            Button("Join") { g.pendingInvite = false; engine.save() }.buttonStyle(.glassProminent).controlSize(.small)
+                            Button("Leave") { engine.leave(g); g.pendingInvite = false; engine.save() }.buttonStyle(.glass).controlSize(.small)
+                        }
+                    }
+                }
+                .lookRows()
             }
 
             if !requests.isEmpty && filter == .all {

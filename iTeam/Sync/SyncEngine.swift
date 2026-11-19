@@ -154,6 +154,8 @@ final class SyncEngine: ObservableObject {
                 try await receive()
                 try await sendReceipts()
                 await cleanupIfDue()
+                MagicMoments.tick(self)
+                await touchLastSeen()
                 status = .idle
                 lastSync = .now
                 UserDefaults.standard.set(lastSync, forKey: "sync.lastSuccess")
@@ -425,7 +427,7 @@ final class SyncEngine: ObservableObject {
         pendingReceipts = [:]
         for (convID, r) in all {
             guard let conv = conversation(convID), !conv.left, conv.members.count <= 21 else { continue }
-            send(.receipt(delivered: r.delivered, read: r.read), in: conv, loud: false)
+            send(.receipt(delivered: r.delivered, read: MyDetails.readReceipts ? r.read : nil), in: conv, loud: false)
         }
         try await flush()
     }

@@ -55,7 +55,16 @@ struct EventApplier {
             let m = Message(id: p.id, convID: conv.id, senderID: e.from, text: p.text, createdAt: e.at,
                             replyToID: p.replyTo, attachments: p.attachments, status: local ? .queued : .sent)
             m.forwarded = p.fwd ?? false
+            if let ttl = p.ttl, ttl > 0 { m.expiresAt = e.at.addingTimeInterval(Double(ttl)) }
             ctx.insert(m)
+            // Magic moment: hidden on the recipient's phone until its time.
+            if let at = p.at, at > .now, e.from != me {
+                m.showAt = at
+                m.magicPending = true
+                MagicMoments.schedule(m, from: engine.name(of: e.from), group: conv.isGroup ? conv.title : nil, muted: conv.muted)
+                return .applied
+            }
+            if let at = p.at, e.from == me { m.showAt = at }
             touch(conv, at: e.at, preview: m.preview, from: e.from)
             if !local && e.from != me {
                 if engine.openConversation != conv.id { conv.unread += 1 }
@@ -73,6 +82,7 @@ struct EventApplier {
 
         case .unsend(let id):
             guard let m = engine.message(id), m.senderID == e.from else { return .ignored }
+            if m.magicPending { MagicMoments.cancel(m.id); m.magicPending = false }
             m.deleted = true
             m.text = ""
             m.attachments = []
@@ -507,6 +517,15 @@ struct EventApplier {
         case .photo(let data):
             if e.from != me, let c = engine.contact(e.from), !c.blocked { c.avatar = data }
 
+        case .about(let text):
+            if e.from != me, let c = engine.contact(e.from), !c.blocked { c.about = text }
+
+        case .chatTimer(let seconds):
+            guard let conv else { return .ignored }
+            conv.timer = seconds
+            let who = e.from == me ? "You" : engine.name(of: e.from)
+            system(conv, seconds == 0 ? "⏱ \(who) turned off disappearing messages" : "⏱ \(who) turned on disappearing messages — new messages disappear after \(MyDetails.timerName(seconds))", at: e.at)
+
         case .group, .receipt:
             break
         }
@@ -527,6 +546,10 @@ struct EventApplier {
             c.keyVersion = g.keyVersion
             c.createdAt = e.at
             ctx.insert(c)
+            // "Who can add me to groups: My contacts" — strangers' groups wait for Join / Leave.
+            if e.from != me, MyDetails.groupsContactsOnly, engine.contact(e.from)?.saved != true {
+                c.pendingInvite = true
+            }
             if e.from == me {
                 system(c, "You created “\(g.title)”", at: e.at)
             } else {

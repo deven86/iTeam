@@ -48,6 +48,10 @@ struct Event: Codable {
         case taskAccept(taskID: String, accept: Bool, note: String)
         /// My profile picture, sent only to contacts when my photo is set to "My contacts".
         case photo(Data?)
+        /// Disappearing-messages timer for this chat (0 = off).
+        case chatTimer(seconds: Int)
+        /// My "About" line ("" = hidden).
+        case about(String)
     }
 }
 
@@ -58,6 +62,10 @@ struct MessagePayload: Codable {
     var attachments: [AttachmentRef]
     /// Forwarded from another chat.
     var fwd: Bool?
+    /// Magic moment: show at this time.
+    var at: Date? = nil
+    /// Disappearing: seconds to keep.
+    var ttl: Int? = nil
 }
 
 struct GroupPayload: Codable {

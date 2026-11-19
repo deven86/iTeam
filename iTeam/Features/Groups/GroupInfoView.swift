@@ -48,6 +48,7 @@ struct GroupInfoView: View {
                 NavigationLink { ChatWallpaperPicker(conv: conv) } label: {
                     Label("Chat wallpaper", systemImage: "photo.artframe")
                 }
+                ChatPrivacyRows(conv: conv)
                 Button {
                     dismiss()
                     router.go(.tasks)
@@ -255,8 +256,13 @@ struct ContactInfoView: View {
                 }
                 NavigationLink { ChatMediaView(conv: conv) } label: { Label("Media, links & docs", systemImage: "photo.on.rectangle.angled") }
                 NavigationLink { ChatWallpaperPicker(conv: conv) } label: { Label("Chat wallpaper", systemImage: "photo.artframe") }
+                ChatPrivacyRows(conv: conv)
             }
             .lookRows()
+
+            if let about = contact?.about, !about.isEmpty {
+                Section("About") { Text(about) }.lookRows()
+            }
 
             if !commonGroups.isEmpty {
                 Section("\(commonGroups.count) group\(commonGroups.count == 1 ? "" : "s") in common") {
@@ -409,5 +415,20 @@ struct ChatWallpaperPicker: View {
             }
         }
         .buttonStyle(PressStyle())
+    }
+}
+
+
+/// Disappearing messages and chat lock, for one chat.
+struct ChatPrivacyRows: View {
+    let conv: Conversation
+    @EnvironmentObject var engine: SyncEngine
+    var body: some View {
+        Picker(selection: Binding(get: { conv.timer }, set: { engine.setTimer(conv, $0) })) {
+            ForEach(MyDetails.timers, id: \.1) { Text($0.0).tag($0.1) }
+        } label: { Label("Disappearing messages", systemImage: "timer") }
+        Toggle(isOn: Binding(get: { conv.locked }, set: { v in
+            Task { if await DeviceAuth.check(v ? "Lock this chat" : "Unlock this chat") { conv.locked = v; engine.save() } }
+        })) { Label("Lock chat", systemImage: "lock") }
     }
 }

@@ -78,6 +78,35 @@ enum MyDetails {
         get { UserDefaults.standard.string(forKey: "me.facetime") ?? "" }
         set { UserDefaults.standard.set(newValue, forKey: "me.facetime") }
     }
+    /// WhatsApp-style privacy choices.
+    static var lastSeenEveryone: Bool {
+        get { UserDefaults.standard.object(forKey: "me.lastSeen") as? Bool ?? false }
+        set { UserDefaults.standard.set(newValue, forKey: "me.lastSeen") }
+    }
+    static var about: String {
+        get { UserDefaults.standard.string(forKey: "me.about") ?? "" }
+        set { UserDefaults.standard.set(newValue, forKey: "me.about") }
+    }
+    static var aboutContacts: Bool {
+        get { UserDefaults.standard.object(forKey: "me.aboutContacts") as? Bool ?? true }
+        set { UserDefaults.standard.set(newValue, forKey: "me.aboutContacts") }
+    }
+    static var groupsContactsOnly: Bool {
+        get { UserDefaults.standard.object(forKey: "me.groupsContacts") as? Bool ?? true }
+        set { UserDefaults.standard.set(newValue, forKey: "me.groupsContacts") }
+    }
+    static var readReceipts: Bool {
+        get { UserDefaults.standard.object(forKey: "me.readReceipts") as? Bool ?? true }
+        set { UserDefaults.standard.set(newValue, forKey: "me.readReceipts") }
+    }
+    /// Default disappearing timer for new chats, in seconds (0 = off).
+    static var defaultTimer: Int {
+        get { UserDefaults.standard.integer(forKey: "me.defaultTimer") }
+        set { UserDefaults.standard.set(newValue, forKey: "me.defaultTimer") }
+    }
+    static let timers: [(String, Int)] = [("Off", 0), ("24 hours", 86400), ("7 days", 7 * 86400), ("90 days", 90 * 86400)]
+    static func timerName(_ s: Int) -> String { timers.first { $0.1 == s }?.0 ?? "Off" }
+
     /// Who sees my profile photo: everyone who has my iTeam ID, or only people I chat with.
     static var photoContactsOnly: Bool {
         get { UserDefaults.standard.object(forKey: "me.photoContactsOnly") as? Bool ?? true }

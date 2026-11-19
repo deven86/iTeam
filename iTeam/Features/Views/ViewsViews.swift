@@ -372,6 +372,7 @@ struct NewPostView: View {
                 for p in initialMedia { uploads[p.upload.0] = p.upload.1 }
             }
             audienceID = Audience.saved.first?.id ?? ""
+            if status && UserDefaults.standard.string(forKey: "views.defaultMiniAudience") == "choose" { audienceMode = 1 }
         }
         .onChange(of: picks) { _, items in Task { await load(items) } }
     }

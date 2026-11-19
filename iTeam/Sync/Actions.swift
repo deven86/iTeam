@@ -96,6 +96,30 @@ extension SyncEngine {
         save()
     }
 
+    /// Disappearing messages for a chat — applies to everyone in it.
+    func setTimer(_ conv: Conversation, _ seconds: Int) {
+        guard !conv.isDemo else { conv.timer = seconds; save(); return }
+        send(.chatTimer(seconds: seconds), in: conv, loud: false)
+    }
+
+    /// Sends my About line to everyone I chat with ("" when hidden).
+    func updateAbout() {
+        let text = MyDetails.aboutContacts ? MyDetails.about : ""
+        let convs = (try? context.fetch(FetchDescriptor<Conversation>(predicate: #Predicate { $0.kind == "direct" && !$0.left }))) ?? []
+        for c in convs where !c.isDemo && c.peerID != me { send(.about(text), in: c, loud: false) }
+    }
+
+    /// Last seen: published on my public profile only when set to Everyone.
+    func touchLastSeen() async {
+        guard MyDetails.lastSeenEveryone else { return }
+        let key = "lastSeen.pushed"
+        if Date.now.timeIntervalSince1970 - UserDefaults.standard.double(forKey: key) < 120 { return }
+        UserDefaults.standard.set(Date.now.timeIntervalSince1970, forKey: key)
+        await cloud.touchSeen(userID: me, at: .now)
+    }
+
+    func clearLastSeen() async { await cloud.touchSeen(userID: me, at: nil) }
+
     func setBlocked(_ c: Contact, _ blocked: Bool) {
         c.blocked = blocked
         if blocked { c.isRequest = false }
@@ -125,6 +149,8 @@ extension SyncEngine {
         if MyDetails.photoContactsOnly, let pic = myAvatar, !c.blocked {
             send(.photo(ImageShrink.jpeg(pic) ?? pic), in: conv, loud: false)
         }
+        if MyDetails.aboutContacts, !MyDetails.about.isEmpty, !c.blocked { send(.about(MyDetails.about), in: conv, loud: false) }
+        if MyDetails.defaultTimer > 0 { send(.chatTimer(seconds: MyDetails.defaultTimer), in: conv, loud: false) }
         return conv
     }
 
@@ -234,13 +260,16 @@ extension SyncEngine {
     // MARK: - Messages
 
     func sendText(_ text: String, in conv: Conversation, replyTo: String? = nil, attachments: [AttachmentRef] = [],
-                  uploads: [String: String] = [:], forwarded: Bool = false) {
+                  uploads: [String: String] = [:], forwarded: Bool = false, showAt: Date? = nil) {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty || !attachments.isEmpty, !conv.left else { return }
-        let p = MessagePayload(id: UUID().uuidString, text: trimmed, replyTo: replyTo, attachments: attachments, fwd: forwarded ? true : nil)
+        let magic = showAt.flatMap { $0 > .now ? $0 : nil }
+        let p = MessagePayload(id: UUID().uuidString, text: trimmed, replyTo: replyTo, attachments: attachments, fwd: forwarded ? true : nil,
+                               at: magic, ttl: conv.timer > 0 ? conv.timer : nil)
         let kind = attachments.first?.kind
         let preview = trimmed.isEmpty ? (kind == "image" ? "📷 Photo" : kind == "audio" ? "🎤 Voice note" : kind == "video" ? "🎬 Video" : "📎 File") : trimmed
-        send(.message(p), in: conv, loud: true, preview: preview, uploads: uploads)
+        // A magic moment travels silently; the recipient's phone reveals it (and notifies) at the chosen time.
+        send(.message(p), in: conv, loud: magic == nil, preview: magic == nil ? preview : nil, uploads: uploads)
         if !forwarded { conv.draft = "" }
     }
 

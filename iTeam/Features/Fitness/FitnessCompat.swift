@@ -102,3 +102,9 @@ struct FitnessHomeView: View {
         .onChange(of: session.isActive) { _, active in if active { showSession = true } }
     }
 }
+
+struct DayValue: Identifiable, Hashable {
+    var id: Date { date }
+    let date: Date
+    let value: Double
+}

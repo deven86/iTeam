@@ -28,7 +28,7 @@ struct MetricTile: View {
 
 
 
-struct SectionTitle: View {
+struct FitSectionTitle: View {
     let title: String
     var trailing: String? = nil
     var body: some View {

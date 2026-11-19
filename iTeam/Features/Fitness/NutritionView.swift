@@ -65,7 +65,7 @@ struct NutritionView: View {
         let macroKcal = max(p * 4 + c * 4 + f * 9, 1)
         let parts: [(String, Double, Color)] = [("Protein", p * 4 / macroKcal, .cyan), ("Carbs", c * 4 / macroKcal, .yellow), ("Fats", f * 9 / macroKcal, .pink)]
         return VStack(alignment: .leading, spacing: 10) {
-            SectionTitle(title: "Nutrition Breakdown", trailing: "\(Int(kcal)) / \(Int(profile.calorieIntakeGoal)) kcal")
+            FitSectionTitle(title: "Nutrition Breakdown", trailing: "\(Int(kcal)) / \(Int(profile.calorieIntakeGoal)) kcal")
             HStack(spacing: 20) {
                 ZStack {
                     if kcal > 0 {
@@ -100,7 +100,7 @@ struct NutritionView: View {
 
     private var water: some View {
         VStack(alignment: .leading, spacing: 10) {
-            SectionTitle(title: "Hydration", trailing: String(format: "%.1f / %.1f L", dayWaterL, profile.waterGoalLitres))
+            FitSectionTitle(title: "Hydration", trailing: String(format: "%.1f / %.1f L", dayWaterL, profile.waterGoalLitres))
             ProgressView(value: min(dayWaterL / max(profile.waterGoalLitres, 0.1), 1)).tint(.blue)
             HStack {
                 ForEach([150.0, 250, 500], id: \.self) { ml in

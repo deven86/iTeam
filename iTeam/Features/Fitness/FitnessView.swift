@@ -61,7 +61,7 @@ struct FitnessView: View {
         VStack(alignment: .leading, spacing: 12) {
             AITipCard(area: .fitness)
             VStack(alignment: .leading) {
-                SectionTitle(title: "This Week", trailing: "\(weekLogs.count) sessions · \(Int(weekLogs.reduce(0) { $0 + $1.durationMinutes })) min")
+                FitSectionTitle(title: "This Week", trailing: "\(weekLogs.count) sessions · \(Int(weekLogs.reduce(0) { $0 + $1.durationMinutes })) min")
                 Chart {
                     ForEach(0..<7, id: \.self) { offset in
                         let day = Calendar.current.date(byAdding: .day, value: offset - 6, to: Calendar.current.startOfDay(for: .now))!

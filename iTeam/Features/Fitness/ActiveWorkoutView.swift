@@ -13,7 +13,7 @@ struct ActiveWorkoutView: View {
 
     var body: some View {
         ZStack {
-            WallpaperView()
+            LookBackdrop().ignoresSafeArea()
             VStack(spacing: 20) {
                 HStack {
                     Button { dismiss() } label: { Image(systemName: "chevron.down").font(.title3.bold()) }
@@ -140,7 +140,6 @@ struct PlaylistPicker: View {
                             dismiss()
                         } label: {
                             HStack {
-                                if let art = p.artwork { ArtworkImage(art, width: 44) .clipShape(RoundedRectangle(cornerRadius: 6)) }
                                 Text(p.name)
                                 Spacer()
                                 if p.id.rawValue == music.workoutPlaylistID { Image(systemName: "checkmark").foregroundStyle(.tint) }

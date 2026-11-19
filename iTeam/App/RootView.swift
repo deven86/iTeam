@@ -67,69 +67,83 @@ struct RootView: View {
         if !engine.isSetUp {
             OnboardingView()
         } else {
-            TabView(selection: $router.tab) {
-                Tab("Chats", systemImage: "bubble.left.and.bubble.right.fill", value: Router.TabID.chats) {
-                    ChatListView()
-                }
-                .badge(unreadChats)
+            decorated(tabView)
+        }
+    }
 
-                Tab("Views", systemImage: "play.rectangle.on.rectangle.fill", value: Router.TabID.views) {
-                    ViewsHomeView()
-                }
-                .badge(newPosts)
-                .hidden(!inBar.contains(.views))
-
-                Tab("Rooms", systemImage: "person.3.sequence.fill", value: Router.TabID.rooms) {
-                    RoomsHomeView()
-                }
-                .badge(rooms.unreadTotal)
-                .hidden(!inBar.contains(.rooms))
-
-                Tab("Doctor", systemImage: "stethoscope", value: Router.TabID.doctor) {
-                    DoctorHomeView()
-                }
-                .badge(rxToReview.count)
-                .hidden(!inBar.contains(.doctor))
-
-                ForEach(BizSpecs.all, id: \.module) { spec in
-                    Tab(spec.title, systemImage: spec.icon, value: spec.tab) {
-                        BizHomeView(spec: spec)
-                    }
-                    .hidden(!inBar.contains(spec.tab))
-                }
-
-                Tab("Tasks", systemImage: "checklist", value: Router.TabID.tasks) {
-                    TaskDashboardView()
-                }
-                .hidden(!inBar.contains(.tasks))
-
-                Tab("Care", systemImage: "heart.text.square.fill", value: Router.TabID.care) {
-                    CareHomeView()
-                }
-                .hidden(!inBar.contains(.care))
-
-                Tab("Gym", systemImage: "dumbbell.fill", value: Router.TabID.gym) {
-                    GymModuleView()
-                }
-                .hidden(!inBar.contains(.gym))
-
-                Tab("Mind", systemImage: "leaf.fill", value: Router.TabID.mind) {
-                    MindHomeView()
-                }
-                .hidden(!inBar.contains(.mind))
-
-                Tab("Activity", systemImage: "bell.fill", value: Router.TabID.activity) {
-                    ActivityView()
-                }
-                .badge(unreadActivity.count)
-                .hidden(!inBar.contains(.activity))
-
-                Tab("Settings", systemImage: "gearshape.fill", value: Router.TabID.settings) {
-                    SettingsView()
-                }
-                .badge(inBar.contains(.activity) ? 0 : unreadActivity.count)
+    private var tabView: some View {
+        TabView(selection: $router.tab) {
+            Tab("Chats", systemImage: "bubble.left.and.bubble.right.fill", value: Router.TabID.chats) {
+                ChatListView()
             }
-            .tabViewStyle(.sidebarAdaptable)
+            .badge(unreadChats)
+
+            moduleTabs
+
+            Tab("Settings", systemImage: "gearshape.fill", value: Router.TabID.settings) {
+                SettingsView()
+            }
+            .badge(inBar.contains(.activity) ? 0 : unreadActivity.count)
+        }
+        .tabViewStyle(.sidebarAdaptable)
+    }
+
+    @TabContentBuilder<Router.TabID>
+    private var moduleTabs: some TabContent<Router.TabID> {
+        Tab("Views", systemImage: "play.rectangle.on.rectangle.fill", value: Router.TabID.views) {
+            ViewsHomeView()
+        }
+        .badge(newPosts)
+        .hidden(!inBar.contains(.views))
+
+        Tab("Rooms", systemImage: "person.3.sequence.fill", value: Router.TabID.rooms) {
+            RoomsHomeView()
+        }
+        .badge(rooms.unreadTotal)
+        .hidden(!inBar.contains(.rooms))
+
+        Tab("Doctor", systemImage: "stethoscope", value: Router.TabID.doctor) {
+            DoctorHomeView()
+        }
+        .badge(rxToReview.count)
+        .hidden(!inBar.contains(.doctor))
+
+        ForEach(BizSpecs.all, id: \.module) { spec in
+            Tab(spec.title, systemImage: spec.icon, value: spec.tab) {
+                BizHomeView(spec: spec)
+            }
+            .hidden(!inBar.contains(spec.tab))
+        }
+
+        Tab("Tasks", systemImage: "checklist", value: Router.TabID.tasks) {
+            TaskDashboardView()
+        }
+        .hidden(!inBar.contains(.tasks))
+
+        Tab("Care", systemImage: "heart.text.square.fill", value: Router.TabID.care) {
+            CareHomeView()
+        }
+        .hidden(!inBar.contains(.care))
+
+        Tab("Gym", systemImage: "dumbbell.fill", value: Router.TabID.gym) {
+            GymModuleView()
+        }
+        .hidden(!inBar.contains(.gym))
+
+        Tab("Mind", systemImage: "leaf.fill", value: Router.TabID.mind) {
+            MindHomeView()
+        }
+        .hidden(!inBar.contains(.mind))
+
+        Tab("Activity", systemImage: "bell.fill", value: Router.TabID.activity) {
+            ActivityView()
+        }
+        .badge(unreadActivity.count)
+        .hidden(!inBar.contains(.activity))
+    }
+
+    private func decorated<V: View>(_ v: V) -> some View {
+        v
             .onAppear { router.barTabs = inBar; router.availableTabs = available }
             .onChange(of: available) { _, a in router.availableTabs = a }
             .onChange(of: inBar) { _, bar in
@@ -151,7 +165,6 @@ struct RootView: View {
                 await offerRestoreIfFresh()
                 await engine.sync()
             }
-        }
     }
 }
 

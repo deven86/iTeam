@@ -134,7 +134,7 @@ if s in (200, 201):
 elif s == 409 or "already" in d.get("error", "").lower():
     note("review", f"Build {bver} is already submitted or approved")
 else:
-    must(s, d, "submit")
+    print(f"::warning title=review::Build {bver} can't be submitted yet ({s}). It is probably still processing — run this again in 15 minutes.")
 
 s, d = call("GET", f"/betaGroups/{gid}")
 link = must(s, d, "group")["data"]["attributes"].get("publicLink")

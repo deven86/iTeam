@@ -45,6 +45,8 @@ final class SyncEngine: ObservableObject {
     @Published var status: Status = .idle
     @Published var lastSync: Date? = UserDefaults.standard.object(forKey: "sync.lastSuccess") as? Date
     @Published var pendingUploads = 0
+    /// Why background message notifications aren't set up (nil = working).
+    @Published var pushProblem: String?
     @Published var failedUploads = 0
     @Published private(set) var isOnline = true
     @Published var me: String = UserDefaults.standard.string(forKey: "me.id") ?? ""
@@ -119,8 +121,14 @@ final class SyncEngine: ObservableObject {
             status = .syncing
             do {
                 if !subscriptionsChecked {
-                    try await cloud.ensureSubscriptions(for: me)
-                    subscriptionsChecked = true
+                    // Push setup must never block syncing: messages still flow without it.
+                    do {
+                        try await cloud.ensureSubscriptions(for: me)
+                        subscriptionsChecked = true
+                        pushProblem = nil
+                    } catch {
+                        pushProblem = error.cloudMessage
+                    }
                 }
                 try await flush()
                 try await receive()
@@ -176,6 +184,7 @@ final class SyncEngine: ObservableObject {
     /// Sends an event to everyone in a conversation.
     @discardableResult
     func send(_ body: Event.Body, in conv: Conversation, loud: Bool, preview: String? = nil, uploads: [String: String] = [:]) -> Event {
+        if conv.isDemo { return DemoChats.localSend(body, in: conv, engine: self) }
         let hint = preview.map { NotificationHint(n: myName, t: conv.isGroup ? conv.title : nil, b: String($0.prefix(160))) }
         return send(body, convID: conv.id, recipients: conv.members.map(\.id), keyVersion: conv.keyVersion,
                     loud: loud, hint: hint, uploads: uploads)

@@ -31,6 +31,28 @@ struct NewChatView: View {
                 }
                 .lookRows()
 
+                Section {
+                    Button {
+                        let conv = DemoChats.notesToSelf(engine)
+                        dismiss()
+                        onOpen(conv)
+                    } label: {
+                        Label("Notes to self", systemImage: "note.text")
+                    }
+                    Button {
+                        let conv = DemoChats.create(engine)
+                        dismiss()
+                        onOpen(conv)
+                    } label: {
+                        Label("Demo team chat (practice)", systemImage: "sparkles")
+                    }
+                } header: {
+                    Text("Try it out")
+                } footer: {
+                    Text("Notes to self is a real encrypted chat with yourself — it syncs to your iPad. The demo team has two pretend colleagues who reply; it never leaves this phone.")
+                }
+                .lookRows()
+
                 Section(contacts.isEmpty ? "" : "Contacts") {
                     if contacts.isEmpty {
                         Text("No contacts yet. Scan someone's iTeam QR code, or share yours from Settings → My QR code.")

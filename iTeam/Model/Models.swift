@@ -92,6 +92,8 @@ struct ReceiptMark: Codable, Hashable {
     var membersData: Data
     var receiptsData: Data?
     var draft: String
+    /// A local practice chat with simulated people (never leaves this device).
+    var isDemo: Bool = false
 
     init(id: String, kind: String, title: String, ownerID: String, peerID: String? = nil, members: [MemberInfo]) {
         self.id = id

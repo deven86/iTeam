@@ -62,6 +62,10 @@ struct SettingsView: View {
                             }
                         }
                     }
+                    if let problem = engine.pushProblem {
+                        Label("Background alerts not active yet: \(problem)", systemImage: "exclamationmark.triangle")
+                            .font(.caption).foregroundStyle(look.warning)
+                    }
                     Toggle("Show message text on Lock Screen", isOn: $previews)
                         .onChange(of: previews) { _, v in AppGroup.showPreviews = v }
                     NavigationLink { HowNotificationsWorkView() } label: { Label("How notifications work", systemImage: "questionmark.circle") }
@@ -110,6 +114,7 @@ struct SettingsView: View {
                     if let exportURL {
                         ShareLink(item: exportURL) { Label("Share export file", systemImage: "doc.badge.arrow.up") }
                     }
+                    Button("Remove demo chats") { DemoChats.remove(engine) }
                     Button("Erase all data on this device", role: .destructive) { confirmErase = true }
                 } header: {
                     Text("Storage & sync")

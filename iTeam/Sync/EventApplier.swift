@@ -13,7 +13,15 @@ struct EventApplier {
 
     func apply(_ e: Event, local: Bool) -> Result {
         let personal = e.conv.hasPrefix("s_")
-        var conv: Conversation? = personal ? nil : engine.conversation(e.conv)
+        var conv: Conversation? = engine.conversation(e.conv)
+
+        // "Notes to self": created the first time a message arrives for it (e.g. on my iPad).
+        if conv == nil, personal, case .message = e.body {
+            let c = Conversation(id: e.conv, kind: "direct", title: "Notes to self", ownerID: me, peerID: me,
+                                 members: [MemberInfo(id: me, name: engine.myName, role: .owner)])
+            ctx.insert(c)
+            conv = c
+        }
 
         if conv == nil, e.conv.hasPrefix("d_"), let peer = SyncEngine.peer(inDirect: e.conv, me: me) {
             let c = Conversation(id: e.conv, kind: "direct", title: engine.contact(peer)?.name ?? "Chat", ownerID: peer, peerID: peer,

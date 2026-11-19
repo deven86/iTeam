@@ -164,10 +164,22 @@ struct ChatListView: View {
     @ViewBuilder
     private var emptyState: some View {
         if conversations.isEmpty {
-            EmptyStateView(icon: "bubble.left.and.bubble.right", title: "No chats yet",
-                           message: "Add someone by scanning their iTeam QR code, then say hello.",
-                           actionTitle: "Add a contact") { showAddContact = true }
-                .frame(maxWidth: .infinity)
+            VStack(spacing: 4) {
+                EmptyStateView(icon: "bubble.left.and.bubble.right", title: "No chats yet",
+                               message: "Add someone by scanning their iTeam QR code, then say hello.",
+                               actionTitle: "Add a contact") { showAddContact = true }
+                Button {
+                    let conv = DemoChats.create(engine)
+                    open(conv.id)
+                } label: {
+                    Label("Try a demo team chat", systemImage: "sparkles")
+                }
+                .buttonStyle(.glass)
+                .controlSize(.large)
+                Button("Notes to self") { open(DemoChats.notesToSelf(engine).id) }
+                    .padding(.top, 6)
+            }
+            .frame(maxWidth: .infinity)
         } else {
             Text(search.isEmpty ? "Nothing here." : "No chats match “\(search)”.")
                 .foregroundStyle(look.textSecondary).frame(maxWidth: .infinity).padding()

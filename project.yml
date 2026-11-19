@@ -25,7 +25,7 @@ targets:
       - path: Shared
     dependencies:
       - target: iTeamNotify
-      - target: iTeamWidgets
+      # - target: iTeamWidgets   # re-enabled once the widgets App ID has App Groups (see README)
     settings:
       configs:
         Release:
@@ -155,6 +155,5 @@ schemes:
       targets:
         iTeam: all
         iTeamNotify: all
-        iTeamWidgets: all
     archive:
       config: Release

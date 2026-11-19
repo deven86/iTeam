@@ -282,6 +282,7 @@ final class SyncEngine: ObservableObject {
         guard item.kind == "event", let ev = Packed.decode(Event.self, item.payload) else { return nil }
         if case .message(let p) = ev.body { return p.id }
         if case .approval(let p) = ev.body { return p.messageID }
+        if case .poll(let p) = ev.body { return p.messageID }
         return nil
     }
 

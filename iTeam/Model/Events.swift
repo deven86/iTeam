@@ -27,6 +27,13 @@ struct Event: Codable {
         case approval(ApprovalPayload)
         case decision(DecisionPayload)
         case expense(ExpensePayload)
+        case poll(PollPayload)
+        case vote(VotePayload)
+        case care(CareProfilePayload)
+        case medicine(MedicinePayload)
+        case dose(DosePayload)
+        case healthEvent(HealthEventPayload)
+        case vault(VaultPayload)
     }
 }
 
@@ -125,6 +132,101 @@ struct ExpensePayload: Codable {
     var receipts: [AttachmentRef]
     var deleted: Bool
     var at: Date
+}
+
+// MARK: Polls
+
+struct PollOption: Codable, Hashable, Identifiable {
+    var id: String
+    var text: String
+}
+
+struct PollPayload: Codable {
+    var id: String
+    var messageID: String
+    var question: String
+    var options: [PollOption]
+    var multiple: Bool
+}
+
+/// A voter's full current choice (empty = vote withdrawn). Newest wins.
+struct VotePayload: Codable {
+    var pollID: String
+    var optionIDs: [String]
+}
+
+// MARK: iLife Care
+
+/// The person being cared for, shared in one chat (family or team).
+struct CareProfilePayload: Codable {
+    var id: String
+    var name: String
+    var relation: String
+    var bloodGroup: String
+    var allergies: String
+    var conditions: String
+    var emergencyContact: String
+    var notes: String
+    var avatar: Data?
+    var deleted: Bool
+    var at: Date
+}
+
+struct MedicinePayload: Codable {
+    var id: String
+    var profileID: String
+    var name: String
+    var dose: String
+    var form: String
+    /// Minutes after midnight, e.g. 540 = 9:00
+    var times: [Int]
+    var instructions: String
+    var startDate: Date
+    var endDate: Date?
+    var stock: Int?
+    var active: Bool
+    var deleted: Bool
+    var at: Date
+}
+
+struct DosePayload: Codable {
+    var id: String
+    var medicineID: String
+    var profileID: String
+    var scheduled: Date
+    /// "taken" or "skipped"
+    var status: String
+    var note: String
+}
+
+struct HealthEventPayload: Codable {
+    var id: String
+    var profileID: String
+    /// injury, illness, surgery, hospital, emergency, checkup, other
+    var kind: String
+    var title: String
+    var details: String
+    var date: Date
+    /// 1 mild … 3 severe
+    var severity: Int
+    /// ongoing, recovering, recovered
+    var status: String
+    var recovery: Int
+    var update: String?
+    var attachments: [AttachmentRef]
+    var deleted: Bool
+    var at: Date
+}
+
+struct VaultPayload: Codable {
+    var id: String
+    var profileID: String
+    var title: String
+    /// report, prescription, scan, insurance, bill, other
+    var category: String
+    var date: Date
+    var attachment: AttachmentRef?
+    var deleted: Bool
 }
 
 /// A group key, sent to one member, encrypted with a key only the two of us can compute.

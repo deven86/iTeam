@@ -396,3 +396,86 @@ extension SyncEngine {
 extension SyncEngine.Invite: Identifiable {
     var id: String { userID }
 }
+
+// MARK: - Polls & iLife Care
+
+extension SyncEngine {
+
+    func createPoll(in conv: Conversation, question: String, options: [String], multiple: Bool) {
+        let opts = options.map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }.filter { !$0.isEmpty }
+            .map { PollOption(id: UUID().uuidString, text: $0) }
+        guard opts.count >= 2 else { return }
+        let p = PollPayload(id: UUID().uuidString, messageID: UUID().uuidString, question: question, options: opts, multiple: multiple)
+        send(.poll(p), in: conv, loud: true, preview: "📊 \(question)")
+    }
+
+    func vote(_ poll: Poll, options: [String]) {
+        guard let conv = conversation(poll.convID) else { return }
+        send(.vote(VotePayload(pollID: poll.id, optionIDs: options)), in: conv, loud: false)
+    }
+
+    func careProfile(_ id: String) -> CareProfile? {
+        try? context.fetch(FetchDescriptor<CareProfile>(predicate: #Predicate { $0.id == id })).first
+    }
+
+    private func careConv(_ profileConvID: String) -> Conversation? { conversation(profileConvID) }
+
+    @discardableResult
+    func saveCareProfile(in conv: Conversation, id: String? = nil, name: String, relation: String, bloodGroup: String,
+                         allergies: String, conditions: String, emergencyContact: String, notes: String, avatar: Data?, deleted: Bool = false) -> String {
+        let pid = id ?? "c_" + UUID().uuidString
+        let p = CareProfilePayload(id: pid, name: name, relation: relation, bloodGroup: bloodGroup, allergies: allergies,
+                                   conditions: conditions, emergencyContact: emergencyContact, notes: notes, avatar: avatar,
+                                   deleted: deleted, at: .now)
+        send(.care(p), in: conv, loud: id == nil, preview: "❤️ Care profile for \(name)")
+        return pid
+    }
+
+    func saveMedicine(_ profile: CareProfile, id: String? = nil, name: String, dose: String, form: String, times: [Int],
+                      instructions: String, startDate: Date, endDate: Date?, stock: Int?, active: Bool = true, deleted: Bool = false) {
+        guard let conv = careConv(profile.convID) else { return }
+        let m = MedicinePayload(id: id ?? UUID().uuidString, profileID: profile.id, name: name, dose: dose, form: form, times: times,
+                                instructions: instructions, startDate: startDate, endDate: endDate, stock: stock,
+                                active: active, deleted: deleted, at: .now)
+        send(.medicine(m), in: conv, loud: id == nil, preview: "💊 \(profile.name): \(name) \(dose)")
+        Reminders.shared.reschedule(context: context, me: me)
+    }
+
+    func logDose(_ med: Medicine, profile: CareProfile, scheduled: Date, taken: Bool, note: String = "") {
+        guard let conv = careConv(profile.convID) else { return }
+        let d = DosePayload(id: DoseLog.key(med.id, scheduled), medicineID: med.id, profileID: profile.id, scheduled: scheduled,
+                            status: taken ? "taken" : "skipped", note: note)
+        let time = scheduled.formatted(date: .omitted, time: .shortened)
+        send(.dose(d), in: conv, loud: !taken,
+             preview: taken ? nil : "⚠️ \(profile.name)'s \(time) \(med.name) was skipped\(note.isEmpty ? "" : ": " + note)")
+        if taken, let stock = med.stock, stock > 0 { med.stock = stock - 1 }
+        Reminders.shared.reschedule(context: context, me: me)
+    }
+
+    func saveHealthEvent(_ profile: CareProfile, existing: HealthEvent? = nil, kind: String, title: String, details: String, date: Date,
+                         severity: Int, status: String, recovery: Int, update: String? = nil,
+                         attachments: [AttachmentRef] = [], uploads: [String: String] = [:], deleted: Bool = false) {
+        guard let conv = careConv(profile.convID) else { return }
+        let h = HealthEventPayload(id: existing?.id ?? UUID().uuidString, profileID: profile.id, kind: kind, title: title, details: details,
+                                   date: date, severity: severity, status: status, recovery: recovery, update: update,
+                                   attachments: attachments, deleted: deleted, at: .now)
+        let label = HealthEventKind(rawValue: kind)?.title ?? "Health"
+        let preview = existing == nil ? "🚑 \(label) for \(profile.name): \(title)"
+            : "\(profile.name) — \(title): \(status == "recovered" ? "recovered ✅" : "\(recovery)% recovered")\(update.map { " · " + $0 } ?? "")"
+        send(.healthEvent(h), in: conv, loud: !deleted, preview: preview, uploads: uploads)
+    }
+
+    func addVaultItem(_ profile: CareProfile, title: String, category: String, date: Date, attachment: AttachmentRef, uploads: [String: String]) {
+        guard let conv = careConv(profile.convID) else { return }
+        let v = VaultPayload(id: UUID().uuidString, profileID: profile.id, title: title, category: category, date: date,
+                             attachment: attachment, deleted: false)
+        send(.vault(v), in: conv, loud: true, preview: "📁 \(profile.name): \(title)", uploads: uploads)
+    }
+
+    func removeVaultItem(_ item: VaultItem) {
+        guard let profile = careProfile(item.profileID), let conv = careConv(profile.convID) else { return }
+        let v = VaultPayload(id: item.id, profileID: item.profileID, title: item.title, category: item.category, date: item.date,
+                             attachment: item.attachment, deleted: true)
+        send(.vault(v), in: conv, loud: false)
+    }
+}

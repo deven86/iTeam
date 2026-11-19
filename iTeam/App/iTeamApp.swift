@@ -77,11 +77,12 @@ struct iTeamApp: App {
 @MainActor
 final class Router: ObservableObject {
     static let shared = Router()
-    enum TabID: Hashable { case chats, tasks, activity, settings }
+    enum TabID: Hashable { case chats, tasks, care, activity, settings }
 
     @Published var tab: TabID = .chats
     @Published var openConversation: String?
     @Published var openTask: String?
+    @Published var openCare: String?
     @Published var pendingInvite: SyncEngine.Invite?
 
     func handle(_ url: URL) {
@@ -94,6 +95,11 @@ final class Router: ObservableObject {
     func show(conversation: String) {
         tab = .chats
         openConversation = conversation
+    }
+
+    func show(care: String) {
+        tab = .care
+        openCare = care
     }
 
     func show(task: String) {
@@ -159,7 +165,19 @@ final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCent
         let action = response.actionIdentifier
         await MainActor.run {
             let engine = SyncEngine.shared
-            if let taskID {
+            if let medID = info["med"] as? String, let profileID = info["profile"] as? String,
+               let atText = info["at"] as? String, let at = Double(atText) {
+                let scheduled = Date(timeIntervalSince1970: at)
+                if let ctx = engine.context,
+                   let med = try? ctx.fetch(FetchDescriptor<Medicine>(predicate: #Predicate { $0.id == medID })).first,
+                   let profile = engine.careProfile(profileID) {
+                    switch action {
+                    case Reminders.takenAction: engine.logDose(med, profile: profile, scheduled: scheduled, taken: true)
+                    case Reminders.skipAction: engine.logDose(med, profile: profile, scheduled: scheduled, taken: false)
+                    default: Router.shared.show(care: profileID)
+                    }
+                }
+            } else if let taskID {
                 switch action {
                 case Reminders.doneAction:
                     if let t = engine.task(taskID) {

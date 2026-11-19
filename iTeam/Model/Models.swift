@@ -8,7 +8,8 @@ enum ITeamSchema {
     static let models: [any PersistentModel.Type] = [
         Contact.self, Conversation.self, Message.self, TaskItem.self, ChecklistItem.self, TaskComment.self,
         ActivityItem.self, OutboxItem.self, PendingEnvelope.self, SentRecord.self,
-        TaskFile.self, Approval.self, Expense.self
+        TaskFile.self, Approval.self, Expense.self, Poll.self,
+        CareProfile.self, Medicine.self, DoseLog.self, HealthEvent.self, VaultItem.self
     ]
 }
 
@@ -170,6 +171,8 @@ enum MessageStatus: Int {
     var isSystem: Bool
     /// This message is an approval request card.
     var approvalID: String? = nil
+    /// This message is a poll card.
+    var pollID: String? = nil
 
     init(id: String, convID: String, senderID: String, text: String, createdAt: Date, replyToID: String? = nil,
          attachments: [AttachmentRef] = [], status: MessageStatus, isSystem: Bool = false) {
@@ -204,6 +207,7 @@ enum MessageStatus: Int {
     var preview: String {
         if deleted { return "Message deleted" }
         if approvalID != nil { return "🟡 Approval: \(text)" }
+        if pollID != nil { return "📊 Poll: \(text)" }
         if !text.isEmpty { return text }
         if let a = attachments.first { return a.kind == "image" ? "📷 Photo" : "📎 \(a.name)" }
         return ""
@@ -387,7 +391,7 @@ enum WorkPriority: Int, Codable, CaseIterable {
 // MARK: - Activity
 
 enum ActivityKind: String {
-    case mention, taskAssigned, taskUpdated, taskCompleted, taskComment, group, sync, contact, approval, expense
+    case mention, taskAssigned, taskUpdated, taskCompleted, taskComment, group, sync, contact, approval, expense, care
     var icon: String {
         switch self {
         case .mention: "at"
@@ -400,6 +404,7 @@ enum ActivityKind: String {
         case .contact: "person.badge.plus"
         case .approval: "checkmark.seal"
         case .expense: "indianrupeesign.circle"
+        case .care: "heart.text.square"
         }
     }
 }
@@ -658,4 +663,282 @@ enum ExpenseCategory: String, CaseIterable {
 enum Money {
     static var code: String { Locale.current.currency?.identifier ?? "INR" }
     static func format(_ v: Double) -> String { v.formatted(.currency(code: code).precision(.fractionLength(0...2))) }
+}
+
+
+// MARK: - Polls
+
+struct VoteRecord: Codable, Hashable {
+    var options: [String]
+    var at: Date
+}
+
+@Model final class Poll {
+    @Attribute(.unique) var id: String
+    var convID: String
+    var messageID: String
+    var question: String
+    var optionsData: Data
+    var multiple: Bool
+    var createdBy: String
+    var createdAt: Date
+    var votesData: Data?
+
+    init(id: String, convID: String, messageID: String, question: String, options: [PollOption], multiple: Bool, createdBy: String) {
+        self.id = id
+        self.convID = convID
+        self.messageID = messageID
+        self.question = question
+        self.optionsData = Packed.encode(options)
+        self.multiple = multiple
+        self.createdBy = createdBy
+        self.createdAt = .now
+    }
+
+    var options: [PollOption] { Packed.decode([PollOption].self, optionsData) ?? [] }
+    var votes: [String: VoteRecord] {
+        get { Packed.decode([String: VoteRecord].self, votesData) ?? [:] }
+        set { votesData = Packed.encode(newValue) }
+    }
+    func voters(for option: String) -> [String] { votes.filter { $0.value.options.contains(option) }.map(\.key) }
+    var totalVoters: Int { votes.values.filter { !$0.options.isEmpty }.count }
+}
+
+// MARK: - iLife Care
+
+@Model final class CareProfile {
+    @Attribute(.unique) var id: String
+    /// The chat it is shared in (family / team). Members see and update it.
+    var convID: String
+    var name: String
+    var relation: String
+    var bloodGroup: String
+    var allergies: String
+    var conditions: String
+    var emergencyContact: String
+    var notes: String
+    var avatar: Data?
+    var createdBy: String
+    var createdAt: Date
+    var updatedAt: Date
+    var deleted: Bool
+
+    init(id: String, convID: String, name: String, createdBy: String) {
+        self.id = id
+        self.convID = convID
+        self.name = name
+        self.relation = ""
+        self.bloodGroup = ""
+        self.allergies = ""
+        self.conditions = ""
+        self.emergencyContact = ""
+        self.notes = ""
+        self.createdBy = createdBy
+        self.createdAt = .now
+        self.updatedAt = .distantPast
+        self.deleted = false
+    }
+}
+
+@Model final class Medicine {
+    @Attribute(.unique) var id: String
+    var profileID: String
+    var name: String
+    var dose: String
+    var form: String
+    var timesData: Data
+    var instructions: String
+    var startDate: Date
+    var endDate: Date?
+    var stock: Int?
+    var active: Bool
+    var deleted: Bool
+    var updatedAt: Date
+    var addedBy: String
+
+    init(id: String, profileID: String, name: String, addedBy: String) {
+        self.id = id
+        self.profileID = profileID
+        self.name = name
+        self.dose = ""
+        self.form = "Tablet"
+        self.timesData = Packed.encode([Int]())
+        self.instructions = ""
+        self.startDate = .now
+        self.active = true
+        self.deleted = false
+        self.updatedAt = .distantPast
+        self.addedBy = addedBy
+    }
+
+    var times: [Int] {
+        get { (Packed.decode([Int].self, timesData) ?? []).sorted() }
+        set { timesData = Packed.encode(newValue.sorted()) }
+    }
+
+    /// Doses due on a given day.
+    func schedule(on day: Date) -> [Date] {
+        let cal = Calendar.current
+        let start = cal.startOfDay(for: day)
+        guard active, !deleted, cal.startOfDay(for: startDate) <= start else { return [] }
+        if let endDate, cal.startOfDay(for: endDate) < start { return [] }
+        return times.compactMap { cal.date(byAdding: .minute, value: $0, to: start) }
+    }
+
+    static func timeLabel(_ minutes: Int) -> String {
+        let d = Calendar.current.date(byAdding: .minute, value: minutes, to: Calendar.current.startOfDay(for: .now)) ?? .now
+        return d.formatted(date: .omitted, time: .shortened)
+    }
+}
+
+@Model final class DoseLog {
+    @Attribute(.unique) var id: String
+    var medicineID: String
+    var profileID: String
+    var scheduled: Date
+    var status: String
+    var note: String
+    var by: String
+    var at: Date
+
+    init(id: String, medicineID: String, profileID: String, scheduled: Date, status: String, by: String) {
+        self.id = id
+        self.medicineID = medicineID
+        self.profileID = profileID
+        self.scheduled = scheduled
+        self.status = status
+        self.note = ""
+        self.by = by
+        self.at = .now
+    }
+
+    /// One log per medicine per scheduled time.
+    static func key(_ medicineID: String, _ scheduled: Date) -> String {
+        "\(medicineID)@\(Int(scheduled.timeIntervalSince1970 / 60))"
+    }
+}
+
+enum HealthEventKind: String, CaseIterable {
+    case injury, illness, surgery, hospital, emergency, checkup, other
+    var title: String {
+        switch self {
+        case .injury: "Injury"
+        case .illness: "Illness"
+        case .surgery: "Surgery"
+        case .hospital: "Hospital stay"
+        case .emergency: "Emergency"
+        case .checkup: "Check-up"
+        case .other: "Other"
+        }
+    }
+    var icon: String {
+        switch self {
+        case .injury: "bandage.fill"
+        case .illness: "thermometer.medium"
+        case .surgery: "cross.case.fill"
+        case .hospital: "bed.double.fill"
+        case .emergency: "light.beacon.max.fill"
+        case .checkup: "stethoscope"
+        case .other: "heart.text.square.fill"
+        }
+    }
+}
+
+struct HealthUpdate: Codable, Hashable {
+    var text: String
+    var by: String
+    var at: Date
+    var recovery: Int
+}
+
+@Model final class HealthEvent {
+    @Attribute(.unique) var id: String
+    var profileID: String
+    var kind: String
+    var title: String
+    var details: String
+    var date: Date
+    var severity: Int
+    var status: String
+    var recovery: Int
+    var updatesData: Data?
+    var attachmentsData: Data?
+    var createdBy: String
+    var deleted: Bool
+    var updatedAt: Date
+
+    init(id: String, profileID: String, kind: String, title: String, createdBy: String) {
+        self.id = id
+        self.profileID = profileID
+        self.kind = kind
+        self.title = title
+        self.details = ""
+        self.date = .now
+        self.severity = 1
+        self.status = "ongoing"
+        self.recovery = 0
+        self.createdBy = createdBy
+        self.deleted = false
+        self.updatedAt = .distantPast
+    }
+
+    var updates: [HealthUpdate] {
+        get { Packed.decode([HealthUpdate].self, updatesData) ?? [] }
+        set { updatesData = Packed.encode(newValue) }
+    }
+    var attachments: [AttachmentRef] {
+        get { Packed.decode([AttachmentRef].self, attachmentsData) ?? [] }
+        set { attachmentsData = newValue.isEmpty ? nil : Packed.encode(newValue) }
+    }
+    var kindValue: HealthEventKind { HealthEventKind(rawValue: kind) ?? .other }
+}
+
+enum VaultCategory: String, CaseIterable {
+    case report, prescription, scan, insurance, bill, other
+    var title: String {
+        switch self {
+        case .report: "Lab report"
+        case .prescription: "Prescription"
+        case .scan: "X-ray / Scan"
+        case .insurance: "Insurance"
+        case .bill: "Bill"
+        case .other: "Other"
+        }
+    }
+    var icon: String {
+        switch self {
+        case .report: "doc.text.magnifyingglass"
+        case .prescription: "pills.fill"
+        case .scan: "xray"
+        case .insurance: "shield.lefthalf.filled"
+        case .bill: "indianrupeesign.square"
+        case .other: "folder.fill"
+        }
+    }
+}
+
+@Model final class VaultItem {
+    @Attribute(.unique) var id: String
+    var profileID: String
+    var title: String
+    var category: String
+    var date: Date
+    var attachmentData: Data?
+    var addedBy: String
+    var deleted: Bool
+
+    init(id: String, profileID: String, title: String, category: String, date: Date, addedBy: String) {
+        self.id = id
+        self.profileID = profileID
+        self.title = title
+        self.category = category
+        self.date = date
+        self.addedBy = addedBy
+        self.deleted = false
+    }
+
+    var attachment: AttachmentRef? {
+        get { Packed.decode(AttachmentRef.self, attachmentData) }
+        set { attachmentData = newValue.map { Packed.encode($0) } }
+    }
 }

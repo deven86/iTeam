@@ -118,6 +118,23 @@ enum DemoChats {
             }
             return e
         }
+        if case .poll(let poll) = body {
+            engine.message(poll.messageID)?.status = .sent
+            engine.save()
+            let voters = conv.members.map(\.id).filter { $0.hasPrefix("demo_") }
+            let convID = conv.id
+            Task { @MainActor in
+                for v in voters {
+                    try? await Task.sleep(for: .seconds(1.5))
+                    guard let pick = poll.options.randomElement() else { return }
+                    let ev = Event(id: UUID().uuidString, conv: convID, from: v, at: .now,
+                                   body: .vote(VotePayload(pollID: poll.id, optionIDs: [pick.id])))
+                    _ = EventApplier(engine: engine).apply(ev, local: false)
+                    engine.save()
+                }
+            }
+            return e
+        }
         guard case .message(let p) = body else { engine.save(); return e }
         engine.message(p.id)?.status = .sent
         engine.save()

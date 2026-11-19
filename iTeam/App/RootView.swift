@@ -26,6 +26,11 @@ struct RootView: View {
                 }
                 .hidden(!tasksOn)
 
+                Tab("Care", systemImage: "heart.text.square.fill", value: Router.TabID.care) {
+                    CareHomeView()
+                }
+                .hidden(!modules.isVisible(ModuleRegistry.iLifeCare))
+
                 Tab("Activity", systemImage: "bell.fill", value: Router.TabID.activity) {
                     ActivityView()
                 }

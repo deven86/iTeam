@@ -65,6 +65,8 @@ struct MessageBubble: View {
                 Label("This message was deleted", systemImage: "nosign").font(.subheadline.italic()).opacity(0.7)
             } else if let approvalID = message.approvalID {
                 ApprovalCard(approvalID: approvalID)
+            } else if let pollID = message.pollID {
+                PollCard(pollID: pollID)
             } else {
                 ForEach(message.attachments) { a in
                     AttachmentView(ref: a, onOpen: onOpen)
@@ -177,7 +179,7 @@ struct MessageBubble: View {
                 Button("Copy", systemImage: "doc.on.doc") { UIPasteboard.general.string = message.text }
             }
             Button("Create Business Task", systemImage: "checklist") { onTask() }
-            if mine && !message.text.isEmpty && message.approvalID == nil {
+            if mine && !message.text.isEmpty && message.approvalID == nil && message.pollID == nil {
                 Button("Edit", systemImage: "pencil") { onEdit() }
             }
             if message.status == .failed {

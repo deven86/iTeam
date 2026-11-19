@@ -248,6 +248,119 @@ struct EventApplier {
             }
             engine.task(x.taskID)?.updatedAt = .now
 
+        case .poll(let p):
+            guard let conv else { return .needsConversation }
+            let pid = p.id
+            guard ((try? ctx.fetch(FetchDescriptor<Poll>(predicate: #Predicate { $0.id == pid }))) ?? []).isEmpty else { return .ignored }
+            let poll = Poll(id: p.id, convID: conv.id, messageID: p.messageID, question: p.question, options: p.options,
+                            multiple: p.multiple, createdBy: e.from)
+            poll.createdAt = e.at
+            ctx.insert(poll)
+            if engine.message(p.messageID) == nil {
+                let m = Message(id: p.messageID, convID: conv.id, senderID: e.from, text: p.question, createdAt: e.at, status: local ? .queued : .sent)
+                m.pollID = p.id
+                ctx.insert(m)
+                touch(conv, at: e.at, preview: m.preview, from: e.from)
+                if !local && e.from != me && engine.openConversation != conv.id { conv.unread += 1 }
+            }
+
+        case .vote(let v):
+            let pid = v.pollID
+            guard let poll = try? ctx.fetch(FetchDescriptor<Poll>(predicate: #Predicate { $0.id == pid })).first else { return .ignored }
+            var all = poll.votes
+            if let old = all[e.from], old.at > e.at { return .ignored }
+            var choice = v.optionIDs.filter { id in poll.options.contains { $0.id == id } }
+            if !poll.multiple { choice = Array(choice.prefix(1)) }
+            all[e.from] = VoteRecord(options: choice, at: e.at)
+            poll.votes = all
+
+        case .care(let c):
+            guard let conv else { return .needsConversation }
+            let cid = c.id
+            if let prof = try? ctx.fetch(FetchDescriptor<CareProfile>(predicate: #Predicate { $0.id == cid })).first {
+                guard c.at > prof.updatedAt else { return .ignored }
+                fillProfile(prof, c)
+            } else {
+                let prof = CareProfile(id: c.id, convID: conv.id, name: c.name, createdBy: e.from)
+                prof.createdAt = e.at
+                fillProfile(prof, c)
+                ctx.insert(prof)
+                if !local && e.from != me {
+                    careAlert("\(engine.name(of: e.from)) started a care profile for \(c.name) in “\(conv.title)”", conv: conv, from: e.from, at: e.at)
+                }
+            }
+
+        case .medicine(let m):
+            let mid = m.id
+            let prof = careProfile(m.profileID)
+            if let med = try? ctx.fetch(FetchDescriptor<Medicine>(predicate: #Predicate { $0.id == mid })).first {
+                guard m.at > med.updatedAt else { return .ignored }
+                fillMedicine(med, m)
+            } else {
+                let med = Medicine(id: m.id, profileID: m.profileID, name: m.name, addedBy: e.from)
+                fillMedicine(med, m)
+                ctx.insert(med)
+                if !local && e.from != me, let prof {
+                    careAlert("💊 \(engine.name(of: e.from)) added \(m.name) \(m.dose) for \(prof.name)", conv: conv, from: e.from, at: e.at)
+                }
+            }
+
+        case .dose(let d):
+            let did = d.id
+            if let log = try? ctx.fetch(FetchDescriptor<DoseLog>(predicate: #Predicate { $0.id == did })).first {
+                guard e.at >= log.at else { return .ignored }
+                log.status = d.status
+                log.note = d.note
+                log.by = e.from
+                log.at = e.at
+            } else {
+                let log = DoseLog(id: d.id, medicineID: d.medicineID, profileID: d.profileID, scheduled: d.scheduled, status: d.status, by: e.from)
+                log.note = d.note
+                log.at = e.at
+                ctx.insert(log)
+            }
+            if !local && e.from != me && d.status == "skipped", let prof = careProfile(d.profileID) {
+                let med = medicine(d.medicineID)?.name ?? "medicine"
+                careAlert("⚠️ \(prof.name)'s \(d.scheduled.formatted(date: .omitted, time: .shortened)) \(med) was skipped (\(engine.name(of: e.from)))\(d.note.isEmpty ? "" : ": " + d.note)",
+                          conv: conv, from: e.from, at: e.at)
+            }
+
+        case .healthEvent(let h):
+            let hid = h.id
+            let prof = careProfile(h.profileID)
+            if let ev = try? ctx.fetch(FetchDescriptor<HealthEvent>(predicate: #Predicate { $0.id == hid })).first {
+                guard h.at > ev.updatedAt else { return .ignored }
+                fillEvent(ev, h, from: e.from)
+                if !local && e.from != me, let prof {
+                    let what = h.deleted ? "removed" : (h.status == "recovered" ? "marked recovered" : "updated (\(h.recovery)% recovered)")
+                    careAlert("\(engine.name(of: e.from)) \(what): \(prof.name) — \(h.title)\(h.update.map { ": " + $0 } ?? "")", conv: conv, from: e.from, at: e.at)
+                }
+            } else {
+                let ev = HealthEvent(id: h.id, profileID: h.profileID, kind: h.kind, title: h.title, createdBy: e.from)
+                fillEvent(ev, h, from: e.from)
+                ctx.insert(ev)
+                if !local && e.from != me, let prof {
+                    let kind = HealthEventKind(rawValue: h.kind)?.title ?? "Health event"
+                    careAlert("🚑 \(kind) for \(prof.name): \(h.title) (logged by \(engine.name(of: e.from)))", conv: conv, from: e.from, at: e.at)
+                }
+            }
+
+        case .vault(let v):
+            let vid = v.id
+            if let item = try? ctx.fetch(FetchDescriptor<VaultItem>(predicate: #Predicate { $0.id == vid })).first {
+                item.deleted = v.deleted
+                item.title = v.title
+                item.category = v.category
+            } else {
+                let item = VaultItem(id: v.id, profileID: v.profileID, title: v.title, category: v.category, date: v.date, addedBy: e.from)
+                item.attachment = v.attachment
+                item.deleted = v.deleted
+                ctx.insert(item)
+                if !local && e.from != me, let prof = careProfile(v.profileID) {
+                    careAlert("📁 \(engine.name(of: e.from)) added “\(v.title)” to \(prof.name)'s medical vault", conv: conv, from: e.from, at: e.at)
+                }
+            }
+
         case .group, .receipt:
             break
         }
@@ -346,6 +459,67 @@ struct EventApplier {
                 : "\(engine.name(of: e.from)) created a group task “\(p.title)”"
             ctx.insert(ActivityItem(kind: .taskAssigned, text: text, convID: convID, taskID: t.id, actorID: e.from, date: e.at))
         }
+    }
+
+    // MARK: - Care helpers
+
+    private func careProfile(_ id: String) -> CareProfile? {
+        try? ctx.fetch(FetchDescriptor<CareProfile>(predicate: #Predicate { $0.id == id })).first
+    }
+
+    private func medicine(_ id: String) -> Medicine? {
+        try? ctx.fetch(FetchDescriptor<Medicine>(predicate: #Predicate { $0.id == id })).first
+    }
+
+    private func careAlert(_ text: String, conv: Conversation?, from: String, at: Date) {
+        ctx.insert(ActivityItem(kind: .care, text: text, convID: conv?.id, actorID: from, date: at))
+    }
+
+    private func fillProfile(_ p: CareProfile, _ c: CareProfilePayload) {
+        p.name = c.name
+        p.relation = c.relation
+        p.bloodGroup = c.bloodGroup
+        p.allergies = c.allergies
+        p.conditions = c.conditions
+        p.emergencyContact = c.emergencyContact
+        p.notes = c.notes
+        if let a = c.avatar { p.avatar = a }
+        p.deleted = c.deleted
+        p.updatedAt = c.at
+    }
+
+    private func fillMedicine(_ med: Medicine, _ m: MedicinePayload) {
+        med.name = m.name
+        med.dose = m.dose
+        med.form = m.form
+        med.times = m.times
+        med.instructions = m.instructions
+        med.startDate = m.startDate
+        med.endDate = m.endDate
+        med.stock = m.stock
+        med.active = m.active
+        med.deleted = m.deleted
+        med.updatedAt = m.at
+    }
+
+    private func fillEvent(_ ev: HealthEvent, _ h: HealthEventPayload, from: String) {
+        ev.kind = h.kind
+        ev.title = h.title
+        ev.details = h.details
+        ev.date = h.date
+        ev.severity = h.severity
+        ev.status = h.status
+        ev.recovery = h.recovery
+        ev.deleted = h.deleted
+        if !h.attachments.isEmpty { ev.attachments = h.attachments }
+        if let u = h.update, !u.isEmpty {
+            var list = ev.updates
+            if !list.contains(where: { $0.at == h.at && $0.by == from }) {
+                list.append(HealthUpdate(text: u, by: from, at: h.at, recovery: h.recovery))
+            }
+            ev.updates = list
+        }
+        ev.updatedAt = h.at
     }
 
     // MARK: - Helpers

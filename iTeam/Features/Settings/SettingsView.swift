@@ -19,6 +19,7 @@ struct SettingsView: View {
     @State private var cacheSize = 0
     @State private var exportURL: URL?
     @State private var confirmErase = false
+    @State private var showPaywall = false
 
     var body: some View {
         NavigationStack {
@@ -78,10 +79,14 @@ struct SettingsView: View {
 
                 Section {
                     ForEach(ModuleRegistry.all) { m in
-                        Toggle(isOn: Binding(get: { modules.isOn(m) }, set: { modules.setOn(m, $0) })) {
+                        Toggle(isOn: Binding(get: { modules.isVisible(m) }, set: { modules.setOn(m, $0) })) {
                             Label { VStack(alignment: .leading) { Text(m.title); Text(m.summary).font(.caption).foregroundStyle(look.textSecondary) } } icon: { Image(systemName: m.icon) }
                         }
-                        .disabled(!modules.isEntitled(m))
+                    }
+                    Button {
+                        showPaywall = true
+                    } label: {
+                        Label(Store.shared.careUnlocked ? "iLife Care: active ✓" : "Subscribe to iLife Care", systemImage: "heart.text.square")
                     }
                     ForEach(ModuleRegistry.upcoming, id: \.0) { item in
                         Label { VStack(alignment: .leading) { Text(item.0); Text(item.1).font(.caption).foregroundStyle(look.textSecondary) } } icon: { Image(systemName: item.2) }
@@ -90,7 +95,7 @@ struct SettingsView: View {
                 } header: {
                     Text("Modules")
                 } footer: {
-                    Text("Chat is always free. Modules can be switched off; turning one off hides it but never deletes its data.")
+                    Text("Chat is always free. iLife Care is a monthly subscription for the person who creates care profiles; family members they share with use it free. Turning a module off hides it but never deletes its data.")
                 }
                 .lookRows()
 
@@ -134,6 +139,7 @@ struct SettingsView: View {
             .navigationTitle("Settings")
             .sheet(isPresented: $showQR) { AddContactView() }
             .sheet(isPresented: $editProfile) { NavigationStack { EditProfileView() } }
+            .sheet(isPresented: $showPaywall) { CarePaywall() }
             .confirmationDialog("Erase everything on this device?", isPresented: $confirmErase, titleVisibility: .visible) {
                 Button("Erase", role: .destructive) { engine.eraseLocalData() }
             } message: {

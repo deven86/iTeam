@@ -25,6 +25,7 @@ struct ChatView: View {
     @State private var askLink = false
     @State private var linkText = ""
     @State private var showApproval = false
+    @State private var showPoll = false
     @FocusState private var focused: Bool
 
     init(convID: String) {
@@ -131,6 +132,9 @@ struct ChatView: View {
         }
         .sheet(isPresented: $showApproval) {
             NavigationStack { ApprovalRequestView(conv: conv) }
+        }
+        .sheet(isPresented: $showPoll) {
+            NavigationStack { PollComposer(conv: conv) }
         }
         .alert("Share a link", isPresented: $askLink) {
             TextField("https://…", text: $linkText).keyboardType(.URL).textInputAutocapitalization(.never)
@@ -244,6 +248,7 @@ struct ChatView: View {
                     Divider()
                     Button("New task", systemImage: "checklist") { newTaskInChat = true }
                     if conv.members.count > 1 {
+                        Button("Poll", systemImage: "chart.bar") { showPoll = true }
                         Button("Request approval", systemImage: "checkmark.seal") { showApproval = true }
                     }
                 } label: {

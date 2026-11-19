@@ -22,7 +22,11 @@ final class ModuleRegistry: ObservableObject {
                                           summary: "Turn messages into tasks, assign them, track group progress and deadlines.",
                                           icon: "checklist", version: 1, productID: nil)
 
-    static let all: [ModuleInfo] = [businessTasks]
+    static let iLifeCare = ModuleInfo(id: "ilife-care", title: "iLife Care",
+                                      summary: "Medicines, injuries, health events, recovery and a medical vault — shared with family or team.",
+                                      icon: "heart.text.square.fill", version: 1, productID: Store.careProductID)
+
+    static let all: [ModuleInfo] = [businessTasks, iLifeCare]
 
     /// Modules shown as "coming later" in Settings.
     static let upcoming: [(String, String, String)] = [
@@ -38,11 +42,17 @@ final class ModuleRegistry: ObservableObject {
         enabled = UserDefaults.standard.dictionary(forKey: "modules.enabled") as? [String: Bool] ?? [:]
     }
 
-    /// The user has the right to use the module (all free today).
-    func isEntitled(_ m: ModuleInfo) -> Bool { m.productID == nil }
+    /// The user has the right to use the module: free modules always; paid ones with an active subscription.
+    func isEntitled(_ m: ModuleInfo) -> Bool {
+        if m.productID == Store.careProductID { return Store.shared.careUnlocked }
+        return m.productID == nil
+    }
 
     /// Entitled and switched on in Settings.
     func isOn(_ m: ModuleInfo) -> Bool { isEntitled(m) && (enabled[m.id] ?? true) }
+
+    /// Shown in the app (paid modules show their paywall until subscribed).
+    func isVisible(_ m: ModuleInfo) -> Bool { enabled[m.id] ?? true }
 
     func setOn(_ m: ModuleInfo, _ on: Bool) {
         enabled[m.id] = on

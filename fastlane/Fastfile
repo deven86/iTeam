@@ -16,7 +16,7 @@
 default_platform(:ios)
 
 TEAM_ID  = ENV.fetch("TEAM_ID")
-APP_IDS  = ENV.fetch("APP_IDS", "com.jondhale.iteam,com.jondhale.iteam.notify").split(",").map(&:strip)
+APP_IDS  = ENV.fetch("APP_IDS", "com.jondhale.iteam,com.jondhale.iteam.notify,com.jondhale.iteam.widgets").split(",").map(&:strip)
 MAIN_ID  = "com.jondhale.iteam"
 
 def asc_api_key

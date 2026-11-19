@@ -36,6 +36,7 @@ final class Reminders {
     /// Task deadlines + medicine doses, nearest first, at most `limit` (iOS keeps 64 per app).
     func reschedule(context: ModelContext, me: String) {
         guard !me.isEmpty else { return }
+        WidgetSync.update(context: context, me: me)
         let now = Date.now
         struct Plan { let id: String; let fire: Date; let title: String; let body: String; let category: String; let info: [String: String] }
         var plans: [Plan] = []

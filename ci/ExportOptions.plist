@@ -16,6 +16,8 @@
         <string>match AppStore com.jondhale.iteam</string>
         <key>com.jondhale.iteam.notify</key>
         <string>match AppStore com.jondhale.iteam.notify</string>
+        <key>com.jondhale.iteam.widgets</key>
+        <string>match AppStore com.jondhale.iteam.widgets</string>
     </dict>
     <key>manageAppVersionAndBuildNumber</key>
     <false/>

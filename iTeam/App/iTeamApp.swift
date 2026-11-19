@@ -97,6 +97,17 @@ final class Router: ObservableObject {
     @Published var pendingInvite: SyncEngine.Invite?
 
     func handle(_ url: URL) {
+        // Widgets and Live Activities: iteam://open/<tab>, iteam://task/<id>
+        if url.scheme == "iteam", url.host == "open" || url.host == "task" {
+            let arg = url.pathComponents.dropFirst().first ?? ""
+            if url.host == "task" { show(task: arg); return }
+            if arg == "myday" { openMyDay = Calendar.current.component(.hour, from: .now) >= 17 ? "evening" : "morning"; return }
+            if arg == "training" { go(.gym); return }
+            if arg == "dose" { go(.care); return }
+            if arg == "task" { go(.tasks); return }
+            if let t = TabID(rawValue: arg) { go(t) }
+            return
+        }
         if let invite = SyncEngine.Invite(text: url.absoluteString) {
             pendingInvite = invite
             tab = .chats

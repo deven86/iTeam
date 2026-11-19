@@ -204,6 +204,8 @@ struct GymMemberView: View {
                 .listRowBackground(Color.clear).listRowInsets(EdgeInsets())
                 Button {
                     engine.saveGymSession(m, date: .now, trainer: m.trainer, workout: "", notes: "")
+                    LiveActivities.start(kind: "training", icon: "dumbbell.fill", tint: "4FD1C5", title: "Training · \(m.name)",
+                                         detail: m.trainer.isEmpty ? "Session in progress" : "With \(m.trainer)", end: .now.addingTimeInterval(3600))
                     Haptics.success()
                 } label: {
                     Label(trainedToday ? "Trained today ✓" : "Trained today", systemImage: "checkmark.circle.fill").frame(maxWidth: .infinity)

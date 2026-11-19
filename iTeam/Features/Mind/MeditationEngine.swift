@@ -325,6 +325,8 @@ final class MeditationPlayer: ObservableObject {
     var paused: Bool { state == .paused }
 
     func start(_ s: MeditationScript, minutes: Int, language: MLang, soundscape: Soundscape, fileURL: URL?) {
+        LiveActivities.start(kind: "mind", icon: "leaf.fill", tint: "7ED6B2", title: s.title(language),
+                             detail: "Mindfulness · \(minutes) min", end: .now.addingTimeInterval(Double(minutes) * 60))
         stop()
         script = s; lang = language
         total = Double(minutes * 60)
@@ -375,6 +377,7 @@ final class MeditationPlayer: ObservableObject {
     }
 
     func stop() {
+        LiveActivities.end(kind: "mind")
         runTask?.cancel(); clockTask?.cancel()
         runTask = nil; clockTask = nil
         if synth.isSpeaking { synth.stopSpeaking(at: .immediate) }

@@ -26,7 +26,7 @@ jobs:
       TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
       ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
       ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
-      APP_IDS: com.jondhale.iteam,com.jondhale.iteam.notify
+      APP_IDS: com.jondhale.iteam,com.jondhale.iteam.notify,com.jondhale.iteam.widgets
     steps:
       - uses: actions/checkout@v5
 

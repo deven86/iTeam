@@ -25,6 +25,7 @@ targets:
       - path: Shared
     dependencies:
       - target: iTeamNotify
+      - target: iTeamWidgets
     settings:
       configs:
         Release:
@@ -44,6 +45,7 @@ targets:
         CFBundleShortVersionString: $(MARKETING_VERSION)
         CFBundleVersion: $(CURRENT_PROJECT_VERSION)
         LSRequiresIPhoneOS: true
+        NSSupportsLiveActivities: true
         ITSAppUsesNonExemptEncryption: false   # see README → Export compliance before App Store release
         NSFaceIDUsageDescription: iTeam uses Face ID to keep your chats and tasks private.
         NSCameraUsageDescription: iTeam uses the camera to scan a contact's invite QR code and to take photos for chats.
@@ -116,11 +118,43 @@ targets:
         com.apple.security.application-groups:
           - group.com.jondhale.iteam
 
+  iTeamWidgets:
+    type: app-extension
+    platform: iOS
+    sources:
+      - path: iTeamWidgets
+      - path: Shared
+    settings:
+      configs:
+        Release:
+          CODE_SIGN_STYLE: Manual
+          CODE_SIGN_IDENTITY: "Apple Distribution"
+          PROVISIONING_PROFILE_SPECIFIER: "match AppStore com.jondhale.iteam.widgets"
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.jondhale.iteam.widgets
+        TARGETED_DEVICE_FAMILY: "1,2"
+        CODE_SIGN_ENTITLEMENTS: iTeamWidgets/iTeamWidgets.entitlements
+        SKIP_INSTALL: YES
+    info:
+      path: iTeamWidgets/Info.plist
+      properties:
+        CFBundleDisplayName: iTeam
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        NSExtension:
+          NSExtensionPointIdentifier: com.apple.widgetkit-extension
+    entitlements:
+      path: iTeamWidgets/iTeamWidgets.entitlements
+      properties:
+        com.apple.security.application-groups:
+          - group.com.jondhale.iteam
+
 schemes:
   iTeam:
     build:
       targets:
         iTeam: all
         iTeamNotify: all
+        iTeamWidgets: all
     archive:
       config: Release

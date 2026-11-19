@@ -18,7 +18,7 @@ struct BackupView: View {
                     VStack(alignment: .leading, spacing: 3) {
                         if let d = backup.lastDate {
                             Text("Last backup \(d.formatted(.relative(presentation: .named)))").font(.headline)
-                            Text("\(Fmt.bytes(backup.lastSize)) · \(d.formatted(date: .abbreviated, time: .shortened))")
+                            Text("\(Fmt.bytes(Int(backup.lastSize))) · \(d.formatted(date: .abbreviated, time: .shortened))")
                                 .font(.caption).foregroundStyle(look.textSecondary)
                         } else {
                             Text("Not backed up yet").font(.headline)
@@ -54,7 +54,7 @@ struct BackupView: View {
                         restoring = f
                     } label: {
                         LabeledContent(f.id == "ipad" ? "iPad backup" : "iPhone backup",
-                                       value: "\(f.date.formatted(date: .abbreviated, time: .shortened)) · \(Fmt.bytes(f.size))")
+                                       value: "\(f.date.formatted(date: .abbreviated, time: .shortened)) · \(Fmt.bytes(Int(f.size)))")
                     }
                 }
             }
@@ -96,7 +96,7 @@ struct RestoreOfferView: View {
             if done {
                 Text(Self.restartText).multilineTextAlignment(.center).foregroundStyle(look.textSecondary)
             } else {
-                Text("A backup from your \(found.id == "ipad" ? "iPad" : "iPhone") was found — \(found.date.formatted(date: .abbreviated, time: .shortened)), \(Fmt.bytes(found.size)).")
+                Text("A backup from your \(found.id == "ipad" ? "iPad" : "iPhone") was found — \(found.date.formatted(date: .abbreviated, time: .shortened)), \(Fmt.bytes(Int(found.size))).")
                     .multilineTextAlignment(.center).foregroundStyle(look.textSecondary)
                 if let p = backup.progress { Text(p).font(.caption) }
                 if let e = backup.lastError { Text(e).font(.caption).foregroundStyle(look.warning).multilineTextAlignment(.center) }

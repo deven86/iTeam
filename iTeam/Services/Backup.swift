@@ -85,7 +85,7 @@ final class Backup: ObservableObject {
                 try? FileManager.default.removeItem(at: plain)
             }.value
             let size = (try? FileManager.default.attributesOfItem(atPath: sealed.path)[.size] as? Int64) ?? 0
-            progress = "Uploading \(Fmt.bytes(size))…"
+            progress = "Uploading \(Fmt.bytes(Int(size)))…"
             let id = Self.recordID(Self.deviceKind)
             let record = (try? await db.record(for: id)) ?? CKRecord(recordType: "Backup", recordID: id)
             record["archive"] = CKAsset(fileURL: sealed)

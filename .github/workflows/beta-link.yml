@@ -1,0 +1,28 @@
+name: TestFlight public link
+
+# Sets up external TestFlight testing ("Friends" group), submits the newest build to
+# Beta App Review and prints the public link to share. Run again after each new build.
+on: workflow_dispatch
+
+permissions:
+  contents: read
+
+jobs:
+  link:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+      ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+      CONTACT_PHONE: ${{ secrets.BETA_CONTACT_PHONE }}
+    steps:
+      - uses: actions/checkout@v5
+      - name: Set up public link
+        run: |
+          pip install -q pyjwt cryptography
+          mkdir -p "$RUNNER_TEMP/keys"
+          printf '%s' "${{ secrets.ASC_KEY_P8_BASE64 }}" > "$RUNNER_TEMP/keys/raw"
+          if grep -q "BEGIN PRIVATE KEY" "$RUNNER_TEMP/keys/raw"; then cp "$RUNNER_TEMP/keys/raw" "$RUNNER_TEMP/keys/AuthKey.p8"; else tr -d ' \r\n' < "$RUNNER_TEMP/keys/raw" | base64 --decode > "$RUNNER_TEMP/keys/AuthKey.p8"; fi
+          rm -f "$RUNNER_TEMP/keys/raw"
+          ASC_KEY_PATH="$RUNNER_TEMP/keys/AuthKey.p8" python3 ci/beta_link.py
+          rm -rf "$RUNNER_TEMP/keys"

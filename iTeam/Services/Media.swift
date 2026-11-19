@@ -112,6 +112,7 @@ final class VoicePlayer: NSObject, ObservableObject, AVAudioPlayerDelegate {
 
 // MARK: - Short videos
 
+@MainActor
 enum VideoPrep {
     static let maxSeconds: Double = 30
 

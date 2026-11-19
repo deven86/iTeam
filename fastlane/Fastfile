@@ -59,6 +59,7 @@ end
 platform :ios do
   desc "One-time: register a test iPhone and create Development profiles (for the push-subscription setup build)"
   lane :dev_setup do
+    setup_ci   # temporary unlocked keychain, so codesign never waits for a password prompt
     asc_api_key
     udid = ENV.fetch("DEV_UDID").strip
     existing = Spaceship::ConnectAPI::Device.all.find { |d| d.udid.casecmp?(udid) }

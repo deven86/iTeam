@@ -30,7 +30,7 @@ struct RootView: View {
 
     /// Module tabs the user can open right now.
     private var available: [Router.TabID] {
-        var a: [Router.TabID] = [.views, .rooms, .doctor, .safety, .bills, .kids]
+        var a: [Router.TabID] = [.views, .events, .rooms, .doctor, .safety, .bills, .kids]
         let sharedBiz = Set(bizRecords.filter { $0.subjectID == engine.me && $0.ownerID != engine.me }.map(\.module))
         for (info, spec) in [(ModuleRegistry.khata, BizSpecs.khata), (ModuleRegistry.tuition, BizSpecs.tuition), (ModuleRegistry.rent, BizSpecs.rent),
                              (ModuleRegistry.legal, BizSpecs.legal), (ModuleRegistry.clinic, BizSpecs.clinic)] {
@@ -102,6 +102,11 @@ struct RootView: View {
         .badge(rooms.unreadTotal)
         .hidden(!inBar.contains(.rooms))
 
+        Tab("Events", systemImage: "party.popper.fill", value: Router.TabID.events) {
+            EventsHomeView()
+        }
+        .hidden(!inBar.contains(.events))
+
         Tab("Safety", systemImage: "sos.circle.fill", value: Router.TabID.safety) {
             SafetyView()
         }
@@ -154,7 +159,7 @@ struct RootView: View {
             .onChange(of: inBar) { _, bar in
                 router.barTabs = bar
                 // A tab that just left the bar reopens inside the hub instead of vanishing.
-                if [Router.TabID.views, .rooms, .doctor, .safety, .khata, .tuition, .rent, .legal, .clinic, .bills, .kids, .tasks, .care, .gym, .mind, .activity].contains(router.tab), !bar.contains(router.tab) {
+                if [Router.TabID.views, .events, .rooms, .doctor, .safety, .khata, .tuition, .rent, .legal, .clinic, .bills, .kids, .tasks, .care, .gym, .mind, .activity].contains(router.tab), !bar.contains(router.tab) {
                     router.tab = .chats
                 }
             }
@@ -208,6 +213,7 @@ struct ModulesHubView: View {
         case .rooms: RoomsHomeView()
         case .doctor: DoctorHomeView()
         case .safety: SafetyView()
+        case .events: EventsHomeView()
         case .khata: BizHomeView(spec: BizSpecs.khata)
         case .tuition: BizHomeView(spec: BizSpecs.tuition)
         case .rent: BizHomeView(spec: BizSpecs.rent)
@@ -296,6 +302,7 @@ struct ModulesHubView: View {
         case .rooms: ("Rooms", "person.3.sequence.fill", [0x7F7FD5, 0x86A8E7])
         case .doctor: ("Doctor", "stethoscope", [0x36D1DC, 0x5B86E5])
         case .safety: ("Safety", "sos.circle.fill", [0xFF416C, 0xB31217])
+        case .events: ("Events", "party.popper.fill", [0xF953C6, 0xB91D73])
         case .khata, .tuition, .rent, .legal, .clinic, .bills, .kids:
             BizSpecs.all.first { $0.tab == t }.map { ($0.title, $0.icon, $0.colors) } ?? ("", "square", [0, 0])
         case .tasks: ("Tasks", ModuleRegistry.businessTasks.icon, ModuleRegistry.businessTasks.colors)

@@ -62,6 +62,9 @@ struct Event: Codable {
         case nowPlaying(String)
         /// A record in a business module (Khata, Tuition, Rent, Legal, Clinic, Bills).
         case biz(BizPayload)
+        /// An invitation in a chat, and the answers to it.
+        case invite(InviteEventPayload)
+        case rsvp(eventID: String, answer: String)
     }
 }
 

@@ -607,6 +607,33 @@ struct EventApplier {
                 }
             }
 
+        case .invite(let p):
+            guard let conv else { return .needsConversation }
+            let eid = p.id
+            let ev = (try? ctx.fetch(FetchDescriptor<InviteEvent>(predicate: #Predicate { $0.id == eid })).first) ?? {
+                let n = InviteEvent(id: eid); n.convID = conv.id; n.hostID = e.from; ctx.insert(n); return n
+            }()
+            guard ev.hostID == e.from, p.at >= ev.updatedAt else { return .ignored }
+            let isNew = ev.title.isEmpty
+            ev.title = p.title; ev.place = p.place; ev.start = p.start; ev.end = p.end; ev.notes = p.notes; ev.updatedAt = p.at
+            let who = e.from == me ? "You" : engine.name(of: e.from)
+            if p.deleted && !ev.deleted {
+                ev.deleted = true
+                system(conv, "🎉 \(who) cancelled “\(p.title)”", at: e.at)
+            } else {
+                system(conv, isNew ? "🎉 \(who) invited everyone to “\(p.title)” — \(p.start.formatted(date: .abbreviated, time: .shortened))\(p.place.isEmpty ? "" : " at " + p.place)"
+                                   : "🎉 \(who) updated “\(p.title)” — \(p.start.formatted(date: .abbreviated, time: .shortened))", at: e.at)
+            }
+            EventReminders.update(ev, me: me)
+
+        case .rsvp(let id, let answer):
+            guard let conv, let ev = try? ctx.fetch(FetchDescriptor<InviteEvent>(predicate: #Predicate { $0.id == id })).first else { return .ignored }
+            var r = ev.rsvps; r[e.from] = answer; ev.rsvps = r
+            let who = e.from == me ? "You" : engine.name(of: e.from)
+            let word = answer == "going" ? "is going" : answer == "maybe" ? "might come" : "can't come"
+            system(conv, "🎉 \(who) \(e.from == me ? (answer == "going" ? "are going" : answer == "maybe" ? "might come" : "can't come") : word) — “\(ev.title)”", at: e.at)
+            if e.from == me { EventReminders.update(ev, me: me) }
+
         case .nowPlaying(let text):
             if e.from != me, let c = engine.contact(e.from), !c.blocked { c.nowPlaying = text; c.nowPlayingAt = e.at }
 

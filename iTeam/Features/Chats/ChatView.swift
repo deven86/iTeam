@@ -46,6 +46,7 @@ struct ChatView: View {
     @State private var magicOpen = false
     @State private var showRx = false
     @State private var showCheckIn = false
+    @State private var showEvent = false
     @State private var lastSeen: Date?
     private let ticker = Timer.publish(every: 20, on: .main, in: .common).autoconnect()
 
@@ -281,6 +282,7 @@ struct ChatView: View {
             }
         }
         .sheet(isPresented: $showCheckIn) { NavigationStack { CheckInSheet(conv: conv) } }
+        .sheet(isPresented: $showEvent) { NavigationStack { EventEditor(conv: conv) } }
         .sheet(isPresented: $showRx) {
             if let peer = conv.peerID {
                 NavigationStack { PrescriptionEditor(conv: conv, patientID: peer, patientName: engine.name(of: peer)) }
@@ -399,6 +401,7 @@ struct ChatView: View {
                     }
                     if !conv.isDemo {
                         Button("Check In", systemImage: "location.circle") { showCheckIn = true }
+                        Button("Event invite", systemImage: "party.popper") { showEvent = true }
                     }
                     if !conv.isGroup, let peer = conv.peerID, peer != engine.me {
                         Button("Prescription (doctor)", systemImage: "stethoscope") { showRx = true }

@@ -350,7 +350,6 @@ struct WorkoutEditorView: View {
             }
         }
         try? context.save()
-        if isNew { Task { await HealthKitManager.shared.saveWorkout(target, activity: .from(category: category)) } }
         if !records.isEmpty {
             UserDefaults.standard.set(UserDefaults.standard.integer(forKey: "prCount") + records.count, forKey: "prCount")
             Celebration.shared.fire(records.count == 1 ? "New personal record" : "\(records.count) new personal records",

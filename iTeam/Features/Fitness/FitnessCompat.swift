@@ -125,3 +125,27 @@ private struct FirstAppear: ViewModifier {
 extension View {
     func onFirstAppear(perform action: @escaping () -> Void) -> some View { modifier(FirstAppear(action: action)) }
 }
+struct ExerciseHistory {
+    var lastSummary: String?
+    var bestKg: Double = 0
+    var best1RM: Double = 0
+
+    /// `sets` = every set ever logged; `excluding` = the workout being edited.
+    static func make(for exercise: String, sets: [ExerciseSet], excluding: WorkoutLog?) -> ExerciseHistory {
+        let mine = sets.filter { $0.exercise.caseInsensitiveCompare(exercise) == .orderedSame && $0.log != nil && $0.log?.persistentModelID != excluding?.persistentModelID }
+        guard !mine.isEmpty else { return ExerciseHistory() }
+        var h = ExerciseHistory()
+        h.bestKg = mine.map(\.weightKg).max() ?? 0
+        h.best1RM = mine.map { $0.weightKg * (1 + Double($0.reps) / 30) }.max() ?? 0
+        if let lastLog = mine.compactMap(\.log).max(by: { $0.start < $1.start }) {
+            let lastSets = mine.filter { $0.log?.persistentModelID == lastLog.persistentModelID }.sorted { $0.order < $1.order }
+            if let cardio = lastSets.first, cardio.durationMinutes > 0 {
+                h.lastSummary = "\(Int(cardio.durationMinutes)) min" + (cardio.distanceKm > 0 ? " · \(cardio.distanceKm.clean) km" : "")
+            } else {
+                let parts = lastSets.filter { $0.reps > 0 }.map { $0.weightKg > 0 ? "\($0.reps)×\($0.weightKg.clean)" : "\($0.reps)" }
+                if !parts.isEmpty { h.lastSummary = parts.prefix(5).joined(separator: ", ") + (parts.contains { $0.contains("×") } ? " kg" : " reps") }
+            }
+        }
+        return h
+    }
+}

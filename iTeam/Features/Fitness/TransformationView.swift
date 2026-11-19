@@ -419,7 +419,7 @@ struct CompareView: View {
                 Spacer()
             }
             .padding()
-            .background { WallpaperView() }
+            .background { LookBackdrop() }
             .navigationTitle("Compare")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {

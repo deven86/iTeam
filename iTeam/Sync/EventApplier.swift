@@ -496,6 +496,7 @@ struct EventApplier {
         case .group, .receipt:
             break
         }
+        if !personal { changeLog(e, conv: conv) }
         return .applied
     }
 
@@ -661,6 +662,72 @@ struct EventApplier {
             ev.updates = list
         }
         ev.updatedAt = h.at
+    }
+
+    // MARK: - Change log
+    //
+    // Every change to shared work (tasks, approvals' expenses, files, care, gym) is written into the chat it
+    // belongs to, so the whole group sees who changed what. When a task is shared between a creator and an
+    // assignee, the same line also appears in their one-to-one chat, on both phones.
+
+    private func changeLog(_ e: Event, conv: Conversation?) {
+        guard let conv, !conv.id.hasPrefix("s_") else { return }
+        let who = e.from == me ? "You" : engine.name(of: e.from)
+        var line: String?
+        var task: TaskItem?
+        switch e.body {
+        case .task(let p):
+            task = engine.task(p.id)
+            line = "📋 \(who) \(p.change ?? "created the task") — “\(p.title)”"
+        case .taskDelete(let id):
+            task = engine.task(id)
+            line = task.map { "🗑 \(who) deleted the task “\($0.title)”" }
+        case .checklist(let c):
+            task = engine.task(c.taskID)
+            if !c.deleted, let t = task { line = "\(c.done ? "☑︎" : "☐") \(who) \(c.done ? "ticked" : "updated") “\(c.title)” in “\(t.title)”" }
+        case .comment(let c):
+            task = engine.task(c.taskID)
+            if let t = task { line = "💬 \(who) on “\(t.title)”: \(c.body.prefix(140))" }
+        case .taskPart(let taskID, let done):
+            task = engine.task(taskID)
+            if let t = task { line = "\(done ? "✅" : "↩︎") \(who) marked their part \(done ? "done" : "not done") — “\(t.title)”" }
+        case .taskFile(let f):
+            task = engine.task(f.taskID)
+            if let t = task { line = f.deleted ? "📎 \(who) removed “\(f.title)” from “\(t.title)”" : "📎 \(who) attached “\(f.title)” to “\(t.title)”" }
+        case .expense(let x):
+            task = engine.task(x.taskID)
+            if let t = task { line = x.deleted ? "🧾 \(who) removed the expense “\(x.title)”" : "🧾 \(who) logged \(Money.format(x.amount)) — \(x.title) (“\(t.title)”)" }
+        case .dose(let d):
+            if let med = medicine(d.medicineID), let prof = careProfile(d.profileID) {
+                line = "💊 \(who) marked \(med.name) \(d.status == "taken" ? "taken" : "skipped") for \(prof.name)"
+            }
+        case .healthEvent(let h):
+            if let prof = careProfile(h.profileID) { line = "🩺 \(who) updated \(prof.name): \(h.title)" }
+        case .vault(let v):
+            if !v.deleted, let prof = careProfile(v.profileID) { line = "📁 \(who) added “\(v.title)” to \(prof.name)'s vault" }
+        case .medicine(let m):
+            if let prof = careProfile(m.profileID) { line = "💊 \(who) \(m.deleted ? "removed" : "updated") \(m.name) \(m.dose) for \(prof.name)" }
+        case .gymSession(let g):
+            if let m = gymMember(g.memberID) { line = "💪 \(who) \(g.deleted ? "removed a session" : "logged a training session") for \(m.name)" }
+        case .gymPayment(let g):
+            if let m = gymMember(g.memberID) { line = "🧾 \(who) \(g.deleted ? "removed" : "recorded") \(Money.format(g.amount)) for \(m.name)" }
+        case .gymPlan(let g):
+            if let m = gymMember(g.memberID) { line = "🏢 \(who) \(g.deleted ? "removed" : "updated") \(m.name)'s membership at \(g.gymName)" }
+        default:
+            break
+        }
+        guard let line else { return }
+        system(conv, line, at: e.at)
+
+        // Mirror task changes into the creator ↔ assignee one-to-one chat (on each phone, for its own side).
+        guard let t = task, conv.isGroup else { return }
+        let actor = e.from
+        let parties: [String] = actor == t.createdBy ? t.assignees : (t.assignees.contains(actor) ? [t.createdBy] : [])
+        for p in parties where p != actor {
+            let other: String? = me == actor ? p : (me == p ? actor : nil)
+            guard let other, let direct = engine.conversation(SyncEngine.directID(me, other)) else { continue }
+            system(direct, line + " · in “\(conv.title)”", at: e.at)
+        }
     }
 
     // MARK: - Helpers

@@ -129,6 +129,13 @@ final class SyncEngine: ObservableObject {
                     }
                     profileChecked = true
                 }
+                // Contacts' names and photos, refreshed from their iCloud profiles twice a day.
+                let lastPics = UserDefaults.standard.double(forKey: "contacts.refreshedAt")
+                if Date.now.timeIntervalSince1970 - lastPics > 12 * 3600, let ctx = context {
+                    UserDefaults.standard.set(Date.now.timeIntervalSince1970, forKey: "contacts.refreshedAt")
+                    let saved = (try? ctx.fetch(FetchDescriptor<Contact>(predicate: #Predicate { $0.saved }))) ?? []
+                    for c in saved.prefix(100) where !c.userID.hasPrefix("demo_") { await refreshProfile(c) }
+                }
                 if !subscriptionsChecked {
                     // Push setup must never block syncing: messages still flow without it.
                     do {

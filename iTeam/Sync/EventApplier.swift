@@ -96,10 +96,16 @@ struct EventApplier {
 
         case .taskDelete(let id):
             guard let t = engine.task(id) else { return .ignored }
-            let admin = conv?.role(of: e.from)?.canManage ?? false
-            guard t.createdBy == e.from || admin || personal else { return .ignored }
+            // Only the person who created a task can delete it.
+            guard t.createdBy == e.from || personal else { return .ignored }
             t.deleted = true
+            t.deletedBy = e.from
+            t.deletedAt = e.at
             t.updatedAt = .now
+            if !local && e.from != me {
+                ctx.insert(ActivityItem(kind: .taskUpdated, text: "🗑 \(engine.name(of: e.from)) deleted the task “\(t.title)”",
+                                        convID: conv?.id, actorID: e.from, date: e.at))
+            }
 
         case .checklist(let c):
             let itemID = c.id

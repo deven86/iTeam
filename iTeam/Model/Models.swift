@@ -294,6 +294,9 @@ enum WorkPriority: Int, Codable, CaseIterable {
     var reminderOffset: Int
     var deleted: Bool
     var updatedAt: Date
+    /// Who deleted it and when — deleted tasks stay visible as "Deleted".
+    var deletedBy: String? = nil
+    var deletedAt: Date? = nil
     /// "none", "daily", "weekly", "monthly" (Business Tasks Pro)
     var repeatRule: String = "none"
 

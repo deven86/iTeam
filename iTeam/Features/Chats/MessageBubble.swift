@@ -87,9 +87,11 @@ struct MessageBubble: View {
                 }
             }
 
-            if let taskID = message.taskID, let t = engine.task(taskID), !t.deleted {
+            if let taskID = message.taskID, let t = engine.task(taskID) {
                 Button { router.show(task: taskID) } label: {
-                    Label(t.isDone ? "Task done: \(t.title)" : "Task: \(t.title)", systemImage: t.status.icon)
+                    Label(t.deleted ? "Task deleted: \(t.title)" : t.isDone ? "Task done: \(t.title)" : "Task: \(t.title)",
+                          systemImage: t.deleted ? "trash" : t.status.icon)
+                        .strikethrough(t.deleted)
                         .font(.caption.weight(.semibold))
                         .padding(.horizontal, 8).padding(.vertical, 4)
                         .background(Color.black.opacity(0.10), in: Capsule())

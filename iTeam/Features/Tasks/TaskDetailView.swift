@@ -31,11 +31,40 @@ struct TaskDetailView: View {
     }
 
     var body: some View {
-        if let t = found.first, !t.deleted {
+        if let t = found.first, t.deleted {
+            deletedView(t)
+        } else if let t = found.first {
             content(t)
         } else {
             EmptyStateView(icon: "checklist", title: "Task not found", message: "It may have been deleted.")
         }
+    }
+
+    /// Deleted tasks stay readable, clearly marked, so nobody wonders where they went.
+    private func deletedView(_ t: TaskItem) -> some View {
+        List {
+            Section {
+                Label {
+                    Text("Deleted by \(engine.name(of: t.deletedBy ?? t.createdBy))\(t.deletedAt.map { " · " + $0.formatted(date: .abbreviated, time: .shortened) } ?? "")")
+                } icon: { Image(systemName: "trash.fill") }
+                .foregroundStyle(look.danger)
+                Text(t.title).font(.title2.bold()).strikethrough()
+                if !t.notes.isEmpty { Text(t.notes).foregroundStyle(look.textSecondary) }
+                Text("Created by \(engine.name(of: t.createdBy)) · \(t.createdAt.formatted(date: .abbreviated, time: .shortened))")
+                    .font(.caption).foregroundStyle(look.textSecondary)
+            }
+            .lookRows()
+            if !checklist.isEmpty {
+                Section("Checklist") {
+                    ForEach(checklist) { c in Label(c.title, systemImage: c.done ? "checkmark.circle.fill" : "circle") }
+                }
+                .lookRows()
+            }
+        }
+        .listStyle(.insetGrouped)
+        .lookScreen()
+        .navigationTitle("Deleted task")
+        .navigationBarTitleDisplayMode(.inline)
     }
 
     private func conv(_ t: TaskItem) -> Conversation? { t.convID.flatMap { engine.conversation($0) } }
@@ -195,9 +224,11 @@ struct TaskDetailView: View {
             }
             .lookRows()
 
-            if t.createdBy == engine.me || conv(t)?.role(of: engine.me)?.canManage == true || conv(t) == nil {
+            if t.createdBy == engine.me {
                 Section {
                     Button("Delete task", role: .destructive) { confirmDelete = true }
+                } footer: {
+                    Text("Only the person who created a task can delete it. It stays listed under Deleted for everyone.")
                 }
                 .lookRows()
             }

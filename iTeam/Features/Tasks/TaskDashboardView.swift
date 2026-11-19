@@ -7,7 +7,8 @@ struct TaskDashboardView: View {
     @EnvironmentObject var router: Router
     @Environment(\.look) private var look
     @Environment(\.horizontalSizeClass) private var sizeClass
-    @Query(filter: #Predicate<TaskItem> { !$0.deleted }, sort: \TaskItem.createdAt, order: .reverse) private var tasks: [TaskItem]
+    @Query(sort: \TaskItem.createdAt, order: .reverse) private var allTasks: [TaskItem]
+    private var tasks: [TaskItem] { allTasks.filter { !$0.deleted } }
     @Query private var conversations: [Conversation]
     @Query private var approvals: [Approval]
 
@@ -16,7 +17,7 @@ struct TaskDashboardView: View {
     }
 
     enum Scope: String, CaseIterable, Identifiable {
-        case mine = "My Tasks", assigned = "Assigned to me", created = "Created by me", groups = "Group tasks", done = "Completed"
+        case mine = "My Tasks", assigned = "Assigned to me", created = "Created by me", groups = "Group tasks", done = "Completed", deleted = "Deleted"
         var id: String { rawValue }
         var icon: String {
             switch self {
@@ -25,6 +26,7 @@ struct TaskDashboardView: View {
             case .created: "square.and.pencil"
             case .groups: "person.3"
             case .done: "checkmark.seal"
+            case .deleted: "trash"
             }
         }
     }
@@ -49,12 +51,13 @@ struct TaskDashboardView: View {
         case .created: return !t.isDone && t.createdBy == me
         case .groups: return !t.isDone && t.convID != nil && (conversations.first { $0.id == t.convID }?.isGroup ?? false)
         case .done: return t.isDone
+        case .deleted: return t.deleted
         }
     }
 
     private var visible: [TaskItem] {
         let q = search.lowercased()
-        return tasks.filter(inScope).filter { q.isEmpty || $0.title.lowercased().contains(q) || $0.notes.lowercased().contains(q) }
+        return (scope == .deleted ? allTasks : tasks).filter(inScope).filter { q.isEmpty || $0.title.lowercased().contains(q) || $0.notes.lowercased().contains(q) }
     }
 
     var body: some View {
@@ -91,6 +94,8 @@ struct TaskDashboardView: View {
                             .frame(maxWidth: .infinity)
                     }
                     .listRowBackground(Color.clear)
+                } else if scope == .deleted {
+                    taskSection("Deleted", visible.sorted { ($0.deletedAt ?? .distantPast) > ($1.deletedAt ?? .distantPast) })
                 } else if scope == .done {
                     taskSection("Completed", visible.sorted { ($0.completedAt ?? .distantPast) > ($1.completedAt ?? .distantPast) })
                 } else if scope == .groups {

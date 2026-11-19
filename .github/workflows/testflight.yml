@@ -7,6 +7,10 @@ on:
       confirm:
         description: 'Type UPLOAD to send this build to TestFlight'
         required: true
+      cloud_env:
+        description: 'iCloud environment: Production (normal) or Development (one-time build that creates push subscriptions)'
+        required: false
+        default: 'Production'
 
 jobs:
   upload:
@@ -90,6 +94,10 @@ jobs:
       - name: Export and upload to App Store Connect
         run: |
           sed "s/__TEAM_ID__/$TEAM_ID/" ci/ExportOptions.plist > "$RUNNER_TEMP/ExportOptions.plist"
+          if [ "${{ github.event.inputs.cloud_env }}" = "Development" ]; then
+            # Export the .ipa locally; the next step re-signs it for the Development iCloud environment and uploads it.
+            /usr/libexec/PlistBuddy -c "Set :destination export" "$RUNNER_TEMP/ExportOptions.plist"
+          fi
           set +e
           xcodebuild -exportArchive \
             -archivePath "$RUNNER_TEMP/iTeam.xcarchive" \
@@ -113,6 +121,39 @@ jobs:
             fi
             exit $status
           fi
+
+      - name: Development iCloud build — re-sign and upload
+        if: ${{ github.event.inputs.cloud_env == 'Development' }}
+        run: |
+          set -e
+          IPA=$(ls "$RUNNER_TEMP"/export/*.ipa | head -1)
+          W="$RUNNER_TEMP/resign"; rm -rf "$W"; mkdir -p "$W"; cd "$W"
+          unzip -q "$IPA"
+          APP=$(ls -d Payload/*.app | head -1)
+          ID=$(security find-identity -v -p codesigning | grep -E "Apple Distribution|iPhone Distribution" | head -1 | awk '{print $2}')
+          [ -n "$ID" ] || { echo "::error title=resign::No distribution identity in the keychain"; exit 1; }
+          for T in "$APP"/PlugIns/*.appex "$APP"; do
+            [ -e "$T" ] || continue
+            codesign -d --entitlements :- "$T" > ent.plist 2>/dev/null || true
+            if /usr/libexec/PlistBuddy -c "Print :com.apple.developer.icloud-container-environment" ent.plist >/dev/null 2>&1; then
+              /usr/libexec/PlistBuddy -c "Set :com.apple.developer.icloud-container-environment Development" ent.plist
+            fi
+            codesign -f -s "$ID" --entitlements ent.plist --generate-entitlement-der "$T"
+          done
+          codesign -d --entitlements :- "$APP" 2>/dev/null | grep -A1 icloud-container-environment | tr -d '\t\n' | sed 's/^/::notice title=entitlement::/'; echo
+          zip -qry "$RUNNER_TEMP/iTeam-dev.ipa" Payload
+          mkdir -p ~/.appstoreconnect/private_keys
+          cp "$RUNNER_TEMP/keys/AuthKey.p8" ~/.appstoreconnect/private_keys/AuthKey_$ASC_KEY_ID.p8
+          set +e
+          xcrun altool --upload-app -f "$RUNNER_TEMP/iTeam-dev.ipa" -t ios --apiKey "$ASC_KEY_ID" --apiIssuer "$ASC_ISSUER_ID" > "$RUNNER_TEMP/altool.log" 2>&1
+          status=$?
+          set -e
+          tail -30 "$RUNNER_TEMP/altool.log"
+          if [ $status -ne 0 ]; then
+            grep -iE "error|invalid|fail" "$RUNNER_TEMP/altool.log" | tail -8 | cut -c1-900 | while IFS= read -r l; do echo "::error title=upload::$l"; done
+            exit $status
+          fi
+          rm -rf ~/.appstoreconnect/private_keys
 
       - name: Remove key
         if: always()

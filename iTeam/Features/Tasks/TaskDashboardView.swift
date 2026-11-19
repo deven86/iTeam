@@ -119,8 +119,19 @@ struct TaskDashboardView: View {
             .refreshable { await engine.sync() }
             .navigationTitle("Business Tasks")
             .navigationDestination(for: String.self) { TaskDetailView(taskID: $0) }
-            .navigationDestination(isPresented: $showApprovals) { ApprovalsListView() }
-            .navigationDestination(isPresented: $showReports) { TaskReportsView() }
+            .sheet(isPresented: $showApprovals) {
+                NavigationStack {
+                    ApprovalsListView()
+                        .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Done") { showApprovals = false } } }
+                }
+            }
+            // A sheet, not navigationDestination(isPresented:): mixing that with a path-based stack froze the app.
+            .sheet(isPresented: $showReports) {
+                NavigationStack {
+                    TaskReportsView()
+                        .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Done") { showReports = false } } }
+                }
+            }
             .sheet(isPresented: $showProPage) {
                 NavigationStack {
                     ModuleDetailView(module: ModuleRegistry.businessPro)

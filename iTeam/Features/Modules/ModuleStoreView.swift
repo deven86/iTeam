@@ -253,30 +253,6 @@ struct ModulePreviewScreen: View {
         case .taskForm: "New task form"
         case .proForm: "Recurring task form"
         case .careDashboard: "Care dashboard"
-        case .gymDashboard:
-            HStack(spacing: 6) { stat("9", "Sessions · Nov"); stat("4", "Sessions left") }
-            card {
-                VStack(alignment: .leading, spacing: 3) {
-                    Text("Gold's Gym · Dadar").font(.caption.bold())
-                    Text("25 days left").font(.caption2)
-                }
-            }
-            bar("Membership used", 0.93)
-            button("Trained today")
-            row("person.fill", "Rahul · Client · Fat loss")
-        case .gymForm:
-            field("For", "Personal training", "figure.strengthtraining.traditional")
-            field("Amount", "₹6,000")
-            field("Sessions in package", "12", "number")
-            field("Paid by", "UPI", "creditcard")
-            field("Receipt", "Photo attached", "doc.viewfinder")
-            button("Save payment")
-        case .gymSessions:
-            row("checkmark.circle.fill", "Today · Legs · Nitin")
-            row("checkmark.circle.fill", "Mon · Chest & triceps")
-            row("checkmark.circle.fill", "Sat · Back & biceps")
-            card { Text("8 of 12 paid sessions done").font(.caption2) }
-            row("bell.badge.fill", "Client & trainer both notified")
         case .medicineForm: "Add medicine form"
         case .taskList: "Tasks"
         case .approval: "Approval in chat"
@@ -376,6 +352,30 @@ struct ModulePreviewScreen: View {
             row("checkmark.circle.fill", "9:00 Metformin", "Taken")
             row("exclamationmark.circle.fill", "10:00 Amlodipine", "Due")
             row("bell.badge.fill", "Family alerted: dose skipped")
+        case .gymDashboard:
+            HStack(spacing: 6) { stat("9", "Sessions · Nov"); stat("4", "Sessions left") }
+            card {
+                VStack(alignment: .leading, spacing: 3) {
+                    Text("Gold's Gym · Dadar").font(.caption.bold())
+                    Text("25 days left").font(.caption2)
+                }
+            }
+            bar("Membership used", 0.93)
+            button("Trained today")
+            row("person.fill", "Rahul · Client · Fat loss")
+        case .gymForm:
+            field("For", "Personal training", "figure.strengthtraining.traditional")
+            field("Amount", "₹6,000")
+            field("Sessions in package", "12", "number")
+            field("Paid by", "UPI", "creditcard")
+            field("Receipt", "Photo attached", "doc.viewfinder")
+            button("Save payment")
+        case .gymSessions:
+            row("checkmark.circle.fill", "Today · Legs · Nitin")
+            row("checkmark.circle.fill", "Mon · Chest & triceps")
+            row("checkmark.circle.fill", "Sat · Back & biceps")
+            card { Text("8 of 12 paid sessions done").font(.caption2) }
+            row("bell.badge.fill", "Client & trainer both notified")
         case .medicineForm:
             field("Medicine", "Metformin")
             field("Dose", "500 mg · 1 tablet", "pills.fill")

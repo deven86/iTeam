@@ -79,6 +79,7 @@ struct RootView: View {
             .badge(unreadChats)
 
             moduleTabs
+            moduleTabs2
 
             Tab("Settings", systemImage: "gearshape.fill", value: Router.TabID.settings) {
                 SettingsView()
@@ -125,6 +126,10 @@ struct RootView: View {
             .hidden(!inBar.contains(spec.tab))
         }
 
+    }
+
+    @TabContentBuilder<Router.TabID>
+    private var moduleTabs2: some TabContent<Router.TabID> {
         Tab("Tasks", systemImage: "checklist", value: Router.TabID.tasks) {
             TaskDashboardView()
         }

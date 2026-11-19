@@ -21,6 +21,10 @@ struct ChatView: View {
     @State private var showPhotos = false
     @State private var sendError: String?
     @State private var quickLook: URL?
+    @State private var showCamera = false
+    @State private var askLink = false
+    @State private var linkText = ""
+    @State private var showApproval = false
     @FocusState private var focused: Bool
 
     init(convID: String) {
@@ -98,6 +102,28 @@ struct ChatView: View {
         }
         .sheet(item: Binding(get: { quickLook.map(PreviewItem.init) }, set: { quickLook = $0?.url })) { item in
             QuickLookView(url: item.url).ignoresSafeArea()
+        }
+        .fullScreenCover(isPresented: $showCamera) {
+            CameraPicker { img in
+                if let data = img.jpegData(compressionQuality: 0.9), let p = try? Attachments.prepareImage(data) {
+                    engine.sendText(text, in: conv, replyTo: replyTo?.id, attachments: [p.ref], uploads: [p.upload.0: p.upload.1])
+                    text = ""
+                    replyTo = nil
+                }
+            }
+            .ignoresSafeArea()
+        }
+        .sheet(isPresented: $showApproval) {
+            NavigationStack { ApprovalRequestView(conv: conv) }
+        }
+        .alert("Share a link", isPresented: $askLink) {
+            TextField("https://…", text: $linkText).keyboardType(.URL).textInputAutocapitalization(.never)
+            Button("Send") {
+                let t = linkText.trimmingCharacters(in: .whitespaces)
+                if !t.isEmpty { engine.sendText(t.hasPrefix("http") ? t : "https://" + t, in: conv) }
+                linkText = ""
+            }
+            Button("Cancel", role: .cancel) { linkText = "" }
         }
         .photosPicker(isPresented: $showPhotos, selection: $photoItems, maxSelectionCount: 10, matching: .images)
         .fileImporter(isPresented: $showFiles, allowedContentTypes: [.item], allowsMultipleSelection: true) { result in
@@ -191,9 +217,15 @@ struct ChatView: View {
             }
             HStack(alignment: .bottom, spacing: 8) {
                 Menu {
+                    Button("Camera", systemImage: "camera") { showCamera = true }
                     Button("Photos", systemImage: "photo.on.rectangle") { showPhotos = true }
-                    Button("Files", systemImage: "doc") { showFiles = true }
+                    Button("Document", systemImage: "doc") { showFiles = true }
+                    Button("Link", systemImage: "link") { askLink = true }
+                    Divider()
                     Button("New task", systemImage: "checklist") { newTaskInChat = true }
+                    if conv.members.count > 1 {
+                        Button("Request approval", systemImage: "checkmark.seal") { showApproval = true }
+                    }
                 } label: {
                     Image(systemName: "plus").font(.title3.weight(.semibold))
                         .frame(width: 40, height: 40)

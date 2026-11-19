@@ -41,6 +41,9 @@ struct GroupInfoView: View {
                 Toggle(isOn: Binding(get: { conv.muted }, set: { engine.setMuted(conv, $0) })) {
                     Label("Mute notifications", systemImage: "bell.slash")
                 }
+                NavigationLink { ChatMediaView(conv: conv) } label: {
+                    Label("Media, links & docs", systemImage: "photo.on.rectangle.angled")
+                }
                 NavigationLink { ChatWallpaperPicker(conv: conv) } label: {
                     Label("Chat wallpaper", systemImage: "photo.artframe")
                 }
@@ -210,6 +213,7 @@ struct ContactInfoView: View {
                 Toggle(isOn: Binding(get: { conv.muted }, set: { engine.setMuted(conv, $0) })) {
                     Label("Mute notifications", systemImage: "bell.slash")
                 }
+                NavigationLink { ChatMediaView(conv: conv) } label: { Label("Media, links & docs", systemImage: "photo.on.rectangle.angled") }
                 NavigationLink { ChatWallpaperPicker(conv: conv) } label: { Label("Chat wallpaper", systemImage: "photo.artframe") }
             }
             .lookRows()

@@ -7,7 +7,8 @@ import SwiftData
 enum ITeamSchema {
     static let models: [any PersistentModel.Type] = [
         Contact.self, Conversation.self, Message.self, TaskItem.self, ChecklistItem.self, TaskComment.self,
-        ActivityItem.self, OutboxItem.self, PendingEnvelope.self, SentRecord.self
+        ActivityItem.self, OutboxItem.self, PendingEnvelope.self, SentRecord.self,
+        TaskFile.self, Approval.self, Expense.self
     ]
 }
 
@@ -167,6 +168,8 @@ enum MessageStatus: Int {
     var statusRaw: Int
     var taskID: String?
     var isSystem: Bool
+    /// This message is an approval request card.
+    var approvalID: String? = nil
 
     init(id: String, convID: String, senderID: String, text: String, createdAt: Date, replyToID: String? = nil,
          attachments: [AttachmentRef] = [], status: MessageStatus, isSystem: Bool = false) {
@@ -200,6 +203,7 @@ enum MessageStatus: Int {
 
     var preview: String {
         if deleted { return "Message deleted" }
+        if approvalID != nil { return "🟡 Approval: \(text)" }
         if !text.isEmpty { return text }
         if let a = attachments.first { return a.kind == "image" ? "📷 Photo" : "📎 \(a.name)" }
         return ""
@@ -383,7 +387,7 @@ enum WorkPriority: Int, Codable, CaseIterable {
 // MARK: - Activity
 
 enum ActivityKind: String {
-    case mention, taskAssigned, taskUpdated, taskCompleted, taskComment, group, sync, contact
+    case mention, taskAssigned, taskUpdated, taskCompleted, taskComment, group, sync, contact, approval, expense
     var icon: String {
         switch self {
         case .mention: "at"
@@ -394,6 +398,8 @@ enum ActivityKind: String {
         case .group: "person.3"
         case .sync: "arrow.triangle.2.circlepath"
         case .contact: "person.badge.plus"
+        case .approval: "checkmark.seal"
+        case .expense: "indianrupeesign.circle"
         }
     }
 }
@@ -492,4 +498,164 @@ enum ActivityKind: String {
         self.recordName = recordName
         self.sentAt = .now
     }
+}
+
+
+// MARK: - Task files, approvals, expenses
+
+@Model final class TaskFile {
+    @Attribute(.unique) var id: String
+    var taskID: String
+    /// "image", "file" or "link"
+    var kind: String
+    var attachmentData: Data?
+    var url: String?
+    var title: String
+    var addedBy: String
+    var addedAt: Date
+    var deleted: Bool
+
+    init(id: String, taskID: String, kind: String, title: String, addedBy: String) {
+        self.id = id
+        self.taskID = taskID
+        self.kind = kind
+        self.title = title
+        self.addedBy = addedBy
+        self.addedAt = .now
+        self.deleted = false
+    }
+
+    var attachment: AttachmentRef? {
+        get { Packed.decode(AttachmentRef.self, attachmentData) }
+        set { attachmentData = newValue.map { Packed.encode($0) } }
+    }
+}
+
+struct ApprovalDecision: Codable, Hashable {
+    var approved: Bool
+    var note: String
+    var amount: Double?
+    var at: Date
+}
+
+enum ApprovalStatus {
+    case pending, approved, rejected
+    var title: String {
+        switch self {
+        case .pending: "Waiting for approval"
+        case .approved: "Approved"
+        case .rejected: "Rejected"
+        }
+    }
+    var icon: String {
+        switch self {
+        case .pending: "hourglass"
+        case .approved: "checkmark.seal.fill"
+        case .rejected: "xmark.octagon.fill"
+        }
+    }
+}
+
+@Model final class Approval {
+    @Attribute(.unique) var id: String
+    var convID: String
+    var messageID: String
+    var taskID: String?
+    var title: String
+    var details: String
+    var amount: Double?
+    var approversData: Data
+    var requestedBy: String
+    var createdAt: Date
+    var decisionsData: Data?
+    var attachmentsData: Data?
+
+    init(id: String, convID: String, messageID: String, title: String, requestedBy: String, approvers: [String]) {
+        self.id = id
+        self.convID = convID
+        self.messageID = messageID
+        self.title = title
+        self.details = ""
+        self.requestedBy = requestedBy
+        self.createdAt = .now
+        self.approversData = Packed.encode(approvers)
+    }
+
+    var approvers: [String] {
+        get { Packed.decode([String].self, approversData) ?? [] }
+        set { approversData = Packed.encode(newValue) }
+    }
+    var decisions: [String: ApprovalDecision] {
+        get { Packed.decode([String: ApprovalDecision].self, decisionsData) ?? [:] }
+        set { decisionsData = Packed.encode(newValue) }
+    }
+    var attachments: [AttachmentRef] {
+        get { Packed.decode([AttachmentRef].self, attachmentsData) ?? [] }
+        set { attachmentsData = newValue.isEmpty ? nil : Packed.encode(newValue) }
+    }
+
+    /// Rejected if any approver rejected; approved when every approver approved.
+    var status: ApprovalStatus {
+        let d = decisions
+        if approvers.contains(where: { d[$0]?.approved == false }) { return .rejected }
+        if !approvers.isEmpty && approvers.allSatisfy({ d[$0]?.approved == true }) { return .approved }
+        return .pending
+    }
+
+    /// The smallest amount any approver allowed (nil = as requested or no amount).
+    var approvedAmount: Double? {
+        let amounts = decisions.values.filter(\.approved).compactMap(\.amount)
+        return amounts.min() ?? (status == .approved ? amount : nil)
+    }
+}
+
+enum ExpenseCategory: String, CaseIterable {
+    case travel = "Travel", food = "Food", fees = "Fees", supplies = "Supplies", printing = "Printing", other = "Other"
+    var icon: String {
+        switch self {
+        case .travel: "car.fill"
+        case .food: "fork.knife"
+        case .fees: "building.columns.fill"
+        case .supplies: "shippingbox.fill"
+        case .printing: "printer.fill"
+        case .other: "indianrupeesign.circle.fill"
+        }
+    }
+}
+
+@Model final class Expense {
+    @Attribute(.unique) var id: String
+    var taskID: String
+    var title: String
+    var amount: Double
+    var date: Date
+    var paidBy: String
+    var category: String
+    var receiptsData: Data?
+    var addedBy: String
+    var deleted: Bool
+    var updatedAt: Date
+
+    init(id: String, taskID: String, title: String, amount: Double, date: Date, paidBy: String, category: String, addedBy: String) {
+        self.id = id
+        self.taskID = taskID
+        self.title = title
+        self.amount = amount
+        self.date = date
+        self.paidBy = paidBy
+        self.category = category
+        self.addedBy = addedBy
+        self.deleted = false
+        self.updatedAt = .distantPast
+    }
+
+    var receipts: [AttachmentRef] {
+        get { Packed.decode([AttachmentRef].self, receiptsData) ?? [] }
+        set { receiptsData = newValue.isEmpty ? nil : Packed.encode(newValue) }
+    }
+}
+
+enum Money {
+    static var code: String { Locale.current.currency?.identifier ?? "INR" }
+    static func format(_ v: Double) -> String { v.formatted(.currency(code: code).precision(.fractionLength(0...2))) }
 }

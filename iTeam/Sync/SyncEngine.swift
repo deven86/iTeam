@@ -281,6 +281,7 @@ final class SyncEngine: ObservableObject {
     private func messageID(of item: OutboxItem) -> String? {
         guard item.kind == "event", let ev = Packed.decode(Event.self, item.payload) else { return nil }
         if case .message(let p) = ev.body { return p.id }
+        if case .approval(let p) = ev.body { return p.messageID }
         return nil
     }
 
@@ -524,6 +525,10 @@ final class SyncEngine: ObservableObject {
 
     func task(_ id: String) -> TaskItem? {
         try? context.fetch(FetchDescriptor<TaskItem>(predicate: #Predicate { $0.id == id })).first
+    }
+
+    func approval(_ id: String) -> Approval? {
+        try? context.fetch(FetchDescriptor<Approval>(predicate: #Predicate { $0.id == id })).first
     }
 
     func messages(in conv: String) -> [Message] {

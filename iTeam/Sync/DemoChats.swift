@@ -100,6 +100,24 @@ enum DemoChats {
     static func localSend(_ body: Event.Body, in conv: Conversation, engine: SyncEngine) -> Event {
         let e = Event(id: UUID().uuidString, conv: conv.id, from: engine.me, at: .now, body: body)
         _ = EventApplier(engine: engine).apply(e, local: true)
+        if case .approval(let a) = body {
+            engine.message(a.messageID)?.status = .sent
+            engine.save()
+            // A pretend approver answers, so the whole approval flow can be tried alone.
+            if let approver = a.approvers.first(where: { $0.hasPrefix("demo_") }) {
+                let convID = conv.id
+                Task { @MainActor in
+                    try? await Task.sleep(for: .seconds(2.5))
+                    let partial = a.amount.map { ($0 * 0.4).rounded() }
+                    let note = partial != nil ? "Only this much for now — share the bills after." : "Approved for 3 days only."
+                    let d = Event(id: UUID().uuidString, conv: convID, from: approver, at: .now,
+                                  body: .decision(DecisionPayload(approvalID: a.id, approved: true, note: note, amount: partial)))
+                    _ = EventApplier(engine: engine).apply(d, local: false)
+                    engine.save()
+                }
+            }
+            return e
+        }
         guard case .message(let p) = body else { engine.save(); return e }
         engine.message(p.id)?.status = .sent
         engine.save()

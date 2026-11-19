@@ -150,6 +150,10 @@ struct TaskDetailView: View {
             }
             .lookRows()
 
+            TaskFilesSection(task: t, editable: canEdit(t))
+            TaskApprovalsSection(task: t)
+            TaskExpensesSection(task: t, editable: canEdit(t))
+
             Section("Comments") {
                 ForEach(comments) { c in
                     HStack(alignment: .top, spacing: 10) {

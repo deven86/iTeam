@@ -317,12 +317,61 @@ extension SyncEngine {
         send(.comment(c), taskConv: t, loud: true, preview: "💬 \(t.title): \(text)")
     }
 
-    private func send(_ body: Event.Body, taskConv t: TaskItem, loud: Bool, preview: String? = nil) {
+    private func send(_ body: Event.Body, taskConv t: TaskItem, loud: Bool, preview: String? = nil, uploads: [String: String] = [:]) {
         if let convID = t.convID, let conv = conversation(convID) {
-            send(body, in: conv, loud: loud, preview: preview)
+            send(body, in: conv, loud: loud, preview: preview, uploads: uploads)
         } else {
-            sendPersonal(body)
+            send(body, convID: selfConversationID, recipients: [], keyVersion: 0, loud: false, uploads: uploads)
         }
+    }
+
+    // MARK: - Task attachments
+
+    func addTaskFile(_ t: TaskItem, kind: String, title: String, attachment: AttachmentRef? = nil, url: String? = nil, uploads: [String: String] = [:]) {
+        let f = TaskFilePayload(id: UUID().uuidString, taskID: t.id, kind: kind, attachment: attachment, url: url, title: title, deleted: false)
+        send(.taskFile(f), taskConv: t, loud: false, uploads: uploads)
+    }
+
+    func removeTaskFile(_ file: TaskFile) {
+        guard let t = task(file.taskID) else { return }
+        let f = TaskFilePayload(id: file.id, taskID: file.taskID, kind: file.kind, attachment: file.attachment, url: file.url, title: file.title, deleted: true)
+        send(.taskFile(f), taskConv: t, loud: false)
+    }
+
+    // MARK: - Approvals
+
+    func requestApproval(in conv: Conversation, title: String, details: String, amount: Double?, approvers: [String],
+                         taskID: String? = nil, attachments: [AttachmentRef] = [], uploads: [String: String] = [:]) {
+        let p = ApprovalPayload(id: UUID().uuidString, messageID: UUID().uuidString, taskID: taskID, title: title, details: details,
+                                amount: amount, approvers: approvers, attachments: attachments)
+        var preview = "🟡 Approval needed: \(title)"
+        if let amount { preview += " · \(Money.format(amount))" }
+        send(.approval(p), in: conv, loud: true, preview: preview, uploads: uploads)
+    }
+
+    func decide(_ a: Approval, approved: Bool, note: String, amount: Double?) {
+        guard let conv = conversation(a.convID) else { return }
+        let d = DecisionPayload(approvalID: a.id, approved: approved, note: note.trimmingCharacters(in: .whitespacesAndNewlines), amount: amount)
+        var preview = "\(approved ? "✅ Approved" : "❌ Rejected"): \(a.title)"
+        if let amount { preview += " · \(Money.format(amount))" }
+        if !d.note.isEmpty { preview += " — \(d.note)" }
+        send(.decision(d), in: conv, loud: true, preview: preview)
+    }
+
+    // MARK: - Expenses
+
+    func saveExpense(_ t: TaskItem, id: String? = nil, title: String, amount: Double, date: Date, paidBy: String,
+                     category: String, receipts: [AttachmentRef], uploads: [String: String] = [:]) {
+        let x = ExpensePayload(id: id ?? UUID().uuidString, taskID: t.id, title: title, amount: amount, date: date, paidBy: paidBy,
+                               category: category, receipts: receipts, deleted: false, at: .now)
+        send(.expense(x), taskConv: t, loud: id == nil, preview: "🧾 \(Money.format(amount)) · \(title) (\(t.title))", uploads: uploads)
+    }
+
+    func deleteExpense(_ x: Expense) {
+        guard let t = task(x.taskID) else { return }
+        let p = ExpensePayload(id: x.id, taskID: x.taskID, title: x.title, amount: x.amount, date: x.date, paidBy: x.paidBy,
+                               category: x.category, receipts: x.receipts, deleted: true, at: .now)
+        send(.expense(p), taskConv: t, loud: false)
     }
 
     // MARK: - Reset

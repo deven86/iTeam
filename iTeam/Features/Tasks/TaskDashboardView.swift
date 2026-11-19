@@ -9,6 +9,11 @@ struct TaskDashboardView: View {
     @Environment(\.horizontalSizeClass) private var sizeClass
     @Query(filter: #Predicate<TaskItem> { !$0.deleted }, sort: \TaskItem.createdAt, order: .reverse) private var tasks: [TaskItem]
     @Query private var conversations: [Conversation]
+    @Query private var approvals: [Approval]
+
+    private var approvalsWaiting: Int {
+        approvals.filter { $0.status == .pending && $0.approvers.contains(engine.me) && $0.decisions[engine.me] == nil }.count
+    }
 
     enum Scope: String, CaseIterable, Identifiable {
         case mine = "My Tasks", assigned = "Assigned to me", created = "Created by me", groups = "Group tasks", done = "Completed"
@@ -29,6 +34,7 @@ struct TaskDashboardView: View {
     @State private var showNew = false
     @State private var path: [String] = []
     @State private var calendarMode = false
+    @State private var showApprovals = false
 
     private var me: String { engine.me }
     private var open: [TaskItem] { tasks.filter { !$0.isDone } }
@@ -105,6 +111,7 @@ struct TaskDashboardView: View {
             .refreshable { await engine.sync() }
             .navigationTitle("Business Tasks")
             .navigationDestination(for: String.self) { TaskDetailView(taskID: $0) }
+            .navigationDestination(isPresented: $showApprovals) { ApprovalsListView() }
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button { showNew = true } label: { Image(systemName: "plus") }.accessibilityLabel("New task")
@@ -186,6 +193,21 @@ struct TaskDashboardView: View {
             }
             .lookCard()
             .appear(0)
+            Button { showApprovals = true } label: {
+                HStack(spacing: 10) {
+                    Image(systemName: "checkmark.seal.fill").font(.title3).foregroundStyle(look.warning)
+                        .frame(width: 36, height: 36).background(look.warning.opacity(0.18), in: Circle())
+                    VStack(alignment: .leading, spacing: 0) {
+                        Text("Approvals").font(.headline)
+                        Text(approvalsWaiting == 0 ? "Nothing waiting for you" : "\(approvalsWaiting) waiting for you")
+                            .font(.caption).foregroundStyle(approvalsWaiting == 0 ? look.textSecondary : look.warning)
+                    }
+                    Spacer()
+                    Image(systemName: "chevron.right").foregroundStyle(look.textSecondary)
+                }
+                .lookCard(cornerRadius: 18, padding: 12)
+            }
+            .buttonStyle(.plain)
             LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 12), count: sizeClass == .regular ? 4 : 2), spacing: 12) {
                 tile("Due today", dueToday, "calendar", look.warning).appear(1)
                 tile("Overdue", overdue, "exclamationmark.triangle", look.danger).appear(2)

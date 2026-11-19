@@ -78,6 +78,8 @@ targets:
         # Testing phase: TestFlight builds use the Development iCloud environment, where push subscriptions
         # can be created. Before App Store release: Deploy Schema Changes, then change this to Production.
         com.apple.developer.icloud-container-environment: Development
+        com.apple.developer.applesignin:
+          - Default
         com.apple.security.application-groups:
           - group.com.jondhale.iteam
 

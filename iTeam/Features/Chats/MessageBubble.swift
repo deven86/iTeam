@@ -63,11 +63,16 @@ struct MessageBubble: View {
 
             if message.deleted {
                 Label("This message was deleted", systemImage: "nosign").font(.subheadline.italic()).opacity(0.7)
+            } else if let approvalID = message.approvalID {
+                ApprovalCard(approvalID: approvalID)
             } else {
                 ForEach(message.attachments) { a in
                     AttachmentView(ref: a, onOpen: onOpen)
                 }
                 if !message.text.isEmpty {
+                    if let url = LinkPreviewStore.firstURL(in: message.text) {
+                        LinkPreviewCard(url: url).frame(maxWidth: 280)
+                    }
                     Text(linkified(message.text))
                         .font(.body)
                         .textSelection(.enabled)
@@ -172,7 +177,7 @@ struct MessageBubble: View {
                 Button("Copy", systemImage: "doc.on.doc") { UIPasteboard.general.string = message.text }
             }
             Button("Create Business Task", systemImage: "checklist") { onTask() }
-            if mine && !message.text.isEmpty {
+            if mine && !message.text.isEmpty && message.approvalID == nil {
                 Button("Edit", systemImage: "pencil") { onEdit() }
             }
             if message.status == .failed {

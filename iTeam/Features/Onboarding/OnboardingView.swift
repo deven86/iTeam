@@ -2,12 +2,14 @@ import SwiftUI
 import PhotosUI
 import CloudKit
 import UserNotifications
+import AuthenticationServices
 
 /// First run: iCloud check → your name and photo → notifications. No phone number, no sign-up:
 /// your iCloud account is your identity, and your security key is created on this device.
 struct OnboardingView: View {
     @EnvironmentObject var engine: SyncEngine
     @Environment(\.look) private var look
+    @Environment(\.colorScheme) private var colorScheme
 
     enum Step { case welcome, icloud, profile, notifications }
     @State private var step: Step = .welcome
@@ -56,13 +58,33 @@ struct OnboardingView: View {
             feature("bubble.left.and.bubble.right.fill", .cyan, "Chats & groups", "One-to-one and group chats with photos and files.").appear(3)
             feature("checklist", .green, "Business Tasks", "Assign work from any message. Whole-group tasks, checklists, deadlines.").appear(4)
             feature("lock.shield.fill", .purple, "Private by design", "End-to-end encrypted. No servers, no phone number, no ads.").appear(5)
-            Button {
-                withAnimation { step = .icloud }
-                Task { await checkICloud() }
-            } label: {
-                Text("Get started").frame(maxWidth: .infinity)
+            SignInWithAppleButton(.continue) { request in
+                request.requestedScopes = [.fullName]
+            } onCompletion: { result in
+                switch result {
+                case .success(let auth):
+                    if let cred = auth.credential as? ASAuthorizationAppleIDCredential {
+                        UserDefaults.standard.set(cred.user, forKey: "apple.user")
+                        if let n = cred.fullName {
+                            let full = PersonNameComponentsFormatter().string(from: n).trimmingCharacters(in: .whitespaces)
+                            if !full.isEmpty { name = full }
+                        }
+                    }
+                    withAnimation { step = .icloud }
+                    Task { await checkICloud() }
+                case .failure(let e):
+                    if (e as? ASAuthorizationError)?.code != .canceled {
+                        error = "Sign in with Apple didn't work: \(e.localizedDescription)"
+                    }
+                }
             }
-            .buttonStyle(.glassProminent).controlSize(.large).padding(.top, 8).appear(6)
+            .signInWithAppleButtonStyle(colorScheme == .dark ? .white : .black)
+            .frame(height: 52)
+            .clipShape(Capsule())
+            .padding(.top, 8)
+            .appear(6)
+            Text("Your Apple ID is your login. No phone number, no password.")
+                .font(.caption).foregroundStyle(look.textSecondary).appear(7)
         }
     }
 

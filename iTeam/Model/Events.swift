@@ -23,6 +23,10 @@ struct Event: Codable {
         case comment(CommentPayload)
         case taskPart(taskID: String, done: Bool)
         case receipt(delivered: Date?, read: Date?)
+        case taskFile(TaskFilePayload)
+        case approval(ApprovalPayload)
+        case decision(DecisionPayload)
+        case expense(ExpensePayload)
     }
 }
 
@@ -75,6 +79,52 @@ struct CommentPayload: Codable {
     var id: String
     var taskID: String
     var body: String
+}
+
+/// A photo, document or link attached to a task.
+struct TaskFilePayload: Codable {
+    var id: String
+    var taskID: String
+    /// "image", "file" or "link"
+    var kind: String
+    var attachment: AttachmentRef?
+    var url: String?
+    var title: String
+    var deleted: Bool
+}
+
+/// A request for someone's approval: shown as a card in the chat, optionally linked to a task.
+struct ApprovalPayload: Codable {
+    var id: String
+    var messageID: String
+    var taskID: String?
+    var title: String
+    var details: String
+    var amount: Double?
+    var approvers: [String]
+    var attachments: [AttachmentRef]
+}
+
+/// An approver's answer, with a note ("for 3 days only") and an approved amount ("only 200").
+struct DecisionPayload: Codable {
+    var approvalID: String
+    var approved: Bool
+    var note: String
+    var amount: Double?
+}
+
+/// Money spent on a task, with bills / vouchers attached. Last change wins.
+struct ExpensePayload: Codable {
+    var id: String
+    var taskID: String
+    var title: String
+    var amount: Double
+    var date: Date
+    var paidBy: String
+    var category: String
+    var receipts: [AttachmentRef]
+    var deleted: Bool
+    var at: Date
 }
 
 /// A group key, sent to one member, encrypted with a key only the two of us can compute.

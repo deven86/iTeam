@@ -162,6 +162,92 @@ struct EventApplier {
                                         convID: t.convID, taskID: t.id, actorID: e.from, date: e.at))
             }
 
+        case .taskFile(let f):
+            let fid = f.id
+            if let existing = try? ctx.fetch(FetchDescriptor<TaskFile>(predicate: #Predicate { $0.id == fid })).first {
+                existing.deleted = f.deleted
+                existing.title = f.title
+            } else {
+                let tf = TaskFile(id: f.id, taskID: f.taskID, kind: f.kind, title: f.title, addedBy: e.from)
+                tf.attachment = f.attachment
+                tf.url = f.url
+                tf.deleted = f.deleted
+                tf.addedAt = e.at
+                ctx.insert(tf)
+                if let t = engine.task(f.taskID), e.from != me, !local, t.involves(me), !f.deleted {
+                    ctx.insert(ActivityItem(kind: .taskUpdated, text: "\(engine.name(of: e.from)) attached “\(f.title)” to “\(t.title)”",
+                                            convID: t.convID, taskID: t.id, actorID: e.from, date: e.at))
+                }
+            }
+            engine.task(f.taskID)?.updatedAt = .now
+
+        case .approval(let a):
+            guard let conv else { return .needsConversation }
+            guard engine.approval(a.id) == nil else { return .ignored }
+            let ap = Approval(id: a.id, convID: conv.id, messageID: a.messageID, title: a.title, requestedBy: e.from, approvers: a.approvers)
+            ap.details = a.details
+            ap.amount = a.amount
+            ap.taskID = a.taskID
+            ap.attachments = a.attachments
+            ap.createdAt = e.at
+            ctx.insert(ap)
+            if engine.message(a.messageID) == nil {
+                let m = Message(id: a.messageID, convID: conv.id, senderID: e.from, text: a.title, createdAt: e.at, status: local ? .queued : .sent)
+                m.approvalID = a.id
+                ctx.insert(m)
+                touch(conv, at: e.at, preview: m.preview, from: e.from)
+            }
+            if !local && e.from != me {
+                if engine.openConversation != conv.id { conv.unread += 1 }
+                if a.approvers.contains(me) {
+                    ctx.insert(ActivityItem(kind: .approval, text: "\(engine.name(of: e.from)) asked for your approval: “\(a.title)”",
+                                            convID: conv.id, taskID: a.taskID, actorID: e.from, date: e.at))
+                }
+            }
+
+        case .decision(let d):
+            guard let ap = engine.approval(d.approvalID), ap.approvers.contains(e.from) else { return .ignored }
+            var all = ap.decisions
+            if let old = all[e.from], old.at > e.at { return .ignored }
+            all[e.from] = ApprovalDecision(approved: d.approved, note: d.note, amount: d.amount, at: e.at)
+            ap.decisions = all
+            if let conv {
+                let word = d.approved ? "✅ Approved" : "❌ Rejected"
+                touch(conv, at: e.at, preview: "\(word): \(ap.title)", from: e.from)
+            }
+            if e.from != me && !local && ap.requestedBy == me {
+                var text = "\(engine.name(of: e.from)) \(d.approved ? "approved" : "rejected") “\(ap.title)”"
+                if let amt = d.amount { text += " · \(Money.format(amt))" }
+                if !d.note.isEmpty { text += " — \(d.note)" }
+                ctx.insert(ActivityItem(kind: .approval, text: text, convID: ap.convID, taskID: ap.taskID, actorID: e.from, date: e.at))
+            }
+
+        case .expense(let x):
+            let xid = x.id
+            if let ex = try? ctx.fetch(FetchDescriptor<Expense>(predicate: #Predicate { $0.id == xid })).first {
+                guard x.at > ex.updatedAt else { return .ignored }
+                ex.title = x.title
+                ex.amount = x.amount
+                ex.date = x.date
+                ex.paidBy = x.paidBy
+                ex.category = x.category
+                ex.receipts = x.receipts
+                ex.deleted = x.deleted
+                ex.updatedAt = x.at
+            } else {
+                let ex = Expense(id: x.id, taskID: x.taskID, title: x.title, amount: x.amount, date: x.date,
+                                 paidBy: x.paidBy, category: x.category, addedBy: e.from)
+                ex.receipts = x.receipts
+                ex.deleted = x.deleted
+                ex.updatedAt = x.at
+                ctx.insert(ex)
+                if let t = engine.task(x.taskID), e.from != me, !local, t.involves(me), !x.deleted {
+                    ctx.insert(ActivityItem(kind: .expense, text: "\(engine.name(of: e.from)) added an expense of \(Money.format(x.amount)) to “\(t.title)”",
+                                            convID: t.convID, taskID: t.id, actorID: e.from, date: e.at))
+                }
+            }
+            engine.task(x.taskID)?.updatedAt = .now
+
         case .group, .receipt:
             break
         }

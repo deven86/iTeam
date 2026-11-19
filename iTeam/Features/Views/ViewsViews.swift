@@ -398,8 +398,9 @@ struct NewPostView: View {
             if item.supportedContentTypes.contains(where: { $0.conforms(to: .movie) }) {
                 guard let movie = try? await item.loadTransferable(type: MovieFile.self) else { continue }
                 do {
-                    let p = try await VideoPrep.prepare(movie.url)
-                    if (p.ref.duration ?? 0) >= VideoPrep.maxSeconds - 0.1 { note = "Long videos were trimmed to 30 seconds." }
+                    let limit = status ? VideoPrep.miniSeconds : VideoPrep.maxSeconds
+                    let p = try await VideoPrep.prepare(movie.url, maxSeconds: limit)
+                    if (p.ref.duration ?? 0) >= limit - 0.1 { note = status ? "Long videos were trimmed to 3 minutes." : "Long videos were trimmed to 30 seconds." }
                     media.append(p.ref); uploads[p.upload.0] = p.upload.1
                 } catch {
                     note = "A video couldn't be prepared: \(error.localizedDescription)"

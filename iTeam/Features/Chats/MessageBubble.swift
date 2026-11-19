@@ -82,8 +82,16 @@ struct MessageBubble: View {
             } else if let pollID = message.pollID {
                 PollCard(pollID: pollID)
             } else {
-                ForEach(message.attachments) { a in
-                    AttachmentView(ref: a, onOpen: onOpen)
+                let visual = message.attachments.filter { $0.kind == "image" || $0.kind == "video" }
+                if visual.count > 1 {
+                    PhotoStackView(refs: visual, onOpen: onOpen)
+                    ForEach(message.attachments.filter { $0.kind != "image" && $0.kind != "video" }) { a in
+                        AttachmentView(ref: a, onOpen: onOpen)
+                    }
+                } else {
+                    ForEach(message.attachments) { a in
+                        AttachmentView(ref: a, onOpen: onOpen)
+                    }
                 }
                 if !message.text.isEmpty {
                     if let call = FaceTime.isLink(message.text) {

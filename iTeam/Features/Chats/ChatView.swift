@@ -250,7 +250,7 @@ struct ChatView: View {
             }
             Button("Cancel", role: .cancel) { linkText = "" }
         }
-        .photosPicker(isPresented: $showPhotos, selection: $photoItems, maxSelectionCount: 10, matching: .images)
+        .photosPicker(isPresented: $showPhotos, selection: $photoItems, maxSelectionCount: 30, matching: .any(of: [.images, .videos]))
         .fileImporter(isPresented: $showFiles, allowedContentTypes: [.item], allowsMultipleSelection: true) { result in
             if case .success(let urls) = result { sendFiles(urls, conv: conv) }
         }
@@ -367,7 +367,10 @@ struct ChatView: View {
             HStack(alignment: .bottom, spacing: 8) {
                 Menu {
                     Button("Camera", systemImage: "camera") { showCamera = true }
-                    Button("Photos", systemImage: "photo.on.rectangle") { showPhotos = true }
+                    Button("Photos & videos", systemImage: "photo.on.rectangle") { showPhotos = true }
+                    Toggle(isOn: Binding(get: { Attachments.sendOriginal }, set: { Attachments.sendOriginal = $0 })) {
+                        Label("Original quality", systemImage: "photo.badge.checkmark")
+                    }
                     Button("Document", systemImage: "doc") { showFiles = true }
                     Button("Link", systemImage: "link") { askLink = true }
                     Divider()
@@ -461,9 +464,21 @@ struct ChatView: View {
         var refs: [AttachmentRef] = []
         var uploads: [String: String] = [:]
         for item in items {
+            if item.supportedContentTypes.contains(where: { $0.conforms(to: .movie) }) {
+                guard let movie = try? await item.loadTransferable(type: MovieFile.self) else { continue }
+                do {
+                    let p = try await VideoPrep.prepare(movie.url, maxSeconds: .infinity, original: Attachments.sendOriginal)
+                    try? FileManager.default.removeItem(at: movie.url)
+                    refs.append(p.ref)
+                    uploads[p.upload.0] = p.upload.1
+                } catch {
+                    sendError = error.localizedDescription
+                }
+                continue
+            }
             guard let data = try? await item.loadTransferable(type: Data.self) else { continue }
             do {
-                let p = try Attachments.prepareImage(data)
+                let p = try Attachments.prepareImage(data, original: Attachments.sendOriginal)
                 refs.append(p.ref)
                 uploads[p.upload.0] = p.upload.1
             } catch {

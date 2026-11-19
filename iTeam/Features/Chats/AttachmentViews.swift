@@ -209,3 +209,86 @@ struct QuickLookView: UIViewControllerRepresentable {
         func previewController(_ controller: QLPreviewController, previewItemAt index: Int) -> QLPreviewItem { url as NSURL }
     }
 }
+
+
+/// Several photos in one message, like iMessage: a fanned stack of cards. Swipe the top card
+/// away and it slides to the back, showing the next one. Tap to open, "N items" for a grid.
+struct PhotoStackView: View {
+    let refs: [AttachmentRef]
+    var onOpen: (URL) -> Void
+    @State private var order: [Int]
+    @State private var drag: CGSize = .zero
+    @State private var showGrid = false
+
+    init(refs: [AttachmentRef], onOpen: @escaping (URL) -> Void) {
+        self.refs = refs
+        self.onOpen = onOpen
+        _order = State(initialValue: Array(refs.indices))
+    }
+
+    var body: some View {
+        VStack(alignment: .trailing, spacing: 6) {
+            Button { showGrid = true } label: {
+                Label("\(refs.count) items", systemImage: "square.grid.2x2.fill").font(.caption.weight(.semibold))
+            }
+            .buttonStyle(.plain)
+            ZStack {
+                ForEach(Array(order.prefix(4).enumerated().reversed()), id: \.element) { depth, idx in
+                    card(refs[idx], depth: depth)
+                }
+            }
+            .frame(width: 250, height: 290)
+        }
+        .sheet(isPresented: $showGrid) { PhotoGridSheet(refs: refs, onOpen: onOpen) }
+    }
+
+    private func card(_ ref: AttachmentRef, depth: Int) -> some View {
+        let top = depth == 0
+        let angle = Double([0, -6, 5, -3][min(depth, 3)])
+        return AttachmentView(ref: ref, onOpen: onOpen)
+            .shadow(color: .black.opacity(0.25), radius: 6, y: 3)
+            .rotationEffect(.degrees(top ? Double(drag.width / 20) : angle))
+            .offset(x: top ? drag.width : CGFloat(depth) * 6, y: top ? drag.height * 0.2 : CGFloat(depth) * -4)
+            .scaleEffect(top ? 1 : 1 - CGFloat(depth) * 0.04)
+            .zIndex(Double(10 - depth))
+            .allowsHitTesting(top)
+            .gesture(top ? DragGesture()
+                .onChanged { drag = $0.translation }
+                .onEnded { v in
+                    if abs(v.translation.width) > 80 {
+                        withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
+                            order.append(order.removeFirst())
+                            drag = .zero
+                        }
+                        Haptics.tap()
+                    } else {
+                        withAnimation(.spring) { drag = .zero }
+                    }
+                } : nil)
+    }
+}
+
+struct PhotoGridSheet: View {
+    let refs: [AttachmentRef]
+    var onOpen: (URL) -> Void
+    @Environment(\.dismiss) private var dismiss
+    private let cols = [GridItem(.adaptive(minimum: 110), spacing: 6)]
+
+    var body: some View {
+        NavigationStack {
+            ScrollView {
+                LazyVGrid(columns: cols, spacing: 6) {
+                    ForEach(refs) { r in
+                        AttachmentView(ref: r) { url in dismiss(); onOpen(url) }
+                            .frame(width: 110, height: 110).clipped()
+                            .clipShape(RoundedRectangle(cornerRadius: 10))
+                    }
+                }
+                .padding()
+            }
+            .navigationTitle("\(refs.count) items")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar { Button("Done") { dismiss() } }
+        }
+    }
+}

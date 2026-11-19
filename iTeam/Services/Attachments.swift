@@ -7,13 +7,19 @@ import UniformTypeIdentifiers
 /// and the key travels inside the (already encrypted) message.
 @MainActor
 enum Attachments {
-    static let maxFileBytes = 25 * 1024 * 1024
+    /// iCloud's limit per file is 250 MB; we keep a margin for encryption.
+    static let maxFileBytes = 200 * 1024 * 1024
+    /// "Original" quality: photos and videos are sent untouched, with their metadata (date, place, camera).
+    static var sendOriginal: Bool {
+        get { UserDefaults.standard.bool(forKey: "media.original") }
+        set { UserDefaults.standard.set(newValue, forKey: "media.original") }
+    }
 
     enum Failure: LocalizedError {
         case tooLarge, unreadable
         var errorDescription: String? {
             switch self {
-            case .tooLarge: "Files up to 25 MB can be sent."
+            case .tooLarge: "Files up to 200 MB can be sent (iCloud's per-file limit)."
             case .unreadable: "Couldn't read that file."
             }
         }
@@ -38,8 +44,18 @@ enum Attachments {
         return dir("Attachments").appendingPathComponent(ext.isEmpty ? ref.id : "\(ref.id).\(ext)")
     }
 
-    static func prepareImage(_ data: Data) throws -> Prepared {
+    static func prepareImage(_ data: Data, original: Bool = false) throws -> Prepared {
         guard let img = UIImage(data: data) else { throw Failure.unreadable }
+        if original {
+            // Untouched file: full resolution, EXIF date/location/camera kept.
+            let isHEIC = data.count > 12 && String(data: data[4..<12], encoding: .ascii)?.contains("ftyphei") == true
+            let thumb = img.scaled(maxSide: 240).jpegData(compressionQuality: 0.6)
+            var p = try prepare(data, name: isHEIC ? "Photo.heic" : "Photo.jpg", mime: isHEIC ? "image/heic" : "image/jpeg", kind: "image")
+            p.ref.width = Double(img.size.width)
+            p.ref.height = Double(img.size.height)
+            p.ref.thumb = thumb
+            return p
+        }
         let full = img.scaled(maxSide: 2048)
         guard let jpg = full.jpegData(compressionQuality: 0.8) else { throw Failure.unreadable }
         let thumb = img.scaled(maxSide: 240).jpegData(compressionQuality: 0.6)

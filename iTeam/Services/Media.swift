@@ -114,21 +114,26 @@ final class VoicePlayer: NSObject, ObservableObject, AVAudioPlayerDelegate {
 
 @MainActor
 enum VideoPrep {
+    /// Views posts stay short; minis allow 3 minutes; chats have no time limit (only the 200 MB file limit).
     static let maxSeconds: Double = 30
+    static let miniSeconds: Double = 180
 
-    /// Trims to the first 30 seconds, re-encodes to 720p and returns a ready-to-send attachment.
-    static func prepare(_ source: URL) async throws -> Attachments.Prepared {
+    /// Trims to `maxSeconds`, then re-encodes to HD 1080p — or, with `original`, copies the video
+    /// untouched (full resolution, original metadata) — and returns a ready-to-send attachment.
+    static func prepare(_ source: URL, maxSeconds: Double = VideoPrep.maxSeconds, original: Bool = false) async throws -> Attachments.Prepared {
         let asset = AVURLAsset(url: source)
         let total = try await asset.load(.duration).seconds
         let length = min(total, maxSeconds)
         let out = FileManager.default.temporaryDirectory.appendingPathComponent("video-\(UUID().uuidString).mp4")
-        guard let export = AVAssetExportSession(asset: asset, presetName: AVAssetExportPreset1280x720)
-                ?? AVAssetExportSession(asset: asset, presetName: AVAssetExportPresetMediumQuality) else {
+        let preset = original ? AVAssetExportPresetPassthrough : AVAssetExportPreset1920x1080
+        guard let export = AVAssetExportSession(asset: asset, presetName: preset)
+                ?? AVAssetExportSession(asset: asset, presetName: AVAssetExportPresetHighestQuality) else {
             throw Attachments.Failure.unreadable
         }
         export.timeRange = CMTimeRange(start: .zero, duration: CMTime(seconds: length, preferredTimescale: 600))
         export.shouldOptimizeForNetworkUse = true
-        try await export.export(to: out, as: .mp4)
+        export.metadata = (try? await asset.load(.metadata)) ?? []
+        try await export.export(to: out, as: original ? .mov : .mp4)
         defer { try? FileManager.default.removeItem(at: out) }
 
         let gen = AVAssetImageGenerator(asset: AVURLAsset(url: out))
@@ -142,7 +147,7 @@ enum VideoPrep {
             size = img.size
         }
         let data = try Data(contentsOf: out)
-        var p = try Attachments.prepare(data, name: "Video.mp4", mime: "video/mp4", kind: "video")
+        var p = try Attachments.prepare(data, name: original ? "Video.mov" : "Video.mp4", mime: original ? "video/quicktime" : "video/mp4", kind: "video")
         p.ref.thumb = thumb
         p.ref.width = Double(size.width)
         p.ref.height = Double(size.height)

@@ -25,6 +25,16 @@ enum WidgetSync {
             .prefix(8)
             .map { .init(title: $0.title, due: $0.dueAt, overdue: $0.isOverdue, chat: $0.convID.flatMap { titles[$0] } ?? "", id: $0.id) }
         s.unreadChats = ((try? context.fetch(FetchDescriptor<Conversation>())) ?? []).filter { $0.unread > 0 && !$0.muted }.count
+        let bizDue = ((try? context.fetch(FetchDescriptor<BizRecord>(predicate: #Predicate { !$0.deleted }))) ?? []).filter { r in
+            guard r.ownerID == me || r.subjectID == me, let d = r.due ?? r.date, d < end,
+                  let k = BizSpecs.spec(r.module)?.kind(r.kind), !k.doneStatuses.contains(r.status), !(k.statuses.isEmpty && k.fields.contains { $0.key == .date }) else { return false }
+            return d >= start || r.due != nil
+        }
+        s.dueToday += bizDue.count
+        s.tasks += bizDue.prefix(4).map { r in
+            .init(title: r.title.isEmpty ? (BizSpecs.spec(r.module)?.kind(r.kind)?.label ?? "") : r.title, due: r.due ?? r.date,
+                  overdue: (r.due ?? r.date ?? .now) < start, chat: BizSpecs.spec(r.module)?.title ?? "", id: r.id)
+        }
 
         // Care: next dose today
         let meds = (try? context.fetch(FetchDescriptor<Medicine>(predicate: #Predicate { $0.active && !$0.deleted }))) ?? []
@@ -64,6 +74,21 @@ enum WidgetSync {
                                  detail: "Due \(soon.1.formatted(date: .omitted, time: .shortened))", end: soon.1)
         } else {
             LiveActivities.end(kind: "task")
+        }
+        // Business modules: hearing / appointment in the next hour → Live Activity.
+        let biz = (try? context.fetch(FetchDescriptor<BizRecord>(predicate: #Predicate { !$0.deleted }))) ?? []
+        let soonBiz = biz.filter { r in
+            guard r.ownerID == me || r.subjectID == me, let d = r.date, d > .now, d < .now.addingTimeInterval(3600),
+                  let k = BizSpecs.spec(r.module)?.kind(r.kind), !k.statuses.isEmpty, !k.doneStatuses.contains(r.status) else { return false }
+            return true
+        }.min { ($0.date ?? .distantFuture) < ($1.date ?? .distantFuture) }
+        if let b = soonBiz, let d = b.date, let spec = BizSpecs.spec(b.module) {
+            let parent = biz.first { $0.id == b.parentID }?.title ?? ""
+            LiveActivities.start(kind: "biz", icon: spec.kind(b.kind)?.icon ?? "calendar", tint: String(format: "%06X", spec.colors[0]),
+                                 title: [spec.kind(b.kind)?.label ?? "", parent].filter { !$0.isEmpty }.joined(separator: " · "),
+                                 detail: b.title.isEmpty ? spec.title : b.title, end: d)
+        } else {
+            LiveActivities.end(kind: "biz")
         }
         // Live Activity: the next medicine within 30 minutes.
         if let at = s.nextDoseAt, at > .now, at < .now.addingTimeInterval(1800), let name = s.nextDoseName {

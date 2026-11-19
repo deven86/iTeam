@@ -271,6 +271,16 @@ enum AIContext {
         if !plans.isEmpty {
             out.append("Gym memberships ending soon: " + plans.map { "\(members[$0.memberID] ?? "") at \($0.gymName) in \($0.daysLeft) days" }.joined(separator: "; "))
         }
+        // Business modules: hearings, appointments, fees and bills for today / overdue
+        let biz = ((try? ctx.fetch(FetchDescriptor<BizRecord>(predicate: #Predicate { !$0.deleted }))) ?? []).filter { $0.ownerID == me || $0.subjectID == me }
+        let bizLines: [String] = biz.compactMap { r in
+            guard let spec = BizSpecs.spec(r.module), let k = spec.kind(r.kind), !k.doneStatuses.contains(r.status),
+                  let d = r.due ?? (k.statuses.isEmpty ? nil : r.date), d < end else { return nil }
+            let parent = biz.first { $0.id == r.parentID }?.title ?? ""
+            return "- \(spec.title): \(k.label) \([parent, r.title, r.amount > 0 ? BizSpecs.money(r.amount) : ""].filter { !$0.isEmpty }.joined(separator: " · ")) — \(d < start ? "overdue" : d.formatted(date: .omitted, time: .shortened))"
+        }
+        if !bizLines.isEmpty { out.append("Business items today:\n" + bizLines.prefix(15).joined(separator: "\n")) }
+
         let sessions = ((try? ctx.fetch(FetchDescriptor<GymSession>(predicate: #Predicate { !$0.deleted && $0.date >= start }))) ?? [])
         if !sessions.isEmpty { out.append("Training sessions logged today: " + sessions.map { members[$0.memberID] ?? "" }.joined(separator: ", ")) }
 

@@ -263,7 +263,10 @@ struct RequestRow: View {
             }
             Spacer()
             Button("Add") { engine.acceptRequest(contact) }.buttonStyle(.glassProminent).controlSize(.small)
-            Button("Block", role: .destructive) { engine.setBlocked(contact, true) }.buttonStyle(.glass).controlSize(.small)
+            Menu {
+                Button("Block", systemImage: "hand.raised", role: .destructive) { engine.setBlocked(contact, true) }
+                Button("Report spam and block", systemImage: "exclamationmark.bubble", role: .destructive) { engine.report(contact, reason: "Spam or scam (message request)") }
+            } label: { Text("Block") }.buttonStyle(.glass).controlSize(.small)
         }
     }
 }

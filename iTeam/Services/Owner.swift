@@ -78,6 +78,11 @@ enum MyDetails {
         get { UserDefaults.standard.string(forKey: "me.facetime") ?? "" }
         set { UserDefaults.standard.set(newValue, forKey: "me.facetime") }
     }
+    /// Who sees my profile photo: everyone who has my iTeam ID, or only people I chat with.
+    static var photoContactsOnly: Bool {
+        get { UserDefaults.standard.object(forKey: "me.photoContactsOnly") as? Bool ?? true }
+        set { UserDefaults.standard.set(newValue, forKey: "me.photoContactsOnly") }
+    }
     static var shareFaceTime: Bool {
         get { UserDefaults.standard.bool(forKey: "me.shareFaceTime") }
         set { UserDefaults.standard.set(newValue, forKey: "me.shareFaceTime") }

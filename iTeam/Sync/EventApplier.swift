@@ -504,6 +504,9 @@ struct EventApplier {
         case .facetime(let handle):
             if e.from != me, let c = engine.contact(e.from) { c.facetime = handle }
 
+        case .photo(let data):
+            if e.from != me, let c = engine.contact(e.from), !c.blocked { c.avatar = data }
+
         case .group, .receipt:
             break
         }

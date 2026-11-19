@@ -291,6 +291,13 @@ struct ContactInfoView: View {
                     Button(contact.blocked ? "Unblock" : "Block", role: contact.blocked ? nil : .destructive) {
                         engine.setBlocked(contact, !contact.blocked)
                     }
+                    if !contact.blocked {
+                        Menu {
+                            ForEach(["Abuse or harassment", "Spam or scam", "Nudity or sexual content", "Hate or threats", "Impersonation"], id: \.self) { r in
+                                Button(r) { engine.report(contact, reason: r) }
+                            }
+                        } label: { Label("Report and block", systemImage: "exclamationmark.bubble").foregroundStyle(.red) }
+                    }
                     Button("Delete chat from this device", role: .destructive) {
                         engine.deleteLocally(conv)
                         dismiss()

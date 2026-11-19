@@ -116,6 +116,14 @@ bver = builds[0]["attributes"].get("version")
 if builds[0]["attributes"].get("usesNonExemptEncryption") is None:
     call("PATCH", f"/builds/{build}", {"data": {"type": "builds", "id": build, "attributes": {"usesNonExemptEncryption": False}}})
 
+s, d = call("GET", f"/builds/{build}/buildBetaDetail")
+if s < 300:
+    a = d["data"]["attributes"]
+    note("build state", f"build {bver}: internal={a.get('internalBuildState')} external={a.get('externalBuildState')}")
+s, d = call("GET", f"/builds?filter[app]={app}&sort=-uploadedDate&limit=4")
+if s < 300:
+    note("recent builds", ", ".join(f"{b['attributes'].get('version')}:{b['attributes'].get('processingState')}" for b in d["data"]))
+
 # What to test
 s, d = call("GET", f"/builds/{build}/betaBuildLocalizations")
 if not must(s, d, "what to test")["data"]:

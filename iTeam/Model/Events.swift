@@ -46,6 +46,8 @@ struct Event: Codable {
         case facetime(handle: String)
         /// An assignee accepts or declines a task assigned to them.
         case taskAccept(taskID: String, accept: Bool, note: String)
+        /// My profile picture, sent only to contacts when my photo is set to "My contacts".
+        case photo(Data?)
     }
 }
 

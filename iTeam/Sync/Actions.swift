@@ -1,6 +1,7 @@
 import Foundation
 import SwiftData
 import CryptoKit
+import CloudKit
 
 /// Everything the user can do. Each action saves locally first, then queues encrypted events.
 extension SyncEngine {
@@ -99,6 +100,13 @@ extension SyncEngine {
         c.blocked = blocked
         if blocked { c.isRequest = false }
         save()
+        // Take my photo and FaceTime away from a blocked person; give them back on unblock.
+        if let conv = conversation(Self.directID(me, c.userID)), !conv.isDemo {
+            if MyDetails.photoContactsOnly {
+                send(.photo(blocked ? nil : myAvatar.map { ImageShrink.jpeg($0) ?? $0 }), in: conv, loud: false)
+            }
+            if MyDetails.shareFaceTime { send(.facetime(handle: blocked ? "" : MyDetails.facetime), in: conv, loud: false) }
+        }
     }
 
     // MARK: - Conversations
@@ -114,6 +122,9 @@ extension SyncEngine {
         if MyDetails.shareFaceTime && !MyDetails.facetime.isEmpty && !c.blocked {
             send(.facetime(handle: MyDetails.facetime), in: conv, loud: false)
         }
+        if MyDetails.photoContactsOnly, let pic = myAvatar, !c.blocked {
+            send(.photo(ImageShrink.jpeg(pic) ?? pic), in: conv, loud: false)
+        }
         return conv
     }
 
@@ -122,6 +133,27 @@ extension SyncEngine {
         let handle = MyDetails.shareFaceTime ? MyDetails.facetime : ""
         let convs = (try? context.fetch(FetchDescriptor<Conversation>(predicate: #Predicate { $0.kind == "direct" && !$0.left }))) ?? []
         for c in convs where !c.isDemo { send(.facetime(handle: handle), in: c, loud: false) }
+    }
+
+    /// Profile photo privacy: the public profile carries the photo only when it's for everyone;
+    /// otherwise it goes end-to-end encrypted to each contact I chat with (blocked people get nothing).
+    func updatePhotoSharing() async {
+        let publicPic = MyDetails.photoContactsOnly ? nil : myAvatar
+        try? await cloud.saveProfile(userID: me, name: myName, publicKey: myPublicKey, avatar: publicPic)
+        let pic = myAvatar.map { ImageShrink.jpeg($0) ?? $0 }
+        let convs = (try? context.fetch(FetchDescriptor<Conversation>(predicate: #Predicate { $0.kind == "direct" && !$0.left }))) ?? []
+        for c in convs where !c.isDemo {
+            guard let peer = c.peerID, peer != me, let contact = contact(peer), !contact.blocked else { continue }
+            send(.photo(MyDetails.photoContactsOnly ? pic : nil), in: c, loud: false)
+        }
+    }
+
+    /// Report someone for abuse: blocks them and files a report the app owner can review.
+    func report(_ c: Contact, reason: String) {
+        setBlocked(c, true)
+        let rec = CKRecord(recordType: "RoomReport")
+        rec["room"] = "chat"; rec["sndr"] = c.userID; rec["msg"] = ""; rec["reason"] = reason
+        Task { _ = try? await cloud.db.save(rec) }
     }
 
     func createGroup(title: String, members: [Contact], avatar: Data?) -> Conversation {

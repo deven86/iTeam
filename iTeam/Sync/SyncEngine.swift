@@ -125,7 +125,7 @@ final class SyncEngine: ObservableObject {
                     // Make sure my public profile exists in this iCloud environment (e.g. after switching environments).
                     let remote = try await cloud.fetchProfile(me)
                     if remote == nil || remote?.publicKey != myPublicKey || remote?.name != myName {
-                        try await cloud.saveProfile(userID: me, name: myName, publicKey: myPublicKey, avatar: myAvatar)
+                        try await cloud.saveProfile(userID: me, name: myName, publicKey: myPublicKey, avatar: MyDetails.photoContactsOnly ? nil : myAvatar)
                     }
                     profileChecked = true
                 }
@@ -135,6 +135,10 @@ final class SyncEngine: ObservableObject {
                     UserDefaults.standard.set(Date.now.timeIntervalSince1970, forKey: "contacts.refreshedAt")
                     let saved = (try? ctx.fetch(FetchDescriptor<Contact>(predicate: #Predicate { $0.saved }))) ?? []
                     for c in saved.prefix(100) where !c.userID.hasPrefix("demo_") { await refreshProfile(c) }
+                }
+                if !UserDefaults.standard.bool(forKey: "photoShare.v1") {
+                    UserDefaults.standard.set(true, forKey: "photoShare.v1")
+                    await updatePhotoSharing()
                 }
                 if !subscriptionsChecked {
                     // Push setup must never block syncing: messages still flow without it.
@@ -480,7 +484,7 @@ final class SyncEngine: ObservableObject {
     func refreshProfile(_ c: Contact) async {
         guard let p = try? await cloud.fetchProfile(c.userID) else { return }
         c.name = p.name
-        c.avatar = p.avatar
+        if let pic = p.avatar { c.avatar = pic }
         if p.publicKey != c.publicKey {
             c.publicKey = p.publicKey
             c.verified = false

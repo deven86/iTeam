@@ -248,7 +248,7 @@ struct OnboardingView: View {
         let clean = name.trimmingCharacters(in: .whitespacesAndNewlines)
         let key = E2E.identity ?? E2E.createIdentity()
         do {
-            try await engine.cloud.saveProfile(userID: userID, name: clean, publicKey: E2E.publicKeyString(key), avatar: avatar)
+            try await engine.cloud.saveProfile(userID: userID, name: clean, publicKey: E2E.publicKeyString(key), avatar: MyDetails.photoContactsOnly ? nil : avatar)
             name = clean
             step = .notifications
         } catch {

@@ -216,6 +216,7 @@ struct EditProfileView: View {
     @State private var email = MyDetails.isRelay ? "" : MyDetails.email
     @State private var phone = MyDetails.phone
     @State private var shareFT = MyDetails.shareFaceTime
+    @State private var photoPrivate = MyDetails.photoContactsOnly
     @State private var facetime = MyDetails.facetime.isEmpty ? (MyDetails.phone.isEmpty ? (MyDetails.isRelay ? "" : MyDetails.email) : MyDetails.phone) : MyDetails.facetime
     @State private var busy = false
     @State private var error: String?
@@ -233,6 +234,12 @@ struct EditProfileView: View {
                 .listRowBackground(Color.clear)
                 TextField("Name", text: $name)
                 if avatar != nil { Button("Remove photo", role: .destructive) { avatar = nil } }
+                Picker("Who sees my photo", selection: $photoPrivate) {
+                    Text("My contacts").tag(true)
+                    Text("Everyone").tag(false)
+                }
+            } footer: {
+                Text(photoPrivate ? "Only people you chat with get your photo, end-to-end encrypted. Strangers and blocked people see your initials." : "Anyone who has your iTeam link or QR code can see your photo.")
             }
             .lookRows()
             Section {
@@ -278,8 +285,11 @@ struct EditProfileView: View {
         defer { busy = false }
         let clean = name.trimmingCharacters(in: .whitespacesAndNewlines)
         do {
-            try await engine.cloud.saveProfile(userID: engine.me, name: clean, publicKey: engine.myPublicKey, avatar: avatar)
+            try await engine.cloud.saveProfile(userID: engine.me, name: clean, publicKey: engine.myPublicKey, avatar: photoPrivate ? nil : avatar)
+            let photoChanged = avatar != engine.myAvatar || photoPrivate != MyDetails.photoContactsOnly
+            MyDetails.photoContactsOnly = photoPrivate
             engine.saveIdentity(id: engine.me, name: clean, avatar: avatar)
+            if photoChanged { await engine.updatePhotoSharing() }
             MyDetails.email = email.trimmingCharacters(in: .whitespaces)
             MyDetails.phone = phone.trimmingCharacters(in: .whitespaces)
             let ft = facetime.trimmingCharacters(in: .whitespaces)

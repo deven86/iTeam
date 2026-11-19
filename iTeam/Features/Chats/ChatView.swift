@@ -46,6 +46,10 @@ struct ChatView: View {
     }
 
     private func content(_ conv: Conversation) -> some View {
+        lifecycle(pickers(sheets(chrome(messageList(conv), conv), conv), conv), conv)
+    }
+
+    private func messageList(_ conv: Conversation) -> some View {
         ScrollView {
             LazyVStack(spacing: 4) {
                 encryptionNote
@@ -79,6 +83,10 @@ struct ChatView: View {
                 composer(conv)
             }
         }
+    }
+
+    private func chrome<V: View>(_ v: V, _ conv: Conversation) -> some View {
+        v
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .principal) {
@@ -89,6 +97,10 @@ struct ChatView: View {
                     .accessibilityLabel("New task in this chat")
             }
         }
+    }
+
+    private func sheets<V: View>(_ v: V, _ conv: Conversation) -> some View {
+        v
         .sheet(isPresented: $showInfo) {
             NavigationStack {
                 if conv.isGroup { GroupInfoView(conv: conv) } else { ContactInfoView(conv: conv) }
@@ -103,6 +115,10 @@ struct ChatView: View {
         .sheet(item: Binding(get: { quickLook.map(PreviewItem.init) }, set: { quickLook = $0?.url })) { item in
             QuickLookView(url: item.url).ignoresSafeArea()
         }
+    }
+
+    private func pickers<V: View>(_ v: V, _ conv: Conversation) -> some View {
+        v
         .fullScreenCover(isPresented: $showCamera) {
             CameraPicker { img in
                 if let data = img.jpegData(compressionQuality: 0.9), let p = try? Attachments.prepareImage(data) {
@@ -129,6 +145,10 @@ struct ChatView: View {
         .fileImporter(isPresented: $showFiles, allowedContentTypes: [.item], allowsMultipleSelection: true) { result in
             if case .success(let urls) = result { sendFiles(urls, conv: conv) }
         }
+    }
+
+    private func lifecycle<V: View>(_ v: V, _ conv: Conversation) -> some View {
+        v
         .onChange(of: photoItems) { _, items in
             guard !items.isEmpty else { return }
             Task { await sendPhotos(items, conv: conv) }

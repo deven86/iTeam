@@ -305,9 +305,12 @@ private struct StackCard: View {
 
     private func load() async {
         if ref.kind == "image" {
-            let full = Attachments.cachedImage(ref) ?? ((try? await Attachments.load(ref)).flatMap { UIImage(contentsOfFile: $0.path) })
+            var full = Attachments.cachedImage(ref)
+            if full == nil, let url = try? await Attachments.load(ref) { full = UIImage(contentsOfFile: url.path) }
+            guard let full else { return }
             // Decode at screen size (sharp but light on memory).
-            image = await full?.byPreparingThumbnail(ofSize: CGSize(width: 690, height: 870)) ?? full
+            let small = await full.byPreparingThumbnail(ofSize: CGSize(width: 690, height: 870))
+            image = small ?? full
         } else if let t = ref.thumb {
             image = UIImage(data: t)
         }

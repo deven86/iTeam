@@ -17,6 +17,7 @@ struct ModuleInfo: Identifiable {
         case mindDashboard, mindForm, mindPlayer
         case doctorDashboard, prescriptionForm
         case bizDashboard(String), bizForm(String)
+        case eventsDashboard, eventForm, roomsDashboard, roomChat, safetyDashboard, meetingDashboard, meetingForm, meetingMinutes
     }
 
     let id: String
@@ -106,6 +107,36 @@ final class ModuleRegistry: ObservableObject {
                    fallbackPrice: product == nil ? "Free" : "₹99 / $0.99 a month",
                    problems: problems, benefits: benefits, previews: [.bizDashboard(spec.module), .bizForm(spec.module)], note: note)
     }
+
+    static let travel = biz("travel", BizSpecs.travel, tagline: "Plan trips together — days, bookings, packing and expenses.",
+        product: nil,
+        problems: ["Tickets and hotel details scattered across chats and emails", "Nobody knows the day plan", "Forgotten items and messy expense splits"],
+        benefits: ["Trip with day-by-day plan", "Flights, trains, hotels and cabs with confirmation numbers", "Shared packing checklist",
+                   "Trip expenses with who paid", "Share the trip in your group — everyone sees it live", "Trip PDF to print"],
+        note: "Completely free.")
+
+    static let events = ModuleInfo(
+        id: "events", title: "Events", tagline: "Invite a chat or group — Going, Maybe or Can't.",
+        icon: "party.popper.fill", colors: [0xF953C6, 0xB91D73], availability: .included, productID: nil, fallbackPrice: "Free",
+        problems: ["Counting who is coming over chat messages", "People forgetting the date and place"],
+        benefits: ["Invite any chat or group in one step", "Going / Maybe / Can't with a live count", "Reminder 1 hour before",
+                   "Add to Apple Calendar", "Guest list PDF"],
+        previews: [.eventsDashboard, .eventForm], note: "Free for everyone.")
+
+    static let rooms = ModuleInfo(
+        id: "rooms", title: "Rooms", tagline: "Public chat rooms with a room name — reveal only when you both agree.",
+        icon: "person.3.sequence.fill", colors: [0x7F7FD5, 0x86A8E7], availability: .included, productID: nil, fallbackPrice: "Free",
+        problems: ["Meeting people with the same interests without sharing your number"],
+        benefits: ["Create or join topic rooms", "Room name, gender and picture only", "Private chats end-to-end encrypted",
+                   "Reveal and add to iTeam only when both agree", "Report, block and a room host who can remove messages"],
+        previews: [.roomsDashboard, .roomChat], note: "Free. 18+ only.")
+
+    static let safety = ModuleInfo(
+        id: "safety", title: "Family Safety", tagline: "One-press SOS with your location to the people you trust.",
+        icon: "sos.circle.fill", colors: [0xFF416C, 0xB31217], availability: .included, productID: nil, fallbackPrice: "Free",
+        problems: ["In an emergency there is no time to type", "Family doesn't know you reached safely"],
+        benefits: ["Hold SOS for 2 seconds — location goes to your emergency chats", "“I'm safe” in one tap", "Check In with arrival alerts", "Call 112 shortcut"],
+        previews: [.safetyDashboard], note: "Free for everyone.")
 
     static let khata = biz("khata", BizSpecs.khata, tagline: "Udhaar khata for shops — who owes what, with UPI reminders.",
         product: Store.khataProductID,
@@ -209,7 +240,7 @@ final class ModuleRegistry: ObservableObject {
         benefits: ["“What did I miss?” summaries", "Suggested tasks from messages", "Runs on-device with Apple Intelligence (iPhone 15 Pro and newer)"],
         previews: [.assistant], note: "In development.")
 
-    static let all: [ModuleInfo] = [businessTasks, businessPro, iLifeCare, doctorPatient, bills, kids, khata, tuition, rent, legal, clinic, gymTraining, mindfulness, teamWorkspace, filesKnowledge, aiAssistant]
+    static let all: [ModuleInfo] = [businessTasks, businessPro, iLifeCare, doctorPatient, travel, events, safety, rooms, bills, kids, khata, tuition, rent, legal, clinic, gymTraining, mindfulness, teamWorkspace, filesKnowledge, aiAssistant]
 
     @Published private var enabled: [String: Bool]
     /// Modules the user wants in the iPhone bottom bar, in order (Router.TabID raw values).
@@ -248,7 +279,9 @@ final class ModuleRegistry: ObservableObject {
     func isOn(_ m: ModuleInfo) -> Bool { isEntitled(m) && isVisible(m) }
 
     /// Shown in the app (paid modules show their store page until subscribed).
-    func isVisible(_ m: ModuleInfo) -> Bool { enabled[m.id] ?? true }
+    /// Free extras are added from the Module Store ("Get"); core and paid ones start on.
+    static let optIn: Set<String> = ["doctor-patient", "travel", "events", "safety", "rooms", "bills", "kids"]
+    func isVisible(_ m: ModuleInfo) -> Bool { enabled[m.id] ?? !Self.optIn.contains(m.id) }
 
     func setOn(_ m: ModuleInfo, _ on: Bool) {
         enabled[m.id] = on

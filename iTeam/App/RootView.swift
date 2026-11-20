@@ -20,6 +20,8 @@ struct RootView: View {
     @Query(filter: #Predicate<Prescription> { !$0.deleted && $0.status == "waiting" }) private var waitingRx: [Prescription]
     @Query(filter: #Predicate<BizRecord> { !$0.deleted && $0.parentID == "" }) private var bizRecords: [BizRecord]
     private var rxToReview: [Prescription] { waitingRx.filter { $0.patientID == engine.me } }
+    @Query(filter: #Predicate<InviteEvent> { !$0.deleted }) private var invites: [InviteEvent]
+    private var invitedToEvents: Bool { invites.contains { $0.hostID != engine.me && $0.end > .now } }
     @AppStorage("views.lastVisit") private var viewsLastVisit: Double = 0
     private var newPosts: Int {
         let since = Date(timeIntervalSince1970: viewsLastVisit)
@@ -30,13 +32,21 @@ struct RootView: View {
 
     /// Module tabs the user can open right now.
     private var available: [Router.TabID] {
-        var a: [Router.TabID] = [.views, .events, .rooms, .doctor, .safety, .bills, .kids]
-        let sharedBiz = Set(bizRecords.filter { $0.subjectID == engine.me && $0.ownerID != engine.me }.map(\.module))
+        var a: [Router.TabID] = [.views]
+        let sharedBiz = Set(bizRecords.filter { $0.ownerID != engine.me && ($0.subjectID == engine.me || ($0.subjectID.isEmpty && !$0.convID.isEmpty)) }.map(\.module))
+        // Free extras: added from the Module Store — or shown automatically when someone shares something with you.
+        if modules.isOn(ModuleRegistry.events) || invitedToEvents { a.append(.events) }
+        if modules.isOn(ModuleRegistry.travel) || sharedBiz.contains("travel") { a.append(.travel) }
+        if modules.isOn(ModuleRegistry.rooms) { a.append(.rooms) }
+        if modules.isOn(ModuleRegistry.doctorPatient) || !rxToReview.isEmpty { a.append(.doctor) }
+        if modules.isOn(ModuleRegistry.safety) { a.append(.safety) }
+        if modules.isOn(ModuleRegistry.bills) { a.append(.bills) }
+        if modules.isOn(ModuleRegistry.kids) || sharedBiz.contains("kids") { a.append(.kids) }
         for (info, spec) in [(ModuleRegistry.khata, BizSpecs.khata), (ModuleRegistry.tuition, BizSpecs.tuition), (ModuleRegistry.rent, BizSpecs.rent),
                              (ModuleRegistry.legal, BizSpecs.legal), (ModuleRegistry.clinic, BizSpecs.clinic)] {
             if modules.isOn(info) || (sharedBiz.contains(spec.module) && modules.isVisible(info)) { a.append(spec.tab) }
         }
-        if modules.isOn(ModuleRegistry.businessTasks) { a.append(.tasks) }
+        if modules.isOn(ModuleRegistry.businessTasks) { a.append(.tasks); a.append(.meetings) }
         // Paid modules appear once bought (or unlocked for the owner / TestFlight testing) — or when
         // someone else shared a profile with you, because members use shared profiles free.
         let me = engine.me
@@ -130,6 +140,11 @@ struct RootView: View {
 
     @TabContentBuilder<Router.TabID>
     private var moduleTabs2: some TabContent<Router.TabID> {
+        Tab("Meetings", systemImage: "person.3.fill", value: Router.TabID.meetings) {
+            MeetingsHomeView()
+        }
+        .hidden(!inBar.contains(.meetings))
+
         Tab("Tasks", systemImage: "checklist", value: Router.TabID.tasks) {
             TaskDashboardView()
         }
@@ -164,7 +179,7 @@ struct RootView: View {
             .onChange(of: inBar) { _, bar in
                 router.barTabs = bar
                 // A tab that just left the bar reopens inside the hub instead of vanishing.
-                if [Router.TabID.views, .events, .rooms, .doctor, .safety, .khata, .tuition, .rent, .legal, .clinic, .bills, .kids, .tasks, .care, .gym, .mind, .activity].contains(router.tab), !bar.contains(router.tab) {
+                if [Router.TabID.views, .events, .rooms, .doctor, .safety, .khata, .tuition, .rent, .legal, .clinic, .bills, .kids, .travel, .meetings, .tasks, .care, .gym, .mind, .activity].contains(router.tab), !bar.contains(router.tab) {
                     router.tab = .chats
                 }
             }
@@ -226,6 +241,8 @@ struct ModulesHubView: View {
         case .clinic: BizHomeView(spec: BizSpecs.clinic)
         case .bills: BizHomeView(spec: BizSpecs.bills)
         case .kids: BizHomeView(spec: BizSpecs.kids)
+        case .travel: BizHomeView(spec: BizSpecs.travel)
+        case .meetings: MeetingsHomeView()
         case .tasks: TaskDashboardView()
         case .care: CareHomeView()
         case .gym: GymModuleView()
@@ -308,7 +325,8 @@ struct ModulesHubView: View {
         case .doctor: ("Doctor", "stethoscope", [0x36D1DC, 0x5B86E5])
         case .safety: ("Safety", "sos.circle.fill", [0xFF416C, 0xB31217])
         case .events: ("Events", "party.popper.fill", [0xF953C6, 0xB91D73])
-        case .khata, .tuition, .rent, .legal, .clinic, .bills, .kids:
+        case .meetings: ("Meetings", "person.3.fill", [0x4568DC, 0xB06AB3])
+        case .khata, .tuition, .rent, .legal, .clinic, .bills, .kids, .travel:
             BizSpecs.all.first { $0.tab == t }.map { ($0.title, $0.icon, $0.colors) } ?? ("", "square", [0, 0])
         case .tasks: ("Tasks", ModuleRegistry.businessTasks.icon, ModuleRegistry.businessTasks.colors)
         case .care: ("Care", ModuleRegistry.iLifeCare.icon, ModuleRegistry.iLifeCare.colors)

@@ -164,7 +164,28 @@ enum BizSpecs {
         ],
         balanceLabel: "Fees due", clientWord: "family member", paid: false)
 
-    static let all: [BizSpec] = [khata, tuition, rent, legal, clinic, bills, kids]
+    static let travel = BizSpec(
+        module: "travel", tab: .travel, title: "Travel Planner", icon: "airplane.departure", colors: [0x2193B0, 0x6DD5ED],
+        parent: BizKind(id: "trip", label: "Trip", plural: "Trips", icon: "suitcase.rolling.fill",
+                        fields: [.init(key: .title, label: "Destination / trip name"), .init(key: .date, label: "Start"), .init(key: .due, label: "End"),
+                                 .init(key: .subtitle, label: "Who's going"), .init(key: .amount, label: "Budget"), .init(key: .notes, label: "Notes")],
+                        linkable: true),
+        children: [
+            BizKind(id: "day", label: "Day plan", plural: "Itinerary", icon: "map",
+                    fields: [.init(key: .date, label: "Day"), .init(key: .title, label: "Plan (places, activities)"), .init(key: .notes, label: "Details, timings")]),
+            BizKind(id: "booking", label: "Booking", plural: "Bookings", icon: "ticket",
+                    fields: [.init(key: .subtitle, label: "Type", options: ["Flight", "Train", "Bus", "Hotel", "Cab", "Activity", "Other"]),
+                             .init(key: .title, label: "Details (PNR, hotel name…)"), .init(key: .date, label: "Date & time"),
+                             .init(key: .phone, label: "Confirmation / PNR no."), .init(key: .amount, label: "Cost"), .init(key: .notes, label: "Notes")], sign: 1),
+            BizKind(id: "packing", label: "Packing item", plural: "Packing list", icon: "checklist",
+                    fields: [.init(key: .title, label: "Item"), .init(key: .subtitle, label: "Who packs it"), .init(key: .status, label: "Status")],
+                    statuses: ["To pack", "Packed"], doneStatuses: ["Packed"]),
+            BizKind(id: "expense", label: "Expense", plural: "Expenses", icon: "indianrupeesign.circle",
+                    fields: [.init(key: .title, label: "For"), .init(key: .amount, label: "Amount"), .init(key: .subtitle, label: "Paid by"), .init(key: .date, label: "Date")], sign: 1),
+        ],
+        balanceLabel: "Spent", clientWord: "travel group", paid: false)
+
+    static let all: [BizSpec] = [khata, tuition, rent, legal, clinic, bills, kids, travel]
     static func spec(_ module: String) -> BizSpec? { all.first { $0.module == module } }
 
     static func money(_ v: Double) -> String { "₹" + (v.rounded() == v ? String(Int(v)) : String(format: "%.2f", v)) }

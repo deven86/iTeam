@@ -7,6 +7,7 @@ struct DoctorHomeView: View {
     @Environment(\.look) private var look
     @Query(filter: #Predicate<Prescription> { !$0.deleted }, sort: \Prescription.createdAt, order: .reverse) private var all: [Prescription]
     @State private var writing = false
+    @State private var shareItems: ShareItems?
 
     private var written: [Prescription] { all.filter { $0.doctorID == engine.me } }
     private var received: [Prescription] { all.filter { $0.patientID == engine.me } }
@@ -45,8 +46,17 @@ struct DoctorHomeView: View {
             .lookScreen()
             .navigationTitle("Doctor & Patient")
             .toolbar {
-                Button { writing = true } label: { Image(systemName: "square.and.pencil") }.accessibilityLabel("New prescription")
+                ToolbarItem(placement: .primaryAction) {
+                    Button { writing = true } label: { Image(systemName: "square.and.pencil") }.accessibilityLabel("New prescription")
+                }
+                ToolbarItem(placement: .secondaryAction) {
+                    Button("Export all (PDF)", systemImage: "doc.richtext") {
+                        let html = all.map { PrescriptionView.html($0, engine: engine) }.joined(separator: "<hr>")
+                        if let url = PDFMaker.make(title: "Prescriptions", bodyHTML: html, fileName: "Prescriptions") { shareItems = ShareItems(items: [url]) }
+                    }
+                }
             }
+            .shareSheet($shareItems)
             .refreshable { await engine.sync() }
             .sheet(isPresented: $writing) { NavigationStack { PickPatientView() } }
         }

@@ -17,6 +17,17 @@ extension SyncEngine {
         BizReminders.reschedule(self)
     }
 
+    /// Shares a record and its entries into a chat or group — everyone there sees it (e.g. a trip with the travel group).
+    func linkBiz(_ parent: BizRecord, toChat conv: Conversation) {
+        let pid = parent.id
+        let children = (try? context.fetch(FetchDescriptor<BizRecord>(predicate: #Predicate { $0.parentID == pid && !$0.deleted }))) ?? []
+        for r in [parent] + children {
+            r.convID = conv.id
+            send(.biz(BizPayload(r)), in: conv, loud: r === parent, preview: r === parent ? "📒 \(myName) shared \(parent.title)" : nil)
+        }
+        save()
+    }
+
     /// Links a person record (and its existing entries) to an iTeam contact's chat.
     func linkBiz(_ parent: BizRecord, to contact: Contact) {
         let conv = directConversation(with: contact)
@@ -78,9 +89,26 @@ struct BizHomeView: View {
     @State private var search = ""
     @State private var adding = false
     @State private var editing: BizRecord?
+    @State private var shareItems: ShareItems?
+
+    /// Whole-module report: every person / item with its balance and entries.
+    private var reportHTML: String {
+        func e(_ s: String) -> String { PDFMaker.esc(s) }
+        var h = "<h2>\(e(spec.title))</h2><p>\(e(spec.balanceLabel)): <b>\(BizSpecs.money(max(balance, 0)))</b> · \(Date.now.formatted(date: .long, time: .shortened))</p>"
+        h += "<table border='1' cellpadding='5' style='border-collapse:collapse;width:100%'><tr><th>\(e(spec.parent?.label ?? "Item"))</th><th>Details</th><th>Entries</th><th>\(e(spec.balanceLabel))</th></tr>"
+        for r in mine.filter({ $0.parentID.isEmpty }).sorted(by: { $0.title < $1.title }) {
+            let kids = mine.filter { $0.parentID == r.id }
+            let bal = spec.parent == nil ? BizMath.contribution(r, spec) : BizMath.balance(of: r.id, in: mine, spec: spec)
+            let details = [r.subtitle, r.status, r.due.map { "due " + $0.formatted(date: .abbreviated, time: .omitted) } ?? ""].filter { !$0.isEmpty }.joined(separator: " · ")
+            h += "<tr><td>\(e(r.title))</td><td>\(e(details))</td><td>\(kids.count)</td><td>\(bal != 0 ? BizSpecs.money(bal) : "")</td></tr>"
+        }
+        return h + "</table>"
+    }
 
     private var mine: [BizRecord] { all.filter { $0.module == spec.module && $0.ownerID == engine.me } }
-    private var shared: [BizRecord] { all.filter { $0.module == spec.module && $0.ownerID != engine.me && $0.subjectID == engine.me && $0.parentID.isEmpty } }
+    private var shared: [BizRecord] {
+        all.filter { $0.module == spec.module && $0.ownerID != engine.me && $0.parentID.isEmpty && ($0.subjectID == engine.me || ($0.subjectID.isEmpty && !$0.convID.isEmpty)) }
+    }
     private var tops: [BizRecord] {
         let q = search.lowercased()
         return mine.filter { $0.parentID.isEmpty && (q.isEmpty || $0.title.lowercased().contains(q) || $0.subtitle.lowercased().contains(q)) }
@@ -126,7 +154,15 @@ struct BizHomeView: View {
             .lookScreen()
             .searchable(text: $search)
             .navigationTitle(spec.title)
-            .toolbar { Button { adding = true } label: { Image(systemName: "plus") } }
+            .toolbar {
+                ToolbarItem(placement: .primaryAction) { Button { adding = true } label: { Image(systemName: "plus") } }
+                ToolbarItem(placement: .secondaryAction) {
+                    Button("Export report (PDF)", systemImage: "doc.richtext") {
+                        if let url = PDFMaker.make(title: spec.title, bodyHTML: reportHTML, fileName: spec.title + " report") { shareItems = ShareItems(items: [url]) }
+                    }
+                }
+            }
+            .shareSheet($shareItems)
             .refreshable { await engine.sync() }
             .sheet(isPresented: $adding) {
                 NavigationStack { BizEditor(spec: spec, kind: spec.parent ?? spec.children[0], parent: nil, existing: nil) }
@@ -280,6 +316,7 @@ struct BizParentView: View {
     @State private var editing: BizRecord?
     @State private var editParent = false
     @State private var linking = false
+    @State private var sharingChat = false
     @State private var shareItems: ShareItems?
     @State private var confirmDelete = false
 
@@ -326,6 +363,7 @@ struct BizParentView: View {
         .sheet(item: $editing) { c in NavigationStack { BizEditor(spec: spec, kind: spec.kind(c.kind) ?? spec.children[0], parent: r, existing: c) } }
         .sheet(isPresented: $editParent) { NavigationStack { BizEditor(spec: spec, kind: spec.parent ?? spec.children[0], parent: nil, existing: r) } }
         .sheet(isPresented: $linking) { NavigationStack { BizLinkContact(record: r) } }
+        .sheet(isPresented: $sharingChat) { NavigationStack { BizLinkChat(record: r) } }
         .shareSheet($shareItems)
         .confirmationDialog("Delete \(r.title)?", isPresented: $confirmDelete, titleVisibility: .visible) {
             Button("Delete", role: .destructive) { var p = BizPayload(r); p.deleted = true; engine.saveBiz(p, convID: r.convID); dismiss() }
@@ -372,8 +410,13 @@ struct BizParentView: View {
                     shareItems = ShareItems(items: [url])
                 }
             }
-            if r.subjectID.isEmpty && (spec.parent?.linkable ?? false) {
-                Button("Link iTeam contact (they see their records)", systemImage: "link") { linking = true }
+            if r.subjectID.isEmpty && r.convID.isEmpty && (spec.parent?.linkable ?? false) {
+                if spec.module == "travel" || spec.module == "kids" {
+                    Button("Share with a chat or group", systemImage: "person.3") { sharingChat = true }
+                }
+                if spec.module != "travel" {
+                    Button("Link iTeam contact (they see their records)", systemImage: "link") { linking = true }
+                }
             }
             Button("Edit", systemImage: "pencil") { editParent = true }
             Button("Delete", systemImage: "trash", role: .destructive) { confirmDelete = true }
@@ -428,6 +471,22 @@ struct BizLinkContact: View {
             }
         }
         .navigationTitle("Link contact")
+        .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } } }
+    }
+}
+
+struct BizLinkChat: View {
+    let record: BizRecord
+    @EnvironmentObject var engine: SyncEngine
+    @Environment(\.dismiss) private var dismiss
+    @Query(filter: #Predicate<Conversation> { !$0.left && !$0.isDemo }, sort: \Conversation.lastActivity, order: .reverse) private var chats: [Conversation]
+    var body: some View {
+        List(chats) { c in
+            Button { engine.linkBiz(record, toChat: c); dismiss() } label: {
+                HStack { AvatarView(name: c.title, imageData: c.avatar, size: 32, isGroup: c.isGroup); Text(c.title).foregroundStyle(Color.primary) }
+            }
+        }
+        .navigationTitle("Share with")
         .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } } }
     }
 }

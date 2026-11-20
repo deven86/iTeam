@@ -65,6 +65,10 @@ struct Event: Codable {
         /// An invitation in a chat, and the answers to it.
         case invite(InviteEventPayload)
         case rsvp(eventID: String, answer: String)
+        /// Meetings: details (admins), a vote, or "I'm attending".
+        case meeting(MeetingPayload)
+        case meetingVote(meetingID: String, pollID: String, option: Int)
+        case meetingAttend(meetingID: String)
     }
 }
 

@@ -59,6 +59,7 @@ struct EventsHomeView: View {
     @Environment(\.look) private var look
     @Query(filter: #Predicate<InviteEvent> { !$0.deleted }, sort: \InviteEvent.start) private var events: [InviteEvent]
     @State private var creating = false
+    @State private var shareItems: ShareItems?
 
     private var upcoming: [InviteEvent] { events.filter { $0.end >= .now || $0.start >= .now.addingTimeInterval(-3 * 3600) } }
     private var past: [InviteEvent] { Array(events.filter { !upcoming.contains($0) }.reversed()) }
@@ -66,6 +67,12 @@ struct EventsHomeView: View {
     var body: some View {
         NavigationStack {
             List {
+                HStack(spacing: 10) {
+                    tile("\(upcoming.count)", "Upcoming", "calendar")
+                    tile("\(upcoming.filter { $0.hostID == engine.me }.count)", "Hosting", "star.fill")
+                    tile("\(upcoming.filter { $0.rsvps[engine.me] == nil && $0.hostID != engine.me }.count)", "To answer", "questionmark.circle")
+                }
+                .listRowBackground(Color.clear).listRowInsets(EdgeInsets())
                 if events.isEmpty {
                     EmptyStateView(icon: "party.popper", title: "Events", message: "Invite a chat or group to a birthday, meeting or trip. Everyone answers Going, Maybe or Can't, and gets a reminder.",
                                    actionTitle: "Create an event") { creating = true }
@@ -80,10 +87,39 @@ struct EventsHomeView: View {
             }
             .lookScreen()
             .navigationTitle("Events")
-            .toolbar { Button { creating = true } label: { Image(systemName: "plus") } }
+            .toolbar {
+                ToolbarItem(placement: .primaryAction) { Button { creating = true } label: { Image(systemName: "plus") } }
+                ToolbarItem(placement: .secondaryAction) {
+                    Button("Export guest lists (PDF)", systemImage: "doc.richtext") {
+                        if let url = PDFMaker.make(title: "Events", bodyHTML: exportHTML, fileName: "Events") { shareItems = ShareItems(items: [url]) }
+                    }
+                }
+            }
+            .shareSheet($shareItems)
             .refreshable { await engine.sync() }
             .sheet(isPresented: $creating) { NavigationStack { EventPickChat() } }
         }
+    }
+}
+
+extension EventsHomeView {
+    func tile(_ v: String, _ l: String, _ icon: String) -> some View {
+        VStack(spacing: 3) {
+            Image(systemName: icon).foregroundStyle(Color(hex: 0xF953C6))
+            Text(v).font(.title3.bold())
+            Text(l).font(.caption2).foregroundStyle(look.textSecondary)
+        }
+        .frame(maxWidth: .infinity).padding(.vertical, 10).lookCard(padding: 6)
+    }
+
+    var exportHTML: String {
+        var h = "<h2>Events</h2>"
+        for ev in upcoming + past {
+            h += "<h3>\(PDFMaker.esc(ev.title))</h3><p>\(ev.start.formatted(date: .complete, time: .shortened))\(ev.place.isEmpty ? "" : " · " + PDFMaker.esc(ev.place))</p><ul>"
+            for (id, a) in ev.rsvps.sorted(by: { $0.key < $1.key }) { h += "<li>\(PDFMaker.esc(engine.name(of: id))): \(EventDetailView.word(a))</li>" }
+            h += "</ul>"
+        }
+        return h
     }
 }
 

@@ -88,7 +88,11 @@ struct ModuleBadge: View {
     var body: some View {
         switch module.availability {
         case .included:
-            Chip(text: "Included", icon: "checkmark", color: look.success)
+            if ModuleRegistry.shared.isVisible(module) {
+                Chip(text: "Added", icon: "checkmark", color: look.success)
+            } else {
+                Chip(text: "Free · Get", icon: "arrow.down.circle", color: look.accent)
+            }
         case .comingSoon:
             Chip(text: "Coming soon", icon: "clock", color: look.textSecondary)
         case .paid:
@@ -174,7 +178,17 @@ struct ModuleDetailView: View {
     private var action: some View {
         switch module.availability {
         case .included:
-            Toggle("Show in the app", isOn: Binding(get: { modules.isVisible(module) }, set: { modules.setOn(module, $0) }))
+            if modules.isVisible(module) {
+                Label("Added — find it under Modules or pin it to the bottom bar", systemImage: "checkmark.circle.fill").foregroundStyle(look.success)
+                Button("Remove from my app", role: .destructive) { modules.setOn(module, false) }
+                    .font(.subheadline)
+                Text("Removing only hides it. Your data stays and comes back if you add it again.").font(.caption).foregroundStyle(look.textSecondary)
+            } else {
+                Button { modules.setOn(module, true); Haptics.success() } label: {
+                    Text("Get — Free").frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.glassProminent).controlSize(.large)
+            }
         case .comingSoon:
             Label("We're building this. It will appear here when ready.", systemImage: "hammer").font(.subheadline)
         case .paid:
@@ -268,6 +282,14 @@ struct ModulePreviewScreen: View {
         case .careEvent: "Injury & recovery"
         case .careVault: "Medical vault"
         case .doctorDashboard: "Doctor dashboard"
+        case .eventsDashboard: "Events dashboard"
+        case .eventForm: "New event"
+        case .roomsDashboard: "Rooms"
+        case .roomChat: "Room chat"
+        case .safetyDashboard: "SOS"
+        case .meetingDashboard: "Meetings dashboard"
+        case .meetingForm: "New meeting"
+        case .meetingMinutes: "Minutes of meeting"
         case .prescriptionForm: "New prescription"
         case .bizDashboard(let m): "\(BizSpecs.spec(m)?.title ?? "Module") dashboard"
         case .bizForm(let m): "New \((BizSpecs.spec(m)?.parent ?? BizSpecs.spec(m)?.children.first)?.label.lowercased() ?? "entry")"
@@ -473,6 +495,40 @@ struct ModulePreviewScreen: View {
         case .bizForm(let m):
             let k = BizSpecs.spec(m).flatMap { $0.parent ?? $0.children.first }
             ForEach(Array((k?.fields ?? []).prefix(4).enumerated()), id: \.offset) { _, f in row("square.and.pencil", f.label) }
+        case .eventsDashboard:
+            HStack(spacing: 6) { stat("3", "Upcoming"); stat("18", "Going") }
+            row("party.popper.fill", "Riya's birthday · Sat 7 PM", "12 going")
+            row("person.3.fill", "Team dinner · Fri", "Maybe 4")
+        case .eventForm:
+            row("textformat", "What: Birthday party")
+            row("mappin.and.ellipse", "Where: Home, Dombivli")
+            row("calendar", "Sat, 7:00 PM · 3 h")
+            row("bubble.left.and.bubble.right", "Invite: Family group")
+        case .roomsDashboard:
+            row("person.3.sequence.fill", "Cricket fans · Mumbai", "Joined")
+            row("person.3.sequence.fill", "Startup founders", "")
+            row("lock.fill", "Private chat · Sky ♂", "2")
+        case .roomChat:
+            row("bubble.left", "Sky ♂: Anyone watching tonight?")
+            row("bubble.left", "Moon ♀: Yes! Wankhede 🏏")
+            row("eye", "Reveal myself")
+        case .safetyDashboard:
+            row("sos.circle.fill", "Hold 2 s — SOS to Family, Wife")
+            row("hand.thumbsup.fill", "I'm safe now")
+            row("location.circle", "Check In: Office by 10:30")
+        case .meetingDashboard:
+            HStack(spacing: 6) { stat("4", "This week"); stat("2", "Minutes due") }
+            row("video.fill", "Design review · Online", "11:00")
+            row("person.3.fill", "Site meeting · Office", "Fri")
+        case .meetingForm:
+            row("list.bullet", "Agenda: budget, timeline, vendors")
+            row("person.2.fill", "Attending: Asha, Rahul, You")
+            row("link", "Online: FaceTime link")
+            row("chart.bar", "Vote: Approve budget?")
+        case .meetingMinutes:
+            row("checkmark.circle", "Attended: 5 of 6")
+            row("doc.text", "Decisions & action items")
+            row("doc.richtext", "Export minutes as PDF")
         case .doctorDashboard:
             row("person.fill", "Aai · BP follow-up", "Accepted")
             row("person.fill", "Rahul · Fever", "Waiting")

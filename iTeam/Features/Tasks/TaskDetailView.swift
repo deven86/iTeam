@@ -129,6 +129,7 @@ struct TaskDetailView: View {
                     FlowChips(task: t, checklistDone: checklist.filter(\.done).count, checklistTotal: checklist.count, comments: comments.count)
                     Text("Created by \(engine.name(of: t.createdBy)) · \(t.createdAt.formatted(date: .abbreviated, time: .shortened))")
                         .font(.caption).foregroundStyle(look.textSecondary)
+                    TaskMeetingsRow(task: t)
                     if t.isDone, let by = t.completedBy, let at = t.completedAt {
                         Label("Completed by \(engine.name(of: by)) · \(at.formatted(date: .abbreviated, time: .shortened))", systemImage: "checkmark.seal.fill")
                             .font(.caption).foregroundStyle(look.success)

@@ -33,6 +33,7 @@ struct TaskDashboardView: View {
 
     @State private var scope: Scope = .mine
     @State private var search = ""
+    @State private var showMeetings = false
     @State private var showNew = false
     @State private var path: [String] = []
     @State private var calendarMode = false
@@ -146,10 +147,14 @@ struct TaskDashboardView: View {
                     .accessibilityLabel("Reports")
                 }
                 ToolbarItem(placement: .topBarTrailing) {
+                    Button { showMeetings = true } label: { Image(systemName: "person.3.fill") }.accessibilityLabel("Meetings")
+                }
+                ToolbarItem(placement: .topBarTrailing) {
                     Button { showNew = true } label: { Image(systemName: "plus") }.accessibilityLabel("New task")
                 }
             }
             .sheet(isPresented: $showNew) { NavigationStack { TaskEditorView(conv: nil, source: nil) } }
+            .sheet(isPresented: $showMeetings) { MeetingsHomeView() }
             .onChange(of: router.openTask) { _, id in
                 guard let id else { return }
                 path = [id]

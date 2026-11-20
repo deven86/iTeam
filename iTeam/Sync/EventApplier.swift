@@ -634,6 +634,48 @@ struct EventApplier {
             system(conv, "🎉 \(who) \(e.from == me ? (answer == "going" ? "are going" : answer == "maybe" ? "might come" : "can't come") : word) — “\(ev.title)”", at: e.at)
             if e.from == me { EventReminders.update(ev, me: me) }
 
+        case .meeting(let p):
+            guard let conv else { return .needsConversation }
+            let mid = p.id
+            let existing = try? ctx.fetch(FetchDescriptor<Meeting>(predicate: #Predicate { $0.id == mid })).first
+            let m: Meeting
+            if let existing {
+                guard existing.isAdmin(e.from), p.at >= existing.updatedAt else { return .ignored }
+                m = existing
+            } else {
+                m = Meeting(id: p.id); m.convID = conv.id; m.createdBy = e.from; ctx.insert(m)
+            }
+            let old = (existing?.status, existing?.minutes.isEmpty, existing?.start)
+            m.taskID = p.taskID; m.title = p.title; m.online = p.online; m.link = p.link; m.place = p.place
+            m.start = p.start; m.end = p.end; m.notes = p.notes; m.minutes = p.minutes; m.status = p.status
+            m.agenda = p.agenda; m.expected = p.expected; m.attended = p.attended; m.admins = p.admins
+            m.polls = p.polls; m.files = p.files; m.updatedAt = p.at
+            let who = e.from == me ? "You" : engine.name(of: e.from)
+            var line: String
+            if p.deleted && !m.deleted { m.deleted = true; line = "📅 \(who) cancelled the meeting “\(p.title)”" }
+            else if existing == nil { line = "📅 \(who) scheduled “\(p.title)” — \(p.start.formatted(date: .abbreviated, time: .shortened)) · \(p.online ? "online" : (p.place.isEmpty ? "in person" : p.place))" }
+            else if old.0 != "done" && p.status == "done" { line = "📅 “\(p.title)” marked done by \(who) — \(p.attended.count) attended" }
+            else if old.1 == true && !p.minutes.isEmpty { line = "📝 \(who) added the minutes of “\(p.title)”" }
+            else if old.2 != p.start { line = "📅 \(who) moved “\(p.title)” to \(p.start.formatted(date: .abbreviated, time: .shortened))" }
+            else { line = "📅 \(who) updated the meeting “\(p.title)”" }
+            system(conv, line, at: e.at)
+            if !p.taskID.isEmpty, let t = engine.task(p.taskID), let tconv = t.convID, tconv != conv.id, let tc = engine.conversation(tconv) {
+                system(tc, line, at: e.at)
+            }
+            MeetingReminders.update(m, me: me)
+
+        case .meetingVote(let mid, let pid, let option):
+            guard let conv, let m = try? ctx.fetch(FetchDescriptor<Meeting>(predicate: #Predicate { $0.id == mid })).first else { return .ignored }
+            var v = m.votes; v[pid, default: [:]][e.from] = option; m.votes = v
+            if let poll = m.polls.first(where: { $0.id == pid }), option < poll.options.count {
+                system(conv, "🗳 \(e.from == me ? "You" : engine.name(of: e.from)) voted “\(poll.options[option])” — \(poll.question)", at: e.at)
+            }
+
+        case .meetingAttend(let mid):
+            guard let conv, let m = try? ctx.fetch(FetchDescriptor<Meeting>(predicate: #Predicate { $0.id == mid })).first else { return .ignored }
+            if !m.attended.contains(e.from) { m.attended = m.attended + [e.from] }
+            system(conv, "✋ \(e.from == me ? "You" : engine.name(of: e.from)) joined “\(m.title)”", at: e.at)
+
         case .nowPlaying(let text):
             if e.from != me, let c = engine.contact(e.from), !c.blocked { c.nowPlaying = text; c.nowPlayingAt = e.at }
 

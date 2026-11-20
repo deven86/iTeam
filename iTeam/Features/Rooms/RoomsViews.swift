@@ -20,6 +20,12 @@ struct RoomsHomeView: View {
     var body: some View {
         NavigationStack {
             List {
+                HStack(spacing: 10) {
+                    stat("\(rooms.myRooms.count)", "My rooms", "person.3.sequence.fill")
+                    stat("\(rooms.threads.count)", "Private chats", "lock.fill")
+                    stat("\(rooms.unreadTotal)", "Unread", "envelope.badge")
+                }
+                .listRowBackground(Color.clear).listRowInsets(EdgeInsets())
                 if !rooms.myRooms.isEmpty {
                     Section("My rooms") {
                         ForEach(rooms.myRooms) { r in
@@ -62,6 +68,17 @@ struct RoomsHomeView: View {
             .sheet(item: $joining) { r in NavigationStack { PersonaSetupView(room: r) } }
             .sheet(isPresented: Binding(get: { !accepted }, set: { _ in })) { RoomRulesView { accepted = true } }
         }
+    }
+}
+
+extension RoomsHomeView {
+    func stat(_ v: String, _ l: String, _ icon: String) -> some View {
+        VStack(spacing: 3) {
+            Image(systemName: icon).foregroundStyle(Color(hex: 0x7F7FD5))
+            Text(v).font(.title3.bold())
+            Text(l).font(.caption2).foregroundStyle(.secondary)
+        }
+        .frame(maxWidth: .infinity).padding(.vertical, 10).lookCard(padding: 6)
     }
 }
 

@@ -124,16 +124,22 @@ struct MessageBubble: View {
 
             footer
         }
-        .foregroundStyle(mine ? look.bubbleOutText : look.bubbleInText)
-        .padding(.horizontal, 12)
-        .padding(.vertical, 8)
-        .background { background }
+        .foregroundStyle(mediaOnly ? look.textSecondary : (mine ? look.bubbleOutText : look.bubbleInText))
+        .padding(.horizontal, mediaOnly ? 0 : 12)
+        .padding(.vertical, mediaOnly ? 2 : 8)
+        .background { if !mediaOnly { background } }
         .contentShape(.contextMenuPreview, RoundedRectangle(cornerRadius: 18, style: .continuous))
         .contextMenu { menu }
         .onTapGesture(count: 2) {
             Haptics.tap()
             engine.react(message, "👍")
         }
+    }
+
+    /// Photos / videos with no text: shown bare, like iMessage (no bubble behind them).
+    private var mediaOnly: Bool {
+        !message.deleted && message.text.isEmpty && message.replyToID == nil && !message.attachments.isEmpty
+            && message.attachments.allSatisfy { $0.kind == "image" || $0.kind == "video" }
     }
 
     @ViewBuilder

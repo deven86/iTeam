@@ -217,8 +217,8 @@ struct QuickLookView: UIViewControllerRepresentable {
 }
 
 
-/// Several photos in one message, like iMessage: a fanned stack of cards. Swipe the top card
-/// away and it slides to the back, showing the next one. Tap to open, "N items" for a grid.
+/// Several photos in one message, like iMessage: a fanned stack of cards with no bubble behind.
+/// Swipe the top card left or right and it goes to the back; tap opens it full screen.
 struct PhotoStackView: View {
     let refs: [AttachmentRef]
     var onOpen: (URL) -> Void
@@ -238,39 +238,79 @@ struct PhotoStackView: View {
                 Label("\(refs.count) items", systemImage: "square.grid.2x2.fill").font(.caption.weight(.semibold))
             }
             .buttonStyle(.plain)
+            .foregroundStyle(.tint)
             ZStack {
                 ForEach(Array(order.prefix(4).enumerated().reversed()), id: \.element) { depth, idx in
-                    card(refs[idx], depth: depth)
+                    StackCard(ref: refs[idx])
+                        .rotationEffect(.degrees(depth == 0 ? Double(drag.width / 18) : [0, -5, 4, -2][min(depth, 3)]))
+                        .offset(x: depth == 0 ? drag.width : CGFloat(depth) * 7, y: depth == 0 ? drag.height * 0.15 : CGFloat(depth) * -5)
+                        .scaleEffect(depth == 0 ? 1 : 1 - CGFloat(depth) * 0.035)
+                        .zIndex(Double(10 - depth))
+                        .allowsHitTesting(depth == 0)
+                        .onTapGesture { open(refs[idx]) }
+                        .highPriorityGesture(depth == 0 ? swipe : nil)
                 }
             }
-            .frame(width: 250, height: 290)
+            .frame(width: 250, height: 310)
         }
         .sheet(isPresented: $showGrid) { PhotoGridSheet(refs: refs, onOpen: onOpen) }
     }
 
-    private func card(_ ref: AttachmentRef, depth: Int) -> some View {
-        let top = depth == 0
-        let angle = Double([0, -6, 5, -3][min(depth, 3)])
-        return AttachmentView(ref: ref, onOpen: onOpen)
-            .shadow(color: .black.opacity(0.25), radius: 6, y: 3)
-            .rotationEffect(.degrees(top ? Double(drag.width / 20) : angle))
-            .offset(x: top ? drag.width : CGFloat(depth) * 6, y: top ? drag.height * 0.2 : CGFloat(depth) * -4)
-            .scaleEffect(top ? 1 : 1 - CGFloat(depth) * 0.04)
-            .zIndex(Double(10 - depth))
-            .allowsHitTesting(top)
-            .gesture(top ? DragGesture()
-                .onChanged { drag = $0.translation }
-                .onEnded { v in
-                    if abs(v.translation.width) > 80 {
-                        withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
-                            order.append(order.removeFirst())
-                            drag = .zero
-                        }
-                        Haptics.tap()
-                    } else {
-                        withAnimation(.spring) { drag = .zero }
+    private var swipe: some Gesture {
+        DragGesture(minimumDistance: 6)
+            .onChanged { drag = $0.translation }
+            .onEnded { v in
+                if abs(v.translation.width) > 60 || abs(v.predictedEndTranslation.width) > 160 {
+                    withAnimation(.spring(response: 0.32, dampingFraction: 0.82)) {
+                        order.append(order.removeFirst())
+                        drag = .zero
                     }
-                } : nil)
+                    Haptics.tap()
+                } else {
+                    withAnimation(.spring(response: 0.3)) { drag = .zero }
+                }
+            }
+    }
+
+    private func open(_ ref: AttachmentRef) {
+        Task { if let url = try? await Attachments.load(ref) { onOpen(url) } }
+    }
+}
+
+/// One card: the photo at full quality (sharp, never blurred), rounded with a soft shadow.
+private struct StackCard: View {
+    let ref: AttachmentRef
+    @State private var image: UIImage?
+
+    var body: some View {
+        ZStack {
+            if let image {
+                Image(uiImage: image).resizable().scaledToFill()
+            } else if let t = ref.thumb, let img = UIImage(data: t) {
+                Image(uiImage: img).resizable().scaledToFill().overlay(ProgressView())
+            } else {
+                Rectangle().fill(.quaternary).overlay(ProgressView())
+            }
+            if ref.kind == "video" {
+                Image(systemName: "play.circle.fill").font(.system(size: 44)).foregroundStyle(.white).shadow(radius: 4)
+            }
+        }
+        .frame(width: 230, height: 290)
+        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: 18, style: .continuous).stroke(.white.opacity(0.6), lineWidth: 1))
+        .shadow(color: .black.opacity(0.28), radius: 8, y: 4)
+        .contentShape(Rectangle())
+        .task(id: ref.id) { await load() }
+    }
+
+    private func load() async {
+        if ref.kind == "image" {
+            let full = Attachments.cachedImage(ref) ?? ((try? await Attachments.load(ref)).flatMap { UIImage(contentsOfFile: $0.path) })
+            // Decode at screen size (sharp but light on memory).
+            image = await full?.byPreparingThumbnail(ofSize: CGSize(width: 690, height: 870)) ?? full
+        } else if let t = ref.thumb {
+            image = UIImage(data: t)
+        }
     }
 }
 

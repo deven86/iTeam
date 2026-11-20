@@ -20,9 +20,12 @@ jobs:
           xcrun cktool save-token --type management "$CK_TOKEN" >/dev/null
           xcrun cktool export-schema --team-id "$TEAM_ID" --container-id iCloud.com.jondhale.iteam \
             --environment production --output-file "$RUNNER_TEMP/prod.ckdb"
+          ok=""; miss=""
           for t in Profile Envelope Blob ModuleRequest Backup Room RoomMember RoomMsg RoomReport; do
-            if grep -q "RECORD TYPE $t " "$RUNNER_TEMP/prod.ckdb"; then echo "::notice title=type::$t ✅"; else echo "::warning title=type::$t ❌ missing"; fi
+            if grep -q "RECORD TYPE $t " "$RUNNER_TEMP/prod.ckdb"; then ok="$ok $t"; else miss="$miss $t"; fi
           done
-          for f in "seen" "plus"; do
+          echo "::notice title=types live::$ok"
+          [ -n "$miss" ] && echo "::warning title=types missing::$miss" || true
+          for f in "plus" "seen"; do
             if awk '/RECORD TYPE Profile /,/\);/' "$RUNNER_TEMP/prod.ckdb" | grep -q "^ *$f "; then echo "::notice title=Profile field::$f ✅"; else echo "::warning title=Profile field::$f ❌ missing"; fi
           done

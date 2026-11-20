@@ -69,6 +69,8 @@ struct Event: Codable {
         case meeting(MeetingPayload)
         case meetingVote(meetingID: String, pollID: String, option: Int)
         case meetingAttend(meetingID: String)
+        /// Attendance: company, members, punches, leaves, holidays and change requests (a batch).
+        case attendance(AttPayload)
     }
 }
 

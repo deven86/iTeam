@@ -86,7 +86,7 @@ struct iTeamApp: App {
 @MainActor
 final class Router: ObservableObject {
     static let shared = Router()
-    enum TabID: String, Hashable { case chats, views, rooms, doctor, safety, events, khata, tuition, rent, legal, clinic, bills, kids, travel, meetings, tasks, care, gym, mind, activity, hub, settings }
+    enum TabID: String, Hashable { case chats, views, rooms, doctor, safety, events, khata, tuition, rent, legal, clinic, bills, kids, travel, meetings, attendance, tasks, care, gym, mind, activity, hub, settings }
 
     @Published var tab: TabID = .chats
     /// Module tabs currently in the bottom bar (set by RootView). Others open inside the Modules hub.
@@ -226,6 +226,8 @@ final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCent
                 }
             } else if let kind = info["myday"] as? String {
                 Router.shared.openMyDay = kind
+            } else if let tab = info["tab"] as? String, let t = Router.TabID(rawValue: tab) {
+                Router.shared.go(t)
             } else if let taskID {
                 switch action {
                 case Reminders.doneAction:

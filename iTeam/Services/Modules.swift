@@ -18,6 +18,7 @@ struct ModuleInfo: Identifiable {
         case doctorDashboard, prescriptionForm
         case bizDashboard(String), bizForm(String)
         case eventsDashboard, eventForm, roomsDashboard, roomChat, safetyDashboard, meetingDashboard, meetingForm, meetingMinutes
+        case attDashboard, attMember, attKiosk, attEmployee
     }
 
     let id: String
@@ -181,6 +182,23 @@ final class ModuleRegistry: ObservableObject {
         benefits: ["Bills and renewals with due dates and reminders", "Repeating monthly, quarterly or yearly", "Mark paid with a swipe — the next one is created"],
         note: "Free for everyone.")
 
+    static let attendance = ModuleInfo(
+        id: "attendance", title: "Attendance",
+        tagline: "Punch in by phone, selfie + location, rotating QR or kiosk — with leaves, holidays and Tally export.",
+        icon: "person.badge.clock.fill", colors: [0x11998E, 0x38EF7D], availability: .paid,
+        productID: Store.attendanceProductID, fallbackPrice: "₹99 / $0.99 a month",
+        problems: ["Paper registers and buddy-punching", "Arguments about late marks, half days and leave",
+                   "Month-end: counting days by hand for salary and Tally"],
+        benefits: ["Owner sets duty time, grace and half-day limit — Present, Grace, Late, Half day and Absent are worked out automatically",
+                   "Employees on iTeam punch in and out on their own phone: one tap, selfie, location check or the rotating office QR",
+                   "People without iTeam: kiosk on your phone or iPad with PIN and selfie, or marked by the owner/admin",
+                   "Leave requests with reason, attachments, paid/unpaid — approved leave shows on the calendar",
+                   "Holidays (owner approves admin entries); admins' changes to entries need the owner's approval",
+                   "Live dashboard: present, late, absent, on leave, and what needs attention",
+                   "Monthly register PDF, Excel (CSV) and Tally XML; payable days ready for salary"],
+        previews: [.attDashboard, .attMember, .attKiosk, .attEmployee],
+        note: "Only the owner (employer) pays. Admins and employees never pay — employees see only their own attendance.")
+
     static let gymTraining = ModuleInfo(
         id: "gym-training", title: "Gym & Training",
         tagline: "Memberships, trainer sessions and payments — shared with your trainer, clients or family.",
@@ -241,7 +259,7 @@ final class ModuleRegistry: ObservableObject {
         benefits: ["“What did I miss?” summaries", "Suggested tasks from messages", "Runs on-device with Apple Intelligence (iPhone 15 Pro and newer)"],
         previews: [.assistant], note: "In development.")
 
-    static let all: [ModuleInfo] = [businessTasks, businessPro, iLifeCare, travel, events, safety, rooms, bills, kids, khata, tuition, rent, legal, clinic, gymTraining, mindfulness, teamWorkspace, filesKnowledge, aiAssistant]
+    static let all: [ModuleInfo] = [businessTasks, businessPro, iLifeCare, travel, events, safety, rooms, bills, kids, khata, tuition, rent, legal, clinic, attendance, gymTraining, mindfulness, teamWorkspace, filesKnowledge, aiAssistant]
 
     @Published private var enabled: [String: Bool]
     /// Modules the user wants in the iPhone bottom bar, in order (Router.TabID raw values).

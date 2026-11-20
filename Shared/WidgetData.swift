@@ -34,6 +34,13 @@ struct WidgetSnapshot: Codable {
     // Meetings, events, trips, kids' school events — the next few things on the calendar.
     struct Upcoming: Codable, Hashable { var title: String; var detail: String; var at: Date; var icon: String; var tab: String }
     var upcoming: [Upcoming] = []
+    // Attendance — my shift, or (owner/admin) today's head count.
+    var attCompany: String? = nil
+    var attIn: Date? = nil
+    var attOut: Date? = nil
+    var attDutyEnd: Date? = nil
+    var attPresent: Int? = nil
+    var attTotal: Int? = nil
 
     static let key = "widget.snapshot"
 

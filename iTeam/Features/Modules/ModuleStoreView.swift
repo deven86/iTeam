@@ -290,6 +290,10 @@ struct ModulePreviewScreen: View {
         case .meetingDashboard: "Meetings dashboard"
         case .meetingForm: "New meeting"
         case .meetingMinutes: "Minutes of meeting"
+        case .attDashboard: "Attendance dashboard"
+        case .attMember: "Add member"
+        case .attKiosk: "Kiosk"
+        case .attEmployee: "Employee: punch in"
         case .prescriptionForm: "New prescription"
         case .bizDashboard(let m): "\(BizSpecs.spec(m)?.title ?? "Module") dashboard"
         case .bizForm(let m): "New \((BizSpecs.spec(m)?.parent ?? BizSpecs.spec(m)?.children.first)?.label.lowercased() ?? "entry")"
@@ -529,6 +533,24 @@ struct ModulePreviewScreen: View {
             row("checkmark.circle", "Attended: 5 of 6")
             row("doc.text", "Decisions & action items")
             row("doc.richtext", "Export minutes as PDF")
+        case .attDashboard:
+            HStack(spacing: 6) { stat("18/20", "Present"); stat("3", "Late"); stat("1", "Leave") }
+            row("person.fill", "Asha · In 9:22", "Grace")
+            row("person.fill", "Rahul · In 10:05", "Late")
+            row("beach.umbrella.fill", "Meera — 2 days casual", "Decide")
+        case .attMember:
+            row("person.crop.circle", "Name: Sunil Kale")
+            row("building.2", "Store · Helper")
+            row("clock", "Duty 9:30 – 18:30")
+            row("lock", "Kiosk PIN · ••••")
+        case .attKiosk:
+            row("clock", "10:02:41 · Thursday")
+            row("person.fill", "Tap your name → PIN → selfie")
+            row("checkmark.circle.fill", "Sunil — punched in 10:02")
+        case .attEmployee:
+            row("arrow.right.circle.fill", "Punch in", "QR + selfie")
+            row("location.fill", "At office · 40 m")
+            row("calendar", "November: 19 P · 2 L · 1 A")
         case .doctorDashboard:
             row("person.fill", "Aai · BP follow-up", "Accepted")
             row("person.fill", "Rahul · Fever", "Waiting")

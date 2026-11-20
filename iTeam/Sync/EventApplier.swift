@@ -686,6 +686,9 @@ struct EventApplier {
             if !m.attended.contains(e.from) { m.attended = m.attended + [e.from] }
             system(conv, "✋ \(e.from == me ? "You" : engine.name(of: e.from)) joined “\(m.title)”", at: e.at)
 
+        case .attendance(let p):
+            return applyAttendance(p, e, conv: conv, personal: personal)
+
         case .nowPlaying(let text):
             if e.from != me, let c = engine.contact(e.from), !c.blocked { c.nowPlaying = text; c.nowPlayingAt = e.at }
 
@@ -950,7 +953,7 @@ struct EventApplier {
         conv.lastPreview = conv.isGroup && from != me ? "\(engine.name(of: from)): \(preview)" : preview
     }
 
-    private func system(_ conv: Conversation, _ text: String, at: Date) {
+    func system(_ conv: Conversation, _ text: String, at: Date) {
         let m = Message(id: UUID().uuidString, convID: conv.id, senderID: "", text: text, createdAt: at, status: .sent, isSystem: true)
         ctx.insert(m)
         touch(conv, at: at, preview: text, from: me)

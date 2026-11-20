@@ -21,6 +21,9 @@ struct RootView: View {
     @Query(filter: #Predicate<BizRecord> { !$0.deleted && $0.parentID == "" }) private var bizRecords: [BizRecord]
     private var rxToReview: [Prescription] { waitingRx.filter { $0.patientID == engine.me } }
     @Query(filter: #Predicate<InviteEvent> { !$0.deleted }) private var invites: [InviteEvent]
+    @Query(filter: #Predicate<AttRecord> { $0.kind == "member" && !$0.deleted }) private var attMembers: [AttRecord]
+    /// Employees and admins use Attendance free once someone adds them.
+    private var inAttendance: Bool { attMembers.contains { $0.member.userID == engine.me && $0.member.accepted != false } }
     private var invitedToEvents: Bool { invites.contains { $0.hostID != engine.me && $0.end > .now } }
     @AppStorage("views.lastVisit") private var viewsLastVisit: Double = 0
     private var newPosts: Int {
@@ -46,6 +49,7 @@ struct RootView: View {
             if modules.isOn(info) || (sharedBiz.contains(spec.module) && modules.isVisible(info)) { a.append(spec.tab) }
         }
         if modules.isOn(ModuleRegistry.businessTasks) { a.append(.tasks); a.append(.meetings) }
+        if modules.isOn(ModuleRegistry.attendance) || (inAttendance && modules.isVisible(ModuleRegistry.attendance)) { a.append(.attendance) }
         // Paid modules appear once bought (or unlocked for the owner / TestFlight testing) — or when
         // someone else shared a profile with you, because members use shared profiles free.
         let me = engine.me
@@ -144,6 +148,11 @@ struct RootView: View {
         }
         .hidden(!inBar.contains(.meetings))
 
+        Tab("Attendance", systemImage: "person.badge.clock.fill", value: Router.TabID.attendance) {
+            AttendanceHomeView()
+        }
+        .hidden(!inBar.contains(.attendance))
+
         Tab("Tasks", systemImage: "checklist", value: Router.TabID.tasks) {
             TaskDashboardView()
         }
@@ -179,7 +188,7 @@ struct RootView: View {
             .onChange(of: inBar) { _, bar in
                 router.barTabs = bar
                 // A tab that just left the bar reopens inside the hub instead of vanishing.
-                if [Router.TabID.views, .events, .rooms, .doctor, .safety, .khata, .tuition, .rent, .legal, .clinic, .bills, .kids, .travel, .meetings, .tasks, .care, .gym, .mind, .activity].contains(router.tab), !bar.contains(router.tab) {
+                if [Router.TabID.views, .events, .rooms, .doctor, .safety, .khata, .tuition, .rent, .legal, .clinic, .bills, .kids, .travel, .meetings, .attendance, .tasks, .care, .gym, .mind, .activity].contains(router.tab), !bar.contains(router.tab) {
                     router.tab = .chats
                 }
             }
@@ -243,6 +252,7 @@ struct ModulesHubView: View {
         case .kids: BizHomeView(spec: BizSpecs.kids)
         case .travel: BizHomeView(spec: BizSpecs.travel)
         case .meetings: MeetingsHomeView()
+        case .attendance: AttendanceHomeView()
         case .tasks: TaskDashboardView()
         case .care: CareHomeView()
         case .gym: GymModuleView()
@@ -326,6 +336,7 @@ struct ModulesHubView: View {
         case .safety: ("Safety", "sos.circle.fill", [0xFF416C, 0xB31217])
         case .events: ("Events", "party.popper.fill", [0xF953C6, 0xB91D73])
         case .meetings: ("Meetings", "person.3.fill", [0x4568DC, 0xB06AB3])
+        case .attendance: ("Attendance", ModuleRegistry.attendance.icon, ModuleRegistry.attendance.colors)
         case .khata, .tuition, .rent, .legal, .clinic, .bills, .kids, .travel:
             BizSpecs.all.first { $0.tab == t }.map { ($0.title, $0.icon, $0.colors) } ?? ("", "square", [0, 0])
         case .tasks: ("Tasks", ModuleRegistry.businessTasks.icon, ModuleRegistry.businessTasks.colors)

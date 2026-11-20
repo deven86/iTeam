@@ -64,6 +64,7 @@ enum WidgetSync {
         s.mindStreak = MindStats.streak(logs.map(\.date))
         s.hasMind = ModuleRegistry.shared.isOn(ModuleRegistry.mindfulness)
 
+        attendance(&s, context: context, me: me)
         s.save()
         WidgetCenter.shared.reloadAllTimelines()
 
@@ -140,6 +141,38 @@ enum LiveActivities {
     static func end(kind: String) {
         for a in Activity<ITeamActivityAttributes>.activities where a.attributes.kind == kind {
             Task { await a.end(nil, dismissalPolicy: .immediate) }
+        }
+    }
+
+    /// Attendance: my open shift (Live Activity until punch-out), or today's head count for the owner/admin.
+    private static func attendance(_ s: inout WidgetSnapshot, context: ModelContext, me: String) {
+        let all = (try? context.fetch(FetchDescriptor<AttRecord>(predicate: #Predicate { !$0.deleted && ($0.kind == "company" || $0.kind == "member") }))) ?? []
+        let today = Att.key(.now)
+        let current = UserDefaults.standard.string(forKey: "att.current") ?? ""
+        let companies = all.filter { $0.kind == "company" }
+        if let mine = all.first(where: { $0.kind == "member" && $0.member.userID == me && $0.member.accepted == true }),
+           let comp = companies.first(where: { $0.id == mine.companyID }) {
+            let mid = mine.id
+            let e = (try? context.fetch(FetchDescriptor<AttRecord>(predicate: #Predicate { $0.kind == "entry" && $0.memberID == mid && $0.day == today && !$0.deleted })))?.first?.entry
+            s.attCompany = comp.company.name; s.attIn = e?.inAt; s.attOut = e?.outAt
+            s.attDutyEnd = Att.at(Att.dutyEnd(mine.member, comp.company), on: .now)
+            if let i = e?.inAt, e?.outAt == nil, let end = s.attDutyEnd, end > .now {
+                LiveActivities.start(kind: "shift", icon: "person.badge.clock.fill", tint: "11998E", title: "On duty · \(comp.company.name)",
+                                     detail: "In since \(i.formatted(date: .omitted, time: .shortened))", end: end)
+            } else {
+                LiveActivities.end(kind: "shift")
+            }
+        } else {
+            LiveActivities.end(kind: "shift")
+        }
+        if let comp = companies.first(where: { $0.id == current && $0.company.isStaff(me) }) ?? companies.first(where: { $0.company.isStaff(me) }) {
+            let cid = comp.id
+            let members = all.filter { $0.kind == "member" && $0.companyID == cid && $0.member.active }
+            let ins = Set(((try? context.fetch(FetchDescriptor<AttRecord>(predicate: #Predicate { $0.kind == "entry" && $0.companyID == cid && $0.day == today && !$0.deleted }))) ?? [])
+                .filter { $0.entry.inAt != nil }.map(\.memberID))
+            s.attPresent = members.filter { ins.contains($0.id) }.count
+            s.attTotal = members.count
+            if s.attCompany == nil { s.attCompany = comp.company.name }
         }
     }
 }

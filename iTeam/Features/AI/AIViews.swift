@@ -293,6 +293,22 @@ enum AIContext {
         }
         if !bizLines.isEmpty { out.append("Business items today:\n" + bizLines.prefix(15).joined(separator: "\n")) }
 
+        // Attendance: my punch today; for owners/admins, today's head count and pending approvals.
+        let att = ((try? ctx.fetch(FetchDescriptor<AttRecord>(predicate: #Predicate { !$0.deleted }))) ?? [])
+        let todayKey = Att.key(.now)
+        if let mine = att.first(where: { $0.kind == "member" && $0.member.userID == me && $0.member.accepted == true }),
+           let comp = att.first(where: { $0.id == mine.companyID }) {
+            let e = att.first { $0.kind == "entry" && $0.memberID == mine.id && $0.day == todayKey }?.entry
+            out.append("Attendance (\(comp.company.name)): duty \(Att.clock(Att.dutyStart(mine.member, comp.company)))–\(Att.clock(Att.dutyEnd(mine.member, comp.company))); " +
+                       (e?.inAt.map { "punched in \($0.formatted(date: .omitted, time: .shortened))" + (e?.outAt.map { ", out \($0.formatted(date: .omitted, time: .shortened))" } ?? "") } ?? "not punched in yet"))
+        }
+        for comp in att.filter({ $0.kind == "company" && $0.company.isStaff(me) }) {
+            let members = att.filter { $0.kind == "member" && $0.companyID == comp.id && $0.member.active }
+            let ins = Set(att.filter { $0.kind == "entry" && $0.companyID == comp.id && $0.day == todayKey && $0.entry.inAt != nil }.map(\.memberID))
+            let pendingLeaves = att.filter { $0.kind == "leave" && $0.companyID == comp.id && $0.status == "pending" }.count
+            out.append("Attendance \(comp.company.name): \(members.filter { ins.contains($0.id) }.count) of \(members.count) punched in today; \(pendingLeaves) leave request(s) waiting")
+        }
+
         let sessions = ((try? ctx.fetch(FetchDescriptor<GymSession>(predicate: #Predicate { !$0.deleted && $0.date >= start }))) ?? [])
         if !sessions.isEmpty { out.append("Training sessions logged today: " + sessions.map { members[$0.memberID] ?? "" }.joined(separator: ", ")) }
 

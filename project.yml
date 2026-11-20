@@ -48,9 +48,9 @@ targets:
         NSSupportsLiveActivities: true
         ITSAppUsesNonExemptEncryption: false   # see README → Export compliance before App Store release
         NSFaceIDUsageDescription: iTeam uses Face ID to keep your chats and tasks private.
-        NSCameraUsageDescription: iTeam uses the camera to scan a contact's invite QR code and to take photos for chats.
+        NSCameraUsageDescription: iTeam uses the camera to scan invite and attendance QR codes, take attendance selfies and photos for chats.
         NSMicrophoneUsageDescription: iTeam uses the microphone to record voice notes you send in chats.
-        NSLocationWhenInUseUsageDescription: iTeam uses your location for Check In, to find places and estimate when you'll arrive.
+        NSLocationWhenInUseUsageDescription: iTeam uses your location for Check In, to find places and estimate when you'll arrive, and to confirm you're at the office when you punch in for attendance.
         NSLocationAlwaysAndWhenInUseUsageDescription: With Always, iTeam can tell the person you checked in with that you arrived, even when iTeam is closed.
         NSHealthShareUsageDescription: iTeam reads your steps, workouts, heart rate, sleep and weight from Apple Health for the Gym & Training module.
         NSHealthUpdateUsageDescription: iTeam saves your workouts, meals, water and weight to Apple Health so all your apps stay in sync.

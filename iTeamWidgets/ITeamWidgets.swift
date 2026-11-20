@@ -247,6 +247,64 @@ struct CareWidgetView: View {
     }
 }
 
+// MARK: - Attendance
+
+struct AttendanceWidget: Widget {
+    var body: some WidgetConfiguration {
+        StaticConfiguration(kind: "iteam.attendance", provider: SnapProvider()) { e in
+            AttendanceWidgetView(s: e.snap)
+                .containerBackground(LinearGradient(colors: [Color(red: 0.07, green: 0.6, blue: 0.56), Color(red: 0.22, green: 0.94, blue: 0.49)], startPoint: .topLeading, endPoint: .bottomTrailing), for: .widget)
+                .widgetURL(URL(string: "iteam://open/attendance"))
+        }
+        .configurationDisplayName("Attendance")
+        .description("Your punch in/out today, or who's present for the owner.")
+        .supportedFamilies([.systemSmall, .accessoryCircular, .accessoryRectangular, .accessoryInline])
+    }
+}
+
+struct AttendanceWidgetView: View {
+    let s: WidgetSnapshot
+    @Environment(\.widgetFamily) private var family
+    private var mine: String {
+        if let o = s.attOut { return "Out \(time(o))" }
+        if let i = s.attIn { return "In \(time(i))" }
+        return s.attDutyEnd == nil ? "" : "Not punched in"
+    }
+    var body: some View {
+        switch family {
+        case .accessoryInline:
+            Text(s.attPresent != nil && s.attIn == nil ? "🕘 \(s.attPresent ?? 0)/\(s.attTotal ?? 0) present" : "🕘 \(mine)")
+        case .accessoryCircular:
+            if let p = s.attPresent, let t = s.attTotal, t > 0 {
+                Gauge(value: Double(p), in: 0...Double(t)) { Image(systemName: "person.badge.clock.fill") } currentValueLabel: { Text("\(p)") }
+                    .gaugeStyle(.accessoryCircular)
+            } else {
+                ZStack { AccessoryWidgetBackground(); Image(systemName: s.attIn == nil ? "arrow.right.circle" : "checkmark.circle.fill").font(.title2) }
+            }
+        case .accessoryRectangular:
+            VStack(alignment: .leading) {
+                Label(s.attCompany ?? "Attendance", systemImage: "person.badge.clock.fill").font(.caption2.bold())
+                if !mine.isEmpty { Text(mine).font(.caption) }
+                if let p = s.attPresent, let t = s.attTotal { Text("\(p) of \(t) present").font(.caption2) }
+            }
+        default:
+            VStack(alignment: .leading, spacing: 4) {
+                Label("Attendance", systemImage: "person.badge.clock.fill").font(.caption.bold())
+                Spacer(minLength: 0)
+                if let p = s.attPresent, let t = s.attTotal, s.attIn == nil {
+                    Text("\(p)/\(t)").font(.system(size: 34, weight: .bold, design: .rounded))
+                    Text("present today").font(.caption2)
+                } else {
+                    Text(mine.isEmpty ? "—" : mine).font(.title3.bold())
+                    if let c = s.attCompany { Text(c).font(.caption2).lineLimit(1) }
+                }
+            }
+            .foregroundStyle(.white)
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+    }
+}
+
 // MARK: - Gym & Mind
 
 struct GymWidget: Widget {
@@ -372,6 +430,7 @@ struct ITeamWidgetBundle: WidgetBundle {
         GymWidget()
         MindWidget()
         UpcomingWidget()
+        AttendanceWidget()
         SafetyWidget()
         ITeamLiveActivity()
     }

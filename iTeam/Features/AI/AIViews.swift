@@ -271,6 +271,18 @@ enum AIContext {
         if !plans.isEmpty {
             out.append("Gym memberships ending soon: " + plans.map { "\(members[$0.memberID] ?? "") at \($0.gymName) in \($0.daysLeft) days" }.joined(separator: "; "))
         }
+        // Meetings and events today
+        let meetingsToday = ((try? ctx.fetch(FetchDescriptor<Meeting>(predicate: #Predicate { !$0.deleted && $0.status == "scheduled" }))) ?? [])
+            .filter { $0.start >= start && $0.start < end && ($0.isAdmin(me) || $0.expected.contains(me)) }
+        if !meetingsToday.isEmpty {
+            out.append("Meetings today:\n" + meetingsToday.map { "- \($0.start.formatted(date: .omitted, time: .shortened)) \($0.title) (\($0.online ? "online" : $0.place))\($0.agenda.isEmpty ? "" : " — agenda: " + $0.agenda.joined(separator: "; "))" }.joined(separator: "\n"))
+        }
+        let eventsToday = ((try? ctx.fetch(FetchDescriptor<InviteEvent>(predicate: #Predicate { !$0.deleted }))) ?? [])
+            .filter { $0.start >= start && $0.start < end && $0.rsvps[me] != "no" }
+        if !eventsToday.isEmpty {
+            out.append("Events today: " + eventsToday.map { "\($0.title) at \($0.start.formatted(date: .omitted, time: .shortened))" }.joined(separator: "; "))
+        }
+
         // Business modules: hearings, appointments, fees and bills for today / overdue
         let biz = ((try? ctx.fetch(FetchDescriptor<BizRecord>(predicate: #Predicate { !$0.deleted }))) ?? []).filter { $0.ownerID == me || $0.subjectID == me }
         let bizLines: [String] = biz.compactMap { r in

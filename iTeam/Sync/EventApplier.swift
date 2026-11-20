@@ -300,6 +300,7 @@ struct EventApplier {
             let cid = c.id
             if let prof = try? ctx.fetch(FetchDescriptor<CareProfile>(predicate: #Predicate { $0.id == cid })).first {
                 guard c.at > prof.updatedAt else { return .ignored }
+                if c.deleted && !prof.deleted && e.from != prof.createdBy { return .ignored }   // only the creator deletes
                 fillProfile(prof, c)
             } else {
                 let prof = CareProfile(id: c.id, convID: conv.id, name: c.name, createdBy: e.from)
@@ -316,6 +317,7 @@ struct EventApplier {
             let prof = careProfile(m.profileID)
             if let med = try? ctx.fetch(FetchDescriptor<Medicine>(predicate: #Predicate { $0.id == mid })).first {
                 guard m.at > med.updatedAt else { return .ignored }
+                if m.deleted && !med.deleted && e.from != med.addedBy { return .ignored }
                 fillMedicine(med, m)
             } else {
                 let med = Medicine(id: m.id, profileID: m.profileID, name: m.name, addedBy: e.from)
@@ -351,6 +353,7 @@ struct EventApplier {
             let prof = careProfile(h.profileID)
             if let ev = try? ctx.fetch(FetchDescriptor<HealthEvent>(predicate: #Predicate { $0.id == hid })).first {
                 guard h.at > ev.updatedAt else { return .ignored }
+                if h.deleted && !ev.deleted && e.from != ev.createdBy { return .ignored }
                 fillEvent(ev, h, from: e.from)
                 if !local && e.from != me, let prof {
                     let what = h.deleted ? "removed" : (h.status == "recovered" ? "marked recovered" : "updated (\(h.recovery)% recovered)")
@@ -369,6 +372,7 @@ struct EventApplier {
         case .vault(let v):
             let vid = v.id
             if let item = try? ctx.fetch(FetchDescriptor<VaultItem>(predicate: #Predicate { $0.id == vid })).first {
+                if v.deleted && !item.deleted && e.from != item.addedBy { return .ignored }
                 item.deleted = v.deleted
                 item.title = v.title
                 item.category = v.category
@@ -387,6 +391,7 @@ struct EventApplier {
             let gid = g.id
             let existing = try? ctx.fetch(FetchDescriptor<GymMember>(predicate: #Predicate { $0.id == gid })).first
             if let existing, g.at <= existing.updatedAt { return .ignored }
+            if let existing, g.deleted, !existing.deleted, e.from != existing.createdBy { return .ignored }
             let m = existing ?? GymMember(id: g.id, convID: conv.id, name: g.name, createdBy: e.from)
             if existing == nil {
                 m.createdAt = e.at
@@ -403,6 +408,7 @@ struct EventApplier {
             let gid = g.id
             let existing = try? ctx.fetch(FetchDescriptor<GymPlan>(predicate: #Predicate { $0.id == gid })).first
             if let existing, g.at <= existing.updatedAt { return .ignored }
+            if let existing, g.deleted, !existing.deleted, e.from != gymMember(g.memberID)?.createdBy { return .ignored }
             let p = existing ?? GymPlan(id: g.id, memberID: g.memberID)
             if existing == nil {
                 ctx.insert(p)
@@ -417,6 +423,7 @@ struct EventApplier {
             let gid = g.id
             let existing = try? ctx.fetch(FetchDescriptor<GymSession>(predicate: #Predicate { $0.id == gid })).first
             if let existing, g.at <= existing.updatedAt { return .ignored }
+            if let existing, g.deleted, !existing.deleted, e.from != existing.by, e.from != gymMember(g.memberID)?.createdBy { return .ignored }
             let s = existing ?? GymSession(id: g.id, memberID: g.memberID)
             if existing == nil {
                 s.by = e.from
@@ -431,6 +438,7 @@ struct EventApplier {
             let gid = g.id
             let existing = try? ctx.fetch(FetchDescriptor<GymPayment>(predicate: #Predicate { $0.id == gid })).first
             if let existing, g.at <= existing.updatedAt { return .ignored }
+            if let existing, g.deleted, !existing.deleted, e.from != existing.by, e.from != gymMember(g.memberID)?.createdBy { return .ignored }
             let p = existing ?? GymPayment(id: g.id, memberID: g.memberID)
             if existing == nil {
                 p.by = e.from

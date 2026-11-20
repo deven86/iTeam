@@ -20,6 +20,8 @@ import Charts
     var moodAfter: Int = 0
     var completed: Bool = true
     var note: String = ""
+    var deleted: Bool = false
+    var deletedAt: Date? = nil
     init(date: Date = .now, sessionID: String, title: String, minutes: Double) {
         self.date = date; self.sessionID = sessionID; self.title = title; self.minutes = minutes
     }
@@ -32,6 +34,8 @@ import Charts
     var language: String = "en"
     var created: Date = Date.now
     var stepsJSON: String = ""
+    var deleted: Bool = false
+    var deletedAt: Date? = nil
     init(title: String, language: String, stepsJSON: String) { self.title = title; self.language = language; self.stepsJSON = stepsJSON }
 
     var steps: [CustomStep] { (try? JSONDecoder().decode([CustomStep].self, from: Data(stepsJSON.utf8))) ?? [] }

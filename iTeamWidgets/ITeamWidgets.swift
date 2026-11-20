@@ -39,6 +39,91 @@ private let brand = LinearGradient(colors: [Color(red: 1, green: 0.6, blue: 0.35
 
 private func time(_ d: Date?) -> String { d.map { $0.formatted(date: .omitted, time: .shortened) } ?? "" }
 
+// MARK: - Upcoming (meetings, events, trips, school events)
+
+struct UpcomingWidget: Widget {
+    var body: some WidgetConfiguration {
+        StaticConfiguration(kind: "iteam.upcoming", provider: SnapProvider()) { e in
+            UpcomingWidgetView(s: e.snap).containerBackground(brand, for: .widget)
+                .widgetURL(URL(string: "iteam://open/\(e.snap.upcoming.first?.tab ?? "meetings")"))
+        }
+        .configurationDisplayName("Upcoming")
+        .description("Your next meetings, events, trips and school events.")
+        .supportedFamilies([.systemSmall, .systemMedium, .systemLarge, .accessoryRectangular, .accessoryInline])
+    }
+}
+
+struct UpcomingWidgetView: View {
+    let s: WidgetSnapshot
+    @Environment(\.widgetFamily) private var family
+    private func when(_ d: Date) -> String {
+        Calendar.current.isDateInToday(d) ? d.formatted(date: .omitted, time: .shortened)
+            : d.formatted(.dateTime.weekday(.abbreviated).hour().minute())
+    }
+    var body: some View {
+        switch family {
+        case .accessoryInline:
+            if let n = s.upcoming.first { Text("\(when(n.at)) \(n.title)") } else { Text("Nothing coming up") }
+        case .accessoryRectangular:
+            if let n = s.upcoming.first {
+                VStack(alignment: .leading) {
+                    Label(n.title, systemImage: n.icon).font(.headline).lineLimit(1)
+                    Text(when(n.at)).font(.caption)
+                    Text(n.detail).font(.caption2).lineLimit(1)
+                }
+            } else { Text("Nothing coming up").font(.caption) }
+        default:
+            let n = family == .systemSmall ? 2 : family == .systemMedium ? 3 : 7
+            VStack(alignment: .leading, spacing: 6) {
+                Text("Upcoming").font(.caption.bold()).foregroundStyle(.white.opacity(0.85))
+                if s.upcoming.isEmpty { Text("Nothing coming up").font(.subheadline).foregroundStyle(.white) }
+                ForEach(s.upcoming.prefix(n), id: \.self) { u in
+                    HStack(spacing: 6) {
+                        Image(systemName: u.icon).font(.caption).frame(width: 16)
+                        VStack(alignment: .leading, spacing: 0) {
+                            Text(u.title).font(.caption.bold()).lineLimit(1)
+                            Text("\(when(u.at)) · \(u.detail)").font(.caption2).opacity(0.85).lineLimit(1)
+                        }
+                    }
+                    .foregroundStyle(.white)
+                }
+                Spacer(minLength: 0)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+    }
+}
+
+// MARK: - Safety (one tap to the SOS screen)
+
+struct SafetyWidget: Widget {
+    var body: some WidgetConfiguration {
+        StaticConfiguration(kind: "iteam.safety", provider: SnapProvider()) { _ in
+            SafetyWidgetView()
+                .containerBackground(LinearGradient(colors: [.red, Color(red: 0.7, green: 0.07, blue: 0.09)], startPoint: .top, endPoint: .bottom), for: .widget)
+                .widgetURL(URL(string: "iteam://open/safety"))
+        }
+        .configurationDisplayName("SOS")
+        .description("Opens Family Safety — hold SOS to alert your emergency chats.")
+        .supportedFamilies([.systemSmall, .accessoryCircular])
+    }
+}
+
+struct SafetyWidgetView: View {
+    @Environment(\.widgetFamily) private var family
+    var body: some View {
+        if family == .accessoryCircular {
+            ZStack { AccessoryWidgetBackground(); Text("SOS").font(.headline.bold()) }
+        } else {
+            VStack(spacing: 6) {
+                Image(systemName: "sos.circle.fill").font(.system(size: 44))
+                Text("Family Safety").font(.caption.bold())
+            }
+            .foregroundStyle(.white)
+        }
+    }
+}
+
 // MARK: - My Day
 
 struct MyDayWidget: Widget {
@@ -286,6 +371,8 @@ struct ITeamWidgetBundle: WidgetBundle {
         CareWidget()
         GymWidget()
         MindWidget()
+        UpcomingWidget()
+        SafetyWidget()
         ITeamLiveActivity()
     }
 }

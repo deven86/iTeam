@@ -59,7 +59,7 @@ enum WidgetSync {
         s.hasGym = !((try? context.fetch(FetchDescriptor<GymMember>(predicate: #Predicate { !$0.deleted }))) ?? []).isEmpty
 
         // Mind
-        let logs = (try? context.fetch(FetchDescriptor<MeditationLog>())) ?? []
+        let logs = ((try? context.fetch(FetchDescriptor<MeditationLog>())) ?? []).filter { !$0.deleted }
         s.mindMinutesToday = Int(logs.filter { cal.isDateInToday($0.date) }.reduce(0) { $0 + $1.minutes })
         s.mindStreak = MindStats.streak(logs.map(\.date))
         s.hasMind = ModuleRegistry.shared.isOn(ModuleRegistry.mindfulness)
@@ -75,6 +75,27 @@ enum WidgetSync {
         } else {
             LiveActivities.end(kind: "task")
         }
+        // Upcoming: meetings, events, trips and other dated module items.
+        var up: [WidgetSnapshot.Upcoming] = []
+        let convIDs = Set(((try? context.fetch(FetchDescriptor<Conversation>())) ?? []).filter { !$0.left }.map(\.id))
+        for m in ((try? context.fetch(FetchDescriptor<Meeting>(predicate: #Predicate { !$0.deleted && $0.status == "scheduled" }))) ?? [])
+        where m.end > .now && (m.isAdmin(me) || m.expected.contains(me)) {
+            up.append(.init(title: m.title, detail: m.online ? "Online meeting" : (m.place.isEmpty ? "Meeting" : m.place), at: m.start, icon: m.online ? "video.fill" : "person.3.fill", tab: "meetings"))
+        }
+        for ev in ((try? context.fetch(FetchDescriptor<InviteEvent>(predicate: #Predicate { !$0.deleted }))) ?? [])
+        where ev.end > .now && convIDs.contains(ev.convID) && ev.rsvps[me] != "no" {
+            up.append(.init(title: ev.title, detail: ev.place.isEmpty ? "Event" : ev.place, at: ev.start, icon: "party.popper.fill", tab: "events"))
+        }
+        let bizAll = (try? context.fetch(FetchDescriptor<BizRecord>(predicate: #Predicate { !$0.deleted }))) ?? []
+        for r in bizAll where (r.ownerID == me || r.subjectID == me || !r.convID.isEmpty) {
+            guard let spec = BizSpecs.spec(r.module), let k = spec.kind(r.kind), let d = r.date, d > .now, d < .now.addingTimeInterval(14 * 86400) else { continue }
+            if k.doneStatuses.contains(r.status) { continue }
+            if !(k.id == "trip" || !k.statuses.isEmpty) { continue }
+            let parent = bizAll.first { $0.id == r.parentID }?.title ?? ""
+            up.append(.init(title: r.title.isEmpty ? k.label : r.title, detail: [spec.title, parent].filter { !$0.isEmpty }.joined(separator: " · "), at: d, icon: k.icon, tab: spec.tab.rawValue))
+        }
+        s.upcoming = Array(up.sorted { $0.at < $1.at }.prefix(8))
+
         // Business modules: hearing / appointment in the next hour → Live Activity.
         let biz = (try? context.fetch(FetchDescriptor<BizRecord>(predicate: #Predicate { !$0.deleted }))) ?? []
         let soonBiz = biz.filter { r in

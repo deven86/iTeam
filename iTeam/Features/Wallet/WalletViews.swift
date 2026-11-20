@@ -22,6 +22,8 @@ final class WalletDoc {
     @Attribute(.externalStorage) var back: Data? = nil
     @Attribute(.externalStorage) var pdf: Data? = nil
     var createdAt: Date = Date.now
+    var deleted: Bool = false
+    var deletedAt: Date? = nil
 
     init(kind: String) { self.kind = kind }
 }
@@ -59,7 +61,7 @@ enum WalletKind: String, CaseIterable, Identifiable {
 struct WalletView: View {
     @Environment(\.modelContext) private var ctx
     @Environment(\.look) private var look
-    @Query(sort: \WalletDoc.createdAt, order: .reverse) private var docs: [WalletDoc]
+    @Query(filter: #Predicate<WalletDoc> { !$0.deleted }, sort: \WalletDoc.createdAt, order: .reverse) private var docs: [WalletDoc]
     @State private var unlocked = false
     @State private var adding: WalletKind?
 
@@ -77,7 +79,7 @@ struct WalletView: View {
                             .listRowBackground(Color.clear)
                             .listRowSeparator(.hidden)
                     }
-                    .onDelete { idx in idx.map { docs[$0] }.forEach { WalletReminders.cancel($0); ctx.delete($0) }; try? ctx.save() }
+                    .onDelete { idx in idx.map { docs[$0] }.forEach { WalletReminders.cancel($0); $0.deleted = true; $0.deletedAt = .now }; try? ctx.save() }
                 }
                 .listStyle(.plain)
             } else {

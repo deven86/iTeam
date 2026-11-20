@@ -9,8 +9,8 @@ import UserNotifications
 struct MindSection: View {
     @Environment(\.modelContext) private var context
     @Environment(\.look) private var look
-    @Query(sort: \MeditationLog.date, order: .reverse) private var logs: [MeditationLog]
-    @Query(sort: \CustomMeditation.created, order: .reverse) private var custom: [CustomMeditation]
+    @Query(filter: #Predicate<MeditationLog> { !$0.deleted }, sort: \MeditationLog.date, order: .reverse) private var logs: [MeditationLog]
+    @Query(filter: #Predicate<CustomMeditation> { !$0.deleted }, sort: \CustomMeditation.created, order: .reverse) private var custom: [CustomMeditation]
     @ObservedObject private var ai = AISettings.shared
     @State private var category: MCategory?
     @State private var chosen: MeditationScript?
@@ -106,7 +106,7 @@ struct MindSection: View {
                 Text("My sessions").font(.headline)
                 ForEach(custom) { c in
                     SessionRow(script: c.script) { chosen = c.script }
-                        .contextMenu { Button("Delete", systemImage: "trash", role: .destructive) { context.delete(c); try? context.save() } }
+                        .contextMenu { Button("Delete", systemImage: "trash", role: .destructive) { c.deleted = true; c.deletedAt = .now; try? context.save() } }
                 }
             }
 
@@ -563,7 +563,7 @@ struct AIMeditationSheet: View {
 
 struct MindHistoryView: View {
     @Environment(\.modelContext) private var context
-    @Query(sort: \MeditationLog.date, order: .reverse) private var logs: [MeditationLog]
+    @Query(filter: #Predicate<MeditationLog> { !$0.deleted }, sort: \MeditationLog.date, order: .reverse) private var logs: [MeditationLog]
 
     private var historyText: String {
         logs.prefix(200).map { "\($0.date.formatted(date: .abbreviated, time: .shortened)) · \($0.title) · \(Int($0.minutes.rounded())) min" }
@@ -614,7 +614,7 @@ struct MindHistoryView: View {
                             .labelStyle(.iconOnly).font(.caption)
                     }
                     .glassCard(cornerRadius: 16, padding: 12)
-                    .contextMenu { Button("Delete", systemImage: "trash", role: .destructive) { context.delete(l); try? context.save() } }
+                    .contextMenu { Button("Delete", systemImage: "trash", role: .destructive) { l.deleted = true; l.deletedAt = .now; try? context.save() } }
                 }
             }
             .padding()

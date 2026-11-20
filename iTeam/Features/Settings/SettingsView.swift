@@ -143,6 +143,7 @@ struct SettingsView: View {
 
                 Section {
                     NavigationLink { WalletView() } label: { Label("Personal Wallet", systemImage: "wallet.pass.fill") }
+                    NavigationLink { ArchiveView() } label: { Label("Archive (deleted items)", systemImage: "archivebox") }
                     NavigationLink { BackupView() } label: {
                         Label {
                             HStack {

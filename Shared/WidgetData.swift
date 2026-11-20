@@ -31,6 +31,9 @@ struct WidgetSnapshot: Codable {
     var hasCare = false
     var hasGym = false
     var hasMind = false
+    // Meetings, events, trips, kids' school events — the next few things on the calendar.
+    struct Upcoming: Codable, Hashable { var title: String; var detail: String; var at: Date; var icon: String; var tab: String }
+    var upcoming: [Upcoming] = []
 
     static let key = "widget.snapshot"
 

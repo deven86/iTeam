@@ -38,7 +38,6 @@ struct RootView: View {
         if modules.isOn(ModuleRegistry.events) || invitedToEvents { a.append(.events) }
         if modules.isOn(ModuleRegistry.travel) || sharedBiz.contains("travel") { a.append(.travel) }
         if modules.isOn(ModuleRegistry.rooms) { a.append(.rooms) }
-        if modules.isOn(ModuleRegistry.doctorPatient) || !rxToReview.isEmpty { a.append(.doctor) }
         if modules.isOn(ModuleRegistry.safety) { a.append(.safety) }
         if modules.isOn(ModuleRegistry.bills) { a.append(.bills) }
         if modules.isOn(ModuleRegistry.kids) || sharedBiz.contains("kids") { a.append(.kids) }
@@ -153,6 +152,7 @@ struct RootView: View {
         Tab("Care", systemImage: "heart.text.square.fill", value: Router.TabID.care) {
             CareHomeView()
         }
+        .badge(rxToReview.count)
         .hidden(!inBar.contains(.care))
 
         Tab("Gym", systemImage: "dumbbell.fill", value: Router.TabID.gym) {

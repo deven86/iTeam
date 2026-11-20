@@ -264,6 +264,10 @@ struct ContactInfoView: View {
                 Section("About") { Text(about) }.lookRows()
             }
 
+            if let peer = conv.peerID {
+                PersonMeetingsSection(personID: peer)
+            }
+
             if !commonGroups.isEmpty {
                 Section("\(commonGroups.count) group\(commonGroups.count == 1 ? "" : "s") in common") {
                     ForEach(showAllGroups ? commonGroups : Array(commonGroups.prefix(3))) { g in

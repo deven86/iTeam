@@ -90,6 +90,7 @@ struct BizHomeView: View {
     @State private var adding = false
     @State private var editing: BizRecord?
     @State private var shareItems: ShareItems?
+    @State private var showArchive = false
 
     /// Whole-module report: every person / item with its balance and entries.
     private var reportHTML: String {
@@ -157,12 +158,16 @@ struct BizHomeView: View {
             .toolbar {
                 ToolbarItem(placement: .primaryAction) { Button { adding = true } label: { Image(systemName: "plus") } }
                 ToolbarItem(placement: .secondaryAction) {
+                    Button("Archive (deleted)", systemImage: "archivebox") { showArchive = true }
+                }
+                ToolbarItem(placement: .secondaryAction) {
                     Button("Export report (PDF)", systemImage: "doc.richtext") {
                         if let url = PDFMaker.make(title: spec.title, bodyHTML: reportHTML, fileName: spec.title + " report") { shareItems = ShareItems(items: [url]) }
                     }
                 }
             }
             .shareSheet($shareItems)
+            .sheet(isPresented: $showArchive) { NavigationStack { BizArchiveView(spec: spec) } }
             .refreshable { await engine.sync() }
             .sheet(isPresented: $adding) {
                 NavigationStack { BizEditor(spec: spec, kind: spec.parent ?? spec.children[0], parent: nil, existing: nil) }
@@ -488,6 +493,31 @@ struct BizLinkChat: View {
         }
         .navigationTitle("Share with")
         .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } } }
+    }
+}
+
+/// Deleted records are never erased: they stay here, marked who deleted them and when.
+struct BizArchiveView: View {
+    let spec: BizSpec
+    @EnvironmentObject var engine: SyncEngine
+    @Environment(\.dismiss) private var dismiss
+    @Query(filter: #Predicate<BizRecord> { $0.deleted }, sort: \BizRecord.updatedAt, order: .reverse) private var deleted: [BizRecord]
+    @Query(sort: \BizRecord.title) private var everything: [BizRecord]
+
+    var body: some View {
+        let list = deleted.filter { $0.module == spec.module && ($0.ownerID == engine.me || $0.subjectID == engine.me || !$0.convID.isEmpty) }
+        List {
+            if list.isEmpty { Text("Nothing deleted.").foregroundStyle(.secondary) }
+            ForEach(list) { r in
+                VStack(alignment: .leading, spacing: 3) {
+                    BizRow(record: r, spec: spec, showParent: true)
+                    Text("Deleted by \(r.deletedBy.isEmpty ? engine.name(of: r.ownerID) : (r.deletedBy == engine.me ? "you" : engine.name(of: r.deletedBy))) · \(r.updatedAt.formatted(date: .abbreviated, time: .shortened))")
+                        .font(.caption2).foregroundStyle(.red)
+                }
+            }
+        }
+        .navigationTitle("Archive")
+        .toolbar { Button("Done") { dismiss() } }
     }
 }
 

@@ -402,13 +402,9 @@ struct ChatView: View {
                         Button("Meeting", systemImage: "person.3.fill") { showMeeting = true }
                         Button("Request approval", systemImage: "checkmark.seal") { showApproval = true }
                     }
-                    if !conv.isDemo {
-                        Button("Check In", systemImage: "location.circle") { showCheckIn = true }
-                        Button("Event invite", systemImage: "party.popper") { showEvent = true }
-                    }
-                    if !conv.isGroup, let peer = conv.peerID, peer != engine.me {
-                        Button("Prescription (doctor)", systemImage: "stethoscope") { showRx = true }
-                    }
+                    Button("Check In", systemImage: "location.circle") { showCheckIn = true }
+                    Button("Event invite", systemImage: "party.popper") { showEvent = true }
+                    Button("✨ Magic moment (send later)", systemImage: "sparkles") { magicOpen = true }
                 } label: {
                     Image(systemName: "plus").font(.title3.weight(.semibold))
                         .frame(width: 40, height: 40)

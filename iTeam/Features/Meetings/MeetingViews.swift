@@ -44,7 +44,8 @@ enum MeetingReminders {
 struct MeetingsHomeView: View {
     @EnvironmentObject var engine: SyncEngine
     @Environment(\.look) private var look
-    @Query(filter: #Predicate<Meeting> { !$0.deleted }, sort: \Meeting.start) private var meetings: [Meeting]
+    @Query(sort: \Meeting.start) private var everything: [Meeting]
+    private var meetings: [Meeting] { everything.filter { !$0.deleted } }
     @State private var creating = false
     @State private var shareItems: ShareItems?
 
@@ -74,6 +75,20 @@ struct MeetingsHomeView: View {
                 }
                 if !past.isEmpty {
                     Section("Past") { ForEach(past.prefix(30)) { m in link(m) } }.lookRows()
+                }
+                let archived = everything.filter(\.deleted)
+                if !archived.isEmpty {
+                    Section("Archive — cancelled") {
+                        ForEach(archived.reversed()) { m in
+                            NavigationLink { MeetingDetailView(meetingID: m.id) } label: {
+                                VStack(alignment: .leading) {
+                                    MeetingRow(meeting: m)
+                                    Text("Cancelled by \(engine.name(of: m.createdBy)) · \(m.updatedAt.formatted(date: .abbreviated, time: .shortened))").font(.caption2).foregroundStyle(.secondary)
+                                }
+                            }
+                        }
+                    }
+                    .lookRows()
                 }
             }
             .lookScreen()
@@ -418,7 +433,9 @@ struct MeetingDetailView: View {
                 Button("Edit meeting", systemImage: "pencil") { editing = true }
                 if m.status == "scheduled" {
                     Button("Mark as done", systemImage: "checkmark.seal") { update(m) { $0.status = "done" } }
-                    Button("Cancel meeting", systemImage: "xmark.circle", role: .destructive) { update(m) { $0.status = "cancelled"; $0.deleted = true } }
+                    if m.createdBy == engine.me {
+                        Button("Cancel meeting", systemImage: "xmark.circle", role: .destructive) { update(m) { $0.status = "cancelled"; $0.deleted = true } }
+                    }
                 }
             }
         }
@@ -523,6 +540,33 @@ struct TaskMeetingsRow: View {
             if let cid = task.convID, let conv = engine.conversation(cid) {
                 NavigationStack { MeetingEditor(conv: conv, taskID: task.id) }
             }
+        }
+    }
+}
+
+
+/// On a person's profile: meetings they attend or run, now and upcoming.
+struct PersonMeetingsSection: View {
+    let personID: String
+    @EnvironmentObject var engine: SyncEngine
+    @Query(filter: #Predicate<Meeting> { !$0.deleted && $0.status == "scheduled" }, sort: \Meeting.start) private var meetings: [Meeting]
+
+    var body: some View {
+        let list = meetings.filter { m in
+            m.end >= .now && (m.expected.contains(personID) || m.isAdmin(personID)) && (m.expected.contains(engine.me) || m.isAdmin(engine.me))
+        }
+        if !list.isEmpty {
+            Section("Meetings") {
+                ForEach(list) { m in
+                    NavigationLink { MeetingDetailView(meetingID: m.id) } label: {
+                        HStack {
+                            MeetingRow(meeting: m)
+                            if m.start <= .now { Text("Now").font(.caption2.bold()).foregroundStyle(.white).padding(.horizontal, 6).padding(.vertical, 2).background(.red, in: Capsule()) }
+                        }
+                    }
+                }
+            }
+            .lookRows()
         }
     }
 }

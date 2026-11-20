@@ -5,7 +5,8 @@ import SwiftData
 struct DoctorHomeView: View {
     @EnvironmentObject var engine: SyncEngine
     @Environment(\.look) private var look
-    @Query(filter: #Predicate<Prescription> { !$0.deleted }, sort: \Prescription.createdAt, order: .reverse) private var all: [Prescription]
+    @Query(sort: \Prescription.createdAt, order: .reverse) private var everything: [Prescription]
+    private var all: [Prescription] { everything.filter { !$0.deleted } }
     @State private var writing = false
     @State private var shareItems: ShareItems?
 
@@ -33,6 +34,20 @@ struct DoctorHomeView: View {
                 if !received.isEmpty {
                     Section("From my doctors") {
                         ForEach(received) { rx in NavigationLink { PrescriptionView(rxID: rx.id) } label: { RxRow(rx: rx, mine: false) } }
+                    }
+                    .lookRows()
+                }
+                let archived = everything.filter { $0.deleted && ($0.doctorID == engine.me || $0.patientID == engine.me) }
+                if !archived.isEmpty {
+                    Section("Archive — cancelled") {
+                        ForEach(archived) { rx in
+                            NavigationLink { PrescriptionView(rxID: rx.id) } label: {
+                                VStack(alignment: .leading) {
+                                    RxRow(rx: rx, mine: rx.doctorID == engine.me)
+                                    Text("Cancelled by Dr. \(engine.name(of: rx.doctorID)) · \(rx.updatedAt.formatted(date: .abbreviated, time: .shortened))").font(.caption2).foregroundStyle(.red)
+                                }
+                            }
+                        }
                     }
                     .lookRows()
                 }
@@ -328,5 +343,28 @@ struct PrescriptionView: View {
         if !rx.advice.isEmpty { h += "<p><b>Advice:</b> \(e(rx.advice))</p>" }
         if let v = rx.nextVisit { h += "<p><b>Next visit:</b> \(v.formatted(date: .long, time: .shortened))</p>" }
         return h
+    }
+}
+
+
+/// Prescriptions live inside Care: patients review and accept here; doctors write them here.
+struct CarePrescriptionsSection: View {
+    @EnvironmentObject var engine: SyncEngine
+    @Query(filter: #Predicate<Prescription> { !$0.deleted }, sort: \Prescription.createdAt, order: .reverse) private var all: [Prescription]
+    @State private var writing = false
+
+    var body: some View {
+        let toReview = all.filter { $0.patientID == engine.me && $0.status == "waiting" }
+        Section {
+            ForEach(toReview) { rx in
+                NavigationLink { PrescriptionView(rxID: rx.id) } label: { RxRow(rx: rx, mine: false) }
+            }
+            NavigationLink { DoctorHomeView() } label: {
+                Label("Prescriptions (\(all.count))", systemImage: "list.clipboard")
+            }
+            Button("Write a prescription (for doctors)", systemImage: "stethoscope") { writing = true }
+        } header: { Text(toReview.isEmpty ? "Prescriptions" : "Prescriptions to review (\(toReview.count))") }
+        .lookRows()
+        .sheet(isPresented: $writing) { NavigationStack { PickPatientView() } }
     }
 }

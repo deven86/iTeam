@@ -81,6 +81,7 @@ final class ModuleRegistry: ObservableObject {
                    "The whole group is alerted when a dose is skipped or a new event is logged",
                    "Injuries and major health events with severity and recovery progress",
                    "Medical vault for reports, prescriptions, X-rays and insurance",
+                   "Doctors write prescriptions in Care; patients accept them straight into reminders — free for both",
                    "Blood group, allergies, conditions and emergency contact in one place"],
         previews: [.careDashboard, .medicineForm, .careToday, .careEvent, .careVault],
         note: "Free for everyone — caring for family and patients is never charged.")
@@ -240,7 +241,7 @@ final class ModuleRegistry: ObservableObject {
         benefits: ["“What did I miss?” summaries", "Suggested tasks from messages", "Runs on-device with Apple Intelligence (iPhone 15 Pro and newer)"],
         previews: [.assistant], note: "In development.")
 
-    static let all: [ModuleInfo] = [businessTasks, businessPro, iLifeCare, doctorPatient, travel, events, safety, rooms, bills, kids, khata, tuition, rent, legal, clinic, gymTraining, mindfulness, teamWorkspace, filesKnowledge, aiAssistant]
+    static let all: [ModuleInfo] = [businessTasks, businessPro, iLifeCare, travel, events, safety, rooms, bills, kids, khata, tuition, rent, legal, clinic, gymTraining, mindfulness, teamWorkspace, filesKnowledge, aiAssistant]
 
     @Published private var enabled: [String: Bool]
     /// Modules the user wants in the iPhone bottom bar, in order (Router.TabID raw values).

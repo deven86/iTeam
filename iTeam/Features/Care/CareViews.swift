@@ -32,8 +32,10 @@ struct CareHomeView: View {
                         .frame(maxWidth: .infinity)
                     }
                     .listRowBackground(Color.clear)
+                    CarePrescriptionsSection()
                 } else {
                     Section { todayCard.listRowBackground(Color.clear).listRowInsets(EdgeInsets()) }
+                    CarePrescriptionsSection()
                     Section("People") {
                         ForEach(profiles) { p in
                             NavigationLink(value: p.id) { profileRow(p) }

@@ -34,6 +34,12 @@ struct AttachmentView: View {
             ZStack {
                 if let image {
                     Image(uiImage: image).resizable().scaledToFill()
+                        .overlay(alignment: .bottomLeading) {
+                            if ref.name.hasPrefix("Original") {
+                                Text("ORIGINAL").font(.system(size: 9, weight: .heavy)).padding(.horizontal, 5).padding(.vertical, 2)
+                                    .background(.black.opacity(0.55), in: Capsule()).foregroundStyle(.white).padding(6)
+                            }
+                        }
                 } else if let t = ref.thumb, let img = UIImage(data: t) {
                     Image(uiImage: img).resizable().scaledToFill().blur(radius: 6)
                 } else {

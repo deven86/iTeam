@@ -48,9 +48,9 @@ enum Attachments {
         guard let img = UIImage(data: data) else { throw Failure.unreadable }
         if original {
             // Untouched file: full resolution, EXIF date/location/camera kept.
-            let isHEIC = data.count > 12 && String(data: data[4..<12], encoding: .ascii)?.contains("ftyphei") == true
+            let (ext, mime) = imageType(data)
             let thumb = img.scaled(maxSide: 240).jpegData(compressionQuality: 0.6)
-            var p = try prepare(data, name: isHEIC ? "Photo.heic" : "Photo.jpg", mime: isHEIC ? "image/heic" : "image/jpeg", kind: "image")
+            var p = try prepare(data, name: "Original.\(ext)", mime: mime, kind: "image")
             p.ref.width = Double(img.size.width)
             p.ref.height = Double(img.size.height)
             p.ref.thumb = thumb
@@ -64,6 +64,19 @@ enum Attachments {
         p.ref.height = Double(full.size.height)
         p.ref.thumb = thumb
         return p
+    }
+
+    /// Recognises the real format of an image file from its first bytes.
+    static func imageType(_ d: Data) -> (String, String) {
+        let b = [UInt8](d.prefix(16))
+        if b.count >= 4, b[0] == 0x89, b[1] == 0x50, b[2] == 0x4E, b[3] == 0x47 { return ("png", "image/png") }
+        if b.count >= 3, b[0] == 0xFF, b[1] == 0xD8, b[2] == 0xFF { return ("jpg", "image/jpeg") }
+        if b.count >= 12, let brand = String(bytes: b[4..<12], encoding: .ascii), brand.hasPrefix("ftyp") {
+            if brand.contains("avif") { return ("avif", "image/avif") }
+            return ("heic", "image/heic")
+        }
+        if b.count >= 4, b[0] == 0x47, b[1] == 0x49, b[2] == 0x46 { return ("gif", "image/gif") }
+        return ("jpg", "image/jpeg")
     }
 
     static func prepareFile(_ url: URL) throws -> Prepared {

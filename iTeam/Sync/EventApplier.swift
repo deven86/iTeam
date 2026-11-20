@@ -641,6 +641,8 @@ struct EventApplier {
             let m: Meeting
             if let existing {
                 guard existing.isAdmin(e.from), p.at >= existing.updatedAt else { return .ignored }
+                // Only the creator can cancel / delete a meeting.
+                if (p.deleted || p.status == "cancelled") && e.from != existing.createdBy { return .ignored }
                 m = existing
             } else {
                 m = Meeting(id: p.id); m.convID = conv.id; m.createdBy = e.from; ctx.insert(m)

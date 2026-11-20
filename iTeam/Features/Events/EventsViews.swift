@@ -57,7 +57,8 @@ enum CalendarExport {
 struct EventsHomeView: View {
     @EnvironmentObject var engine: SyncEngine
     @Environment(\.look) private var look
-    @Query(filter: #Predicate<InviteEvent> { !$0.deleted }, sort: \InviteEvent.start) private var events: [InviteEvent]
+    @Query(sort: \InviteEvent.start) private var everything: [InviteEvent]
+    private var events: [InviteEvent] { everything.filter { !$0.deleted } }
     @State private var creating = false
     @State private var shareItems: ShareItems?
 
@@ -80,6 +81,20 @@ struct EventsHomeView: View {
                 }
                 if !upcoming.isEmpty {
                     Section("Upcoming") { ForEach(upcoming) { ev in NavigationLink { EventDetailView(eventID: ev.id) } label: { EventRow(event: ev) } } }.lookRows()
+                }
+                let archived = everything.filter(\.deleted)
+                if !archived.isEmpty {
+                    Section("Archive — cancelled") {
+                        ForEach(archived.reversed()) { ev in
+                            NavigationLink { EventDetailView(eventID: ev.id) } label: {
+                                VStack(alignment: .leading) {
+                                    EventRow(event: ev)
+                                    Text("Cancelled by \(engine.name(of: ev.hostID)) · \(ev.updatedAt.formatted(date: .abbreviated, time: .shortened))").font(.caption2).foregroundStyle(.red)
+                                }
+                            }
+                        }
+                    }
+                    .lookRows()
                 }
                 if !past.isEmpty {
                     Section("Past") { ForEach(past.prefix(20)) { ev in NavigationLink { EventDetailView(eventID: ev.id) } label: { EventRow(event: ev) } } }.lookRows()

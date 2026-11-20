@@ -264,6 +264,7 @@ struct SessionSetupSheet: View {
                 }
             }
             .navigationTitle("Meditation")
+        .sheet(isPresented: $showPlaylists) { PlaylistPicker() }
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button("Close") { dismiss() } }

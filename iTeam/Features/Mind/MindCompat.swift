@@ -132,31 +132,6 @@ enum MindFilePicker {
     }
 }
 
-/// Apple Music isn't offered in iTeam (it needs a separate Apple service); this keeps the shared engine code simple.
-@MainActor
-final class MusicController: ObservableObject {
-    static let shared = MusicController()
-    enum Status { case notDetermined, denied, authorized }
-    struct PlaylistID: Hashable { let rawValue: String }
-    struct Playlist: Identifiable, Hashable { let id: PlaylistID; let name: String }
-    @Published var authorization: Status = .notDetermined
-    @Published var playlists: [Playlist] = []
-    @Published var nowPlaying: String?
-    @Published var nowPlayingArtist: String?
-    @Published var isPlaying = false
-    var workoutPlaylistID: String = ""
-    var selectedPlaylist: Playlist? { nil }
-    func requestAccess() async {}
-    func loadPlaylists() async {}
-    func startWorkoutMusic(force: Bool = false) async {}
-    func refreshNowPlaying() {}
-    func pauseIfPlaying() {}
-    func togglePlayPause() async {}
-    func play(_ p: Playlist) async {}
-    func skip() async {}
-    func previous() async {}
-    func stop() {}
-}
 
 extension View {
     /// iLife's glass card, drawn with iTeam's look.

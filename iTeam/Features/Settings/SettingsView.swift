@@ -144,6 +144,7 @@ struct SettingsView: View {
                 Section {
                     NavigationLink { WalletView() } label: { Label("Personal Wallet", systemImage: "wallet.pass.fill") }
                     NavigationLink { ArchiveView() } label: { Label("Archive (deleted items)", systemImage: "archivebox") }
+                    NavigationLink { HealthExchangeView() } label: { Label("iLife ⇄ iTeam (export / import)", systemImage: "arrow.left.arrow.right.circle") }
                     NavigationLink { BackupView() } label: {
                         Label {
                             HStack {

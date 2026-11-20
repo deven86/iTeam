@@ -1,0 +1,28 @@
+name: CloudKit production check
+
+# Read-only: exports the PRODUCTION schema and reports which record types / fields are live.
+on: workflow_dispatch
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: macos-15-intel
+    timeout-minutes: 10
+    steps:
+      - name: Export production schema
+        env:
+          CK_TOKEN: ${{ secrets.CLOUDKIT_MANAGEMENT_TOKEN }}
+          TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          X=$(ls -d /Applications/Xcode_26*.app | sort -V | tail -1); sudo xcode-select -s "$X/Contents/Developer"
+          xcrun cktool save-token --type management "$CK_TOKEN" >/dev/null
+          xcrun cktool export-schema --team-id "$TEAM_ID" --container-id iCloud.com.jondhale.iteam \
+            --environment production --output-file "$RUNNER_TEMP/prod.ckdb"
+          for t in Profile Envelope Blob ModuleRequest Backup Room RoomMember RoomMsg RoomReport; do
+            if grep -q "RECORD TYPE $t " "$RUNNER_TEMP/prod.ckdb"; then echo "::notice title=type::$t ✅"; else echo "::warning title=type::$t ❌ missing"; fi
+          done
+          for f in "seen" "plus"; do
+            if awk '/RECORD TYPE Profile /,/\);/' "$RUNNER_TEMP/prod.ckdb" | grep -q "^ *$f "; then echo "::notice title=Profile field::$f ✅"; else echo "::warning title=Profile field::$f ❌ missing"; fi
+          done

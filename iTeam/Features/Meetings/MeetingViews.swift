@@ -455,7 +455,7 @@ enum MeetingPDF {
         t += "Agenda:\n" + m.agenda.enumerated().map { "\($0.offset + 1). \($0.element)" }.joined(separator: "\n")
         for p in m.polls {
             let v = m.votes[p.id] ?? [:]
-            t += "\nVote — \(p.question): " + p.options.enumerated().map { "\($0.element) \(v.values.filter { x in x == $0.offset }.count)" }.joined(separator: ", ")
+            t += "\nVote — \(p.question): " + p.options.enumerated().map { item in "\(item.element) \(v.values.filter { $0 == item.offset }.count)" }.joined(separator: ", ")
         }
         return t
     }
@@ -475,7 +475,7 @@ enum MeetingPDF {
             h += "<h4>Votes</h4>"
             for p in m.polls {
                 let v = m.votes[p.id] ?? [:]
-                h += "<p><b>\(e(p.question))</b><br>" + p.options.enumerated().map { "\(e($0.element)): \(v.values.filter { x in x == $0.offset }.count)" }.joined(separator: " · ") + "</p>"
+                h += "<p><b>\(e(p.question))</b><br>" + p.options.enumerated().map { item in "\(e(item.element)): \(v.values.filter { $0 == item.offset }.count)" }.joined(separator: " · ") + "</p>"
             }
         }
         if !m.notes.isEmpty { h += "<h4>Notes</h4><p>\(e(m.notes).replacingOccurrences(of: "\n", with: "<br>"))</p>" }

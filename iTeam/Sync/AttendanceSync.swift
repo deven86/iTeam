@@ -364,7 +364,8 @@ extension SyncEngine {
         let dc = directConversation(with: ct)
         if on {
             // Catch the new admin up with everything, in batches.
-            let all = ((try? context.fetch(FetchDescriptor<AttRecord>(predicate: #Predicate { $0.companyID == company.id }))) ?? [])
+            let cid = company.id
+            let all = ((try? context.fetch(FetchDescriptor<AttRecord>(predicate: #Predicate { $0.companyID == cid }))) ?? [])
                 .filter { $0.kind != "company" }.map(AttItem.init)
             let ordered = [compItem] + all.filter { $0.kind == "member" } + all.filter { $0.kind != "member" }
             for i in stride(from: 0, to: ordered.count, by: 150) {

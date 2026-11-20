@@ -119,30 +119,6 @@ enum WidgetSync {
             LiveActivities.end(kind: "dose")
         }
     }
-}
-
-/// Live Activities for every module: Lock Screen banner + Dynamic Island with a countdown.
-@MainActor
-enum LiveActivities {
-    static func start(kind: String, icon: String, tint: String, title: String, detail: String, end: Date) {
-        guard ActivityAuthorizationInfo().areActivitiesEnabled else { return }
-        let state = ITeamActivityAttributes.ContentState(title: title, detail: detail, end: end, progressStart: .now)
-        let content = ActivityContent(state: state, staleDate: end.addingTimeInterval(600))
-        if let existing = Activity<ITeamActivityAttributes>.activities.first(where: { $0.attributes.kind == kind }) {
-            guard existing.content.state.title != title || existing.content.state.end != end else { return }
-            Task { await existing.update(ActivityContent(state: ITeamActivityAttributes.ContentState(title: title, detail: detail, end: end,
-                                                                                                     progressStart: existing.content.state.progressStart),
-                                                         staleDate: end.addingTimeInterval(600))) }
-            return
-        }
-        _ = try? Activity.request(attributes: ITeamActivityAttributes(kind: kind, icon: icon, tint: tint), content: content)
-    }
-
-    static func end(kind: String) {
-        for a in Activity<ITeamActivityAttributes>.activities where a.attributes.kind == kind {
-            Task { await a.end(nil, dismissalPolicy: .immediate) }
-        }
-    }
 
     /// Attendance: my open shift (Live Activity until punch-out), or today's head count for the owner/admin.
     private static func attendance(_ s: inout WidgetSnapshot, context: ModelContext, me: String) {
@@ -175,4 +151,28 @@ enum LiveActivities {
             if s.attCompany == nil { s.attCompany = comp.company.name }
         }
     }
+}
+
+@MainActor
+enum LiveActivities {
+    static func start(kind: String, icon: String, tint: String, title: String, detail: String, end: Date) {
+        guard ActivityAuthorizationInfo().areActivitiesEnabled else { return }
+        let state = ITeamActivityAttributes.ContentState(title: title, detail: detail, end: end, progressStart: .now)
+        let content = ActivityContent(state: state, staleDate: end.addingTimeInterval(600))
+        if let existing = Activity<ITeamActivityAttributes>.activities.first(where: { $0.attributes.kind == kind }) {
+            guard existing.content.state.title != title || existing.content.state.end != end else { return }
+            Task { await existing.update(ActivityContent(state: ITeamActivityAttributes.ContentState(title: title, detail: detail, end: end,
+                                                                                                     progressStart: existing.content.state.progressStart),
+                                                         staleDate: end.addingTimeInterval(600))) }
+            return
+        }
+        _ = try? Activity.request(attributes: ITeamActivityAttributes(kind: kind, icon: icon, tint: tint), content: content)
+    }
+
+    static func end(kind: String) {
+        for a in Activity<ITeamActivityAttributes>.activities where a.attributes.kind == kind {
+            Task { await a.end(nil, dismissalPolicy: .immediate) }
+        }
+    }
+
 }

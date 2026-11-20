@@ -747,20 +747,20 @@ struct AttReportsView: View {
                 }
             }
             .lookRows()
-            Section("Export") {
+            Section {
                 Button("Register (PDF)", systemImage: "doc.richtext") {
                     if let url = PDFMaker.make(title: title, bodyHTML: AttExport.registerHTML(data, month: month, engine: engine), fileName: "Attendance register") { shareItems = ShareItems(items: [url]) }
                 }
                 Button("Daily log (Excel CSV)", systemImage: "tablecells") {
-                    if let url = ShareKit.file(AttExport.dailyCSV(data, month: month, engine: engine), name: "Attendance \(Att.key(month).prefix(7)).csv") { shareItems = ShareItems(items: [url]) }
+                    if let url = Exporter.file(AttExport.dailyCSV(data, month: month, engine: engine), name: "Attendance \(Att.key(month).prefix(7)).csv") { shareItems = ShareItems(items: [url]) }
                 }
                 Button("Monthly summary (Excel CSV)", systemImage: "tablecells.badge.ellipsis") {
-                    if let url = ShareKit.file(AttExport.summaryCSV(data, month: month, engine: engine), name: "Attendance summary \(Att.key(month).prefix(7)).csv") { shareItems = ShareItems(items: [url]) }
+                    if let url = Exporter.file(AttExport.summaryCSV(data, month: month, engine: engine), name: "Attendance summary \(Att.key(month).prefix(7)).csv") { shareItems = ShareItems(items: [url]) }
                 }
                 Button("Tally (XML attendance vouchers)", systemImage: "arrow.down.doc") {
-                    if let url = ShareKit.file(AttExport.tallyXML(data, month: month, engine: engine), name: "Tally attendance \(Att.key(month).prefix(7)).xml") { shareItems = ShareItems(items: [url]) }
+                    if let url = Exporter.file(AttExport.tallyXML(data, month: month, engine: engine), name: "Tally attendance \(Att.key(month).prefix(7)).xml") { shareItems = ShareItems(items: [url]) }
                 }
-            } footer: {
+            } header: { Text("Export") } footer: {
                 Text("Tally: in TallyPrime Payroll, create the employees with exactly the same names and the attendance types “Present” and “Absent”, then Import → Transactions. Present = payable days (incl. paid leave, holidays and weekly offs).")
             }
             .lookRows()
@@ -967,11 +967,14 @@ enum AttExport {
             for d in Att.monthDays(month) where d <= .now {
                 let e = data.entry(m, d)?.entry
                 let mins = e.flatMap { x in x.inAt.flatMap { i in x.outAt.map { Int($0.timeIntervalSince(i) / 60) } } }
-                rows.append([csv(data.name(m, engine)), csv(m.member.department), csv(m.member.designation), Att.key(d),
-                             d.formatted(.dateTime.weekday(.abbreviated)), csv(Att.label(data.status(m, d))),
-                             e?.inAt.map { $0.formatted(date: .omitted, time: .shortened) } ?? "", e?.outAt.map { $0.formatted(date: .omitted, time: .shortened) } ?? "",
-                             mins.map { String(format: "%.2f", Double($0) / 60) } ?? "", e.map { AttFmt.method($0.method) } ?? "",
-                             e?.distance.map { String(Int($0)) } ?? "", csv(e?.note ?? "")].joined(separator: ","))
+                let inT: String = e?.inAt?.formatted(date: .omitted, time: .shortened) ?? ""
+                let outT: String = e?.outAt?.formatted(date: .omitted, time: .shortened) ?? ""
+                let hrs: String = mins.map { String(format: "%.2f", Double($0) / 60) } ?? ""
+                let how: String = e.map { AttFmt.method($0.method) } ?? ""
+                let dist: String = e?.distance.map { String(Int($0)) } ?? ""
+                var cols: [String] = [csv(data.name(m, engine)), csv(m.member.department), csv(m.member.designation), Att.key(d)]
+                cols += [d.formatted(.dateTime.weekday(.abbreviated)), csv(Att.label(data.status(m, d))), inT, outT, hrs, how, dist, csv(e?.note ?? "")]
+                rows.append(cols.joined(separator: ","))
             }
         }
         return rows.joined(separator: "\n")

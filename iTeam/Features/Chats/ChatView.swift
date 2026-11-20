@@ -17,6 +17,7 @@ struct ChatView: View {
     @State private var editing: Message?
     @State private var taskFrom: Message?
     @State private var showInfo = false
+    @State private var showGames = false
     @State private var photoItems: [PhotosPickerItem] = []
     @State private var showFiles = false
     @State private var showPhotos = false
@@ -116,6 +117,7 @@ struct ChatView: View {
 
     private func chrome<V: View>(_ v: V, _ conv: Conversation) -> some View {
         v
+        .sheet(isPresented: $showGames) { XOGamesView(convID: conv.id) }
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .principal) {
@@ -130,10 +132,11 @@ struct ChatView: View {
                 Menu {
                     Button("Export chat as PDF", systemImage: "doc.richtext") {
                         let html = ShareText.chatHTML(conv, messages, engine: engine)
-                        if let url = PDFMaker.make(title: conv.title, bodyHTML: html, fileName: "Chat – \(conv.title)") {
+                        if let url = PDFMaker.make(title: conv.title, bodyHTML: html, fileName: "Chat – \(conv.title)", module: conv.isGroup ? "Group chat" : "Chat", icon: "bubble.left.and.bubble.right.fill", colors: [0x28BEE6, 0x3A5BD9], charts: PDFCharts.chat(messages, engine: engine)) {
                             shareItems = ShareItems(items: [url])
                         }
                     }
+                    Button("Play X and O", systemImage: "gamecontroller.fill") { showGames = true }
                     Button("Share chat as text", systemImage: "text.alignleft") {
                         shareItems = ShareItems(items: [ShareText.chatText(conv, messages, engine: engine)])
                     }

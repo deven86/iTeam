@@ -311,7 +311,9 @@ struct TaskDetailView: View {
             ToolbarItem(placement: .topBarTrailing) {
                 ShareMenu(title: t.title,
                           text: { ShareText.task(t, checklist: checklist, comments: comments, engine: engine) },
-                          html: { ShareText.taskHTML(t, checklist: checklist, comments: comments, engine: engine) })
+                          html: { ShareText.taskHTML(t, checklist: checklist, comments: comments, engine: engine) },
+                          module: "Business Tasks", icon: "checklist", colors: [0x28BEE6, 0x3A5BD9],
+                          charts: { PDFCharts.task(checklist: checklist) })
                     .labelStyle(.iconOnly)
             }
         }

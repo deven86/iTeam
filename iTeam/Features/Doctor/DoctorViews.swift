@@ -67,7 +67,7 @@ struct DoctorHomeView: View {
                 ToolbarItem(placement: .secondaryAction) {
                     Button("Export all (PDF)", systemImage: "doc.richtext") {
                         let html = all.map { PrescriptionView.html($0, engine: engine) }.joined(separator: "<hr>")
-                        if let url = PDFMaker.make(title: "Prescriptions", bodyHTML: html, fileName: "Prescriptions") { shareItems = ShareItems(items: [url]) }
+                        if let url = PDFMaker.make(title: "Prescriptions", bodyHTML: html, fileName: "Prescriptions", module: "Doctor & Patient", icon: "stethoscope", colors: [0x36D1DC, 0x5B86E5], charts: PDFCharts.prescriptions(all)) { shareItems = ShareItems(items: [url]) }
                     }
                 }
             }
@@ -297,7 +297,7 @@ struct PrescriptionView: View {
             }
             Section {
                 Button("Share as PDF", systemImage: "doc.richtext") {
-                    if let url = PDFMaker.make(title: "Prescription", bodyHTML: Self.html(rx, engine: engine), fileName: "Prescription \(rx.patientName)") { shareItems = ShareItems(items: [url]) }
+                    if let url = PDFMaker.make(title: "Prescription", bodyHTML: Self.html(rx, engine: engine), fileName: "Prescription \(rx.patientName)", module: "Doctor & Patient", icon: "stethoscope", colors: [0x36D1DC, 0x5B86E5], charts: PDFCharts.prescription(rx)) { shareItems = ShareItems(items: [url]) }
                 }
             }
         }

@@ -689,6 +689,9 @@ struct EventApplier {
         case .attendance(let p):
             return applyAttendance(p, e, conv: conv, personal: personal)
 
+        case .game(let p):
+            return applyGame(p, e, conv: conv)
+
         case .nowPlaying(let text):
             if e.from != me, let c = engine.contact(e.from), !c.blocked { c.nowPlaying = text; c.nowPlayingAt = e.at }
 

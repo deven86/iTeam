@@ -200,6 +200,7 @@ struct RootView: View {
             }
             .sheet(item: $restoreOffer) { f in RestoreOfferView(found: f) }
             .task {
+                TapHaptics.shared.install()
                 engine.setForeground(true)
                 await offerRestoreIfFresh()
                 await engine.sync()

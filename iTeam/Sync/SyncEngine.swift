@@ -211,6 +211,7 @@ final class SyncEngine: ObservableObject {
     /// Sends an event to everyone in a conversation.
     @discardableResult
     func send(_ body: Event.Body, in conv: Conversation, loud: Bool, preview: String? = nil, uploads: [String: String] = [:]) -> Event {
+        if loud { Haptics.big() }
         if conv.isDemo { return DemoChats.localSend(body, in: conv, engine: self) }
         let hint = preview.map { NotificationHint(n: myName, t: conv.isGroup ? conv.title : nil, b: String($0.prefix(160))) }
         return send(body, convID: conv.id, recipients: conv.members.map(\.id), keyVersion: conv.keyVersion,

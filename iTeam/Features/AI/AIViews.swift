@@ -448,7 +448,7 @@ struct MyDayView: View {
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .cancellationAction) { Button("Done") { dismiss() } }
-            if !brief.isEmpty { ToolbarItem(placement: .primaryAction) { ShareMenu(title: evening ? "End of day" : "My Day", text: { brief }).labelStyle(.iconOnly) } }
+            if !brief.isEmpty { ToolbarItem(placement: .primaryAction) { ShareMenu(title: evening ? "End of day" : "My Day", text: { brief }, module: "My Day", icon: "sun.max.fill", colors: [0xFFB347, 0xFF6F61]).labelStyle(.iconOnly) } }
         }
         .task {
             moveSelection = Set(movable.map(\.id))

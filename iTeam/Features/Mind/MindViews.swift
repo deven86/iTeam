@@ -585,7 +585,7 @@ struct MindHistoryView: View {
                     Text("Last 14 days").font(.headline)
                     HStack {
                         Spacer()
-                        ShareMenu(title: "Meditation history", text: { historyText }).labelStyle(.iconOnly)
+                        ShareMenu(title: "Meditation history", text: { historyText }, module: "Mindfulness", icon: "leaf.fill", colors: [0x7ED6B2, 0x3B8D99], charts: { PDFCharts.mind(byDay) }).labelStyle(.iconOnly)
                     }
                     MindDaysChart(values: byDay)
                     let rated = logs.filter { $0.moodBefore > 0 && $0.moodAfter > 0 }

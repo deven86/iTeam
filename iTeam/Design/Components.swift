@@ -8,6 +8,41 @@ enum Haptics {
     static func thump() { UIImpactFeedbackGenerator(style: .rigid).impactOccurred() }
     static func success() { UINotificationFeedbackGenerator().notificationOccurred(.success) }
     static func warning() { UINotificationFeedbackGenerator().notificationOccurred(.warning) }
+    /// Big moments: sending, assigning, completing, approving.
+    static func big() { UIImpactFeedbackGenerator(style: .heavy).impactOccurred(intensity: 0.9) }
+}
+
+/// A soft tick on every tap anywhere in the app (Settings → Appearance → Haptic on every tap).
+@MainActor
+final class TapHaptics: NSObject, UIGestureRecognizerDelegate {
+    static let shared = TapHaptics()
+    private let light = UIImpactFeedbackGenerator(style: .light)
+    private var installed = Set<ObjectIdentifier>()
+    static var enabled: Bool {
+        get { UserDefaults.standard.object(forKey: "haptics.everyTap") as? Bool ?? true }
+        set { UserDefaults.standard.set(newValue, forKey: "haptics.everyTap") }
+    }
+
+    func install() {
+        for case let scene as UIWindowScene in UIApplication.shared.connectedScenes {
+            for w in scene.windows where !installed.contains(ObjectIdentifier(w)) {
+                let g = UITapGestureRecognizer(target: self, action: #selector(tapped))
+                g.cancelsTouchesInView = false
+                g.delaysTouchesBegan = false
+                g.delaysTouchesEnded = false
+                g.delegate = self
+                w.addGestureRecognizer(g)
+                installed.insert(ObjectIdentifier(w))
+            }
+        }
+    }
+
+    @objc private func tapped() {
+        guard Self.enabled else { return }
+        light.impactOccurred(intensity: 0.55)
+    }
+
+    nonisolated func gestureRecognizer(_ g: UIGestureRecognizer, shouldRecognizeSimultaneouslyWith other: UIGestureRecognizer) -> Bool { true }
 }
 
 // MARK: - Press + entrance animations (from iLife)

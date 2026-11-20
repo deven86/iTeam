@@ -473,7 +473,7 @@ struct AttLeaveDetail: View {
         .navigationTitle("Leave")
         .toolbar {
             ToolbarItem(placement: .secondaryAction) {
-                ShareMenu(title: "Leave — \(data.name(l.memberID, engine))", text: { AttExport.leaveText(data, l, engine: engine) })
+                ShareMenu(title: "Leave — \(data.name(l.memberID, engine))", text: { AttExport.leaveText(data, l, engine: engine) }, module: "Attendance", icon: "person.badge.clock.fill", colors: [0x11998E, 0x38EF7D])
             }
         }
         .onAppear { if !loaded { loaded = true; paid = d.paid } }
@@ -749,7 +749,7 @@ struct AttReportsView: View {
             .lookRows()
             Section {
                 Button("Register (PDF)", systemImage: "doc.richtext") {
-                    if let url = PDFMaker.make(title: title, bodyHTML: AttExport.registerHTML(data, month: month, engine: engine), fileName: "Attendance register") { shareItems = ShareItems(items: [url]) }
+                    if let url = PDFMaker.make(title: title, bodyHTML: AttExport.registerHTML(data, month: month, engine: engine), fileName: "Attendance register", module: "Attendance", icon: "person.badge.clock.fill", colors: [0x11998E, 0x38EF7D], charts: PDFCharts.attendance(data, month: month, engine: engine)) { shareItems = ShareItems(items: [url]) }
                 }
                 Button("Daily log (Excel CSV)", systemImage: "tablecells") {
                     if let url = Exporter.file(AttExport.dailyCSV(data, month: month, engine: engine), name: "Attendance \(Att.key(month).prefix(7)).csv") { shareItems = ShareItems(items: [url]) }

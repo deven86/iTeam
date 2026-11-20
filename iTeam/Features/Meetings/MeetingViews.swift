@@ -97,7 +97,7 @@ struct MeetingsHomeView: View {
                 ToolbarItem(placement: .primaryAction) { Button { creating = true } label: { Image(systemName: "plus") } }
                 ToolbarItem(placement: .secondaryAction) {
                     Button("Export all as PDF", systemImage: "doc.richtext") {
-                        if let url = PDFMaker.make(title: "Meetings", bodyHTML: MeetingPDF.list(mine, engine: engine), fileName: "Meetings") { shareItems = ShareItems(items: [url]) }
+                        if let url = PDFMaker.make(title: "Meetings", bodyHTML: MeetingPDF.list(mine, engine: engine), fileName: "Meetings", module: "Meetings", icon: "person.3.fill", colors: [0x4568DC, 0xB06AB3], charts: PDFCharts.meetings(mine)) { shareItems = ShareItems(items: [url]) }
                     }
                 }
             }
@@ -425,7 +425,7 @@ struct MeetingDetailView: View {
     private func actionsSection(_ m: Meeting, admin: Bool) -> some View {
         Section {
             Button("Export minutes (PDF)", systemImage: "doc.richtext") {
-                if let url = PDFMaker.make(title: "Minutes — \(m.title)", bodyHTML: MeetingPDF.html(m, engine: engine), fileName: "Minutes \(m.title)") {
+                if let url = PDFMaker.make(title: "Minutes — \(m.title)", bodyHTML: MeetingPDF.html(m, engine: engine), fileName: "Minutes \(m.title)", module: "Meetings", icon: "person.3.fill", colors: [0x4568DC, 0xB06AB3], charts: PDFCharts.minutes(m)) {
                     shareItems = ShareItems(items: [url])
                 }
             }

@@ -325,7 +325,9 @@ struct CareProfileView: View {
             ToolbarItem(placement: .topBarTrailing) {
                 ShareMenu(title: "Health summary – \(p.name)",
                           text: { ShareText.care(p, meds: meds, events: events) },
-                          html: { ShareText.careHTML(p, meds: meds, events: events) })
+                          html: { ShareText.careHTML(p, meds: meds, events: events) },
+                          module: "iLife Care", icon: "heart.text.square.fill", colors: [0xFF8A5B, 0xE5486B],
+                          charts: { PDFCharts.care(meds: meds, events: events) })
                     .labelStyle(.iconOnly)
             }
         }

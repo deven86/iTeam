@@ -162,7 +162,7 @@ struct BizHomeView: View {
                 }
                 ToolbarItem(placement: .secondaryAction) {
                     Button("Export report (PDF)", systemImage: "doc.richtext") {
-                        if let url = PDFMaker.make(title: spec.title, bodyHTML: reportHTML, fileName: spec.title + " report") { shareItems = ShareItems(items: [url]) }
+                        if let url = PDFMaker.make(title: spec.title, bodyHTML: reportHTML, fileName: spec.title + " report", module: spec.title, icon: spec.icon, colors: spec.colors, charts: PDFCharts.biz(spec, records: mine)) { shareItems = ShareItems(items: [url]) }
                     }
                 }
             }
@@ -411,7 +411,7 @@ struct BizParentView: View {
                 TextField("Your UPI ID (for payment links)", text: $upi).textInputAutocapitalization(.never).font(.caption)
             }
             Button("Share statement (PDF)", systemImage: "doc.richtext") {
-                if let url = PDFMaker.make(title: "\(spec.title) — \(r.title)", bodyHTML: statementHTML(r, balance), fileName: "\(r.title) statement") {
+                if let url = PDFMaker.make(title: "\(spec.title) — \(r.title)", bodyHTML: statementHTML(r, balance), fileName: "\(r.title) statement", module: spec.title, icon: spec.icon, colors: spec.colors, charts: PDFCharts.bizStatement(spec, children: children)) {
                     shareItems = ShareItems(items: [url])
                 }
             }

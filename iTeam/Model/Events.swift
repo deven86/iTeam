@@ -71,6 +71,8 @@ struct Event: Codable {
         case meetingAttend(meetingID: String)
         /// Attendance: company, members, punches, leaves, holidays and change requests (a batch).
         case attendance(AttPayload)
+        /// A two-player game (X and O) in a chat.
+        case game(GamePayload)
     }
 }
 

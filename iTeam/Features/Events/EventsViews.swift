@@ -106,7 +106,7 @@ struct EventsHomeView: View {
                 ToolbarItem(placement: .primaryAction) { Button { creating = true } label: { Image(systemName: "plus") } }
                 ToolbarItem(placement: .secondaryAction) {
                     Button("Export guest lists (PDF)", systemImage: "doc.richtext") {
-                        if let url = PDFMaker.make(title: "Events", bodyHTML: exportHTML, fileName: "Events") { shareItems = ShareItems(items: [url]) }
+                        if let url = PDFMaker.make(title: "Events", bodyHTML: exportHTML, fileName: "Events", module: "Events", icon: "party.popper.fill", colors: [0xF953C6, 0xB91D73], charts: PDFCharts.events(upcoming + past)) { shareItems = ShareItems(items: [url]) }
                     }
                 }
             }

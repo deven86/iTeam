@@ -289,7 +289,7 @@ struct AttStaffDashboard: View {
         ToolbarItem(placement: .secondaryAction) {
             Button("Export report (PDF)", systemImage: "doc.richtext") {
                 if let url = PDFMaker.make(title: "\(data.c.name) — Attendance \(day.formatted(.dateTime.month(.wide).year()))",
-                                           bodyHTML: AttExport.registerHTML(data, month: day, engine: engine), fileName: "Attendance register") {
+                                           bodyHTML: AttExport.registerHTML(data, month: day, engine: engine), fileName: "Attendance register", module: "Attendance", icon: "person.badge.clock.fill", colors: [0x11998E, 0x38EF7D], charts: PDFCharts.attendance(data, month: day, engine: engine)) {
                     shareItems = ShareItems(items: [url])
                 }
             }
@@ -538,7 +538,7 @@ struct AttMemberDetail: View {
             ToolbarItem(placement: .secondaryAction) {
                 Button("Export (PDF)", systemImage: "doc.richtext") {
                     if let url = PDFMaker.make(title: "\(data.name(m, engine)) — \(month.formatted(.dateTime.month(.wide).year()))",
-                                               bodyHTML: AttExport.memberHTML(data, m, month: month, engine: engine), fileName: "Attendance \(data.name(m, engine))") {
+                                               bodyHTML: AttExport.memberHTML(data, m, month: month, engine: engine), fileName: "Attendance \(data.name(m, engine))", module: "Attendance", icon: "person.badge.clock.fill", colors: [0x11998E, 0x38EF7D], charts: PDFCharts.attendanceMember(data, m, month: month)) {
                         shareItems = ShareItems(items: [url])
                     }
                 }

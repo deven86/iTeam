@@ -318,7 +318,9 @@ struct GymMemberView: View {
             ToolbarItem(placement: .topBarTrailing) {
                 ShareMenu(title: "Gym statement – \(m.name)",
                           text: { ShareText.gym(m, plans: plans, sessions: sessions, payments: payments, engine: engine) },
-                          html: { ShareText.gymHTML(m, plans: plans, sessions: sessions, payments: payments, engine: engine) })
+                          html: { ShareText.gymHTML(m, plans: plans, sessions: sessions, payments: payments, engine: engine) },
+                          module: "Gym & Training", icon: "dumbbell.fill", colors: [0x4FD1C5, 0x2B6CB0],
+                          charts: { PDFCharts.gym(payments: payments, sessions: sessions) })
                     .labelStyle(.iconOnly)
             }
             ToolbarItem(placement: .topBarTrailing) { Button("Edit") { edit = true } }

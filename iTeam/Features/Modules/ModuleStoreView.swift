@@ -116,6 +116,7 @@ struct ModuleDetailView: View {
     @State private var redeem = false
 
     static func price(_ m: ModuleInfo, _ store: Store) -> String {
+        if Store.allFree && m.productID != Store.plusProductID { return "Free" }
         if let id = m.productID, let p = store.products[id] { return "\(p.displayPrice) / month" }
         return m.fallbackPrice
     }
@@ -193,7 +194,7 @@ struct ModuleDetailView: View {
             Label("We're building this. It will appear here when ready.", systemImage: "hammer").font(.subheadline)
         case .paid:
             if unlocked {
-                Label(store.isOwner ? "Free for you as the owner" : "Active on this Apple ID",
+                Label(Store.allFree ? "Free for everyone — enjoy!" : store.isOwner ? "Free for you as the owner" : "Active on this Apple ID",
                       systemImage: store.isOwner ? "crown.fill" : "checkmark.seal.fill").foregroundStyle(look.success)
                 Toggle("Show in the app", isOn: Binding(get: { modules.isVisible(module) }, set: { modules.setOn(module, $0) }))
             } else if let id = module.productID {

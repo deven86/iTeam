@@ -52,8 +52,11 @@ final class Store: ObservableObject {
     }
 
     /// Subscribed, the owner, or — in TestFlight/sandbox builds only — unlocked for testing.
+    /// Launch offer: every module is free for everyone (the iTeam Plus supporter badge stays optional).
+    static let allFree = true
+
     func isUnlocked(_ productID: String) -> Bool {
-        isOwner || active.contains(productID) || (isSandbox && testUnlocked.contains(productID))
+        (Self.allFree && productID != Self.plusProductID) || isOwner || active.contains(productID) || (isSandbox && testUnlocked.contains(productID))
     }
 
     func setOwner(_ on: Bool) { isOwner = on }

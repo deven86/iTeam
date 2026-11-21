@@ -145,6 +145,8 @@ struct AttStaffDashboard: View {
     @State private var recordLeave = false
     @State private var shareItems: ShareItems?
     @State private var leaveToDecide: AttRecord?
+    @State private var newCompany = false
+    @State private var newName = ""
 
     init(companyID: String) {
         self.companyID = companyID
@@ -174,6 +176,15 @@ struct AttStaffDashboard: View {
         .sheet(isPresented: $qr) { if let comp = data.company { AttQRView(company: comp) } }
         .sheet(item: $leaveToDecide) { l in NavigationStack { AttLeaveDetail(leaveID: l.id, companyID: companyID) } }
         .fullScreenCover(isPresented: $kiosk) { AttKioskView(companyID: companyID) }
+        .alert("New company or branch", isPresented: $newCompany) {
+            TextField("Name", text: $newName)
+            Button("Create") {
+                let n = newName.trimmingCharacters(in: .whitespaces)
+                if !n.isEmpty { UserDefaults.standard.set(engine.attCreateCompany(name: n), forKey: "att.current") }
+                newName = ""
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: { Text("Switch between companies with the building button at the top left.") }
         .shareSheet($shareItems)
     }
 
@@ -286,6 +297,9 @@ struct AttStaffDashboard: View {
     @ToolbarContentBuilder
     private func toolbar(_ data: AttData) -> some ToolbarContent {
         ToolbarItem(placement: .primaryAction) { Button { addMember = true } label: { Image(systemName: "person.badge.plus") } }
+        ToolbarItem(placement: .secondaryAction) {
+            Button("Add another company", systemImage: "building.2.fill") { newCompany = true }
+        }
         ToolbarItem(placement: .secondaryAction) {
             Button("Export report (PDF)", systemImage: "doc.richtext") {
                 if let url = PDFMaker.make(title: "\(data.c.name) — Attendance \(day.formatted(.dateTime.month(.wide).year()))",

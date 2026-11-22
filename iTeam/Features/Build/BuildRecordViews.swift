@@ -17,7 +17,7 @@ enum BuildFmt {
         }
     }
 
-    static func subtitle(_ r: BuildRecord, engine: SyncEngine) -> String {
+    @MainActor static func subtitle(_ r: BuildRecord, engine: SyncEngine) -> String {
         switch r.kind {
         case "unit": return [r.f("type"), r.f("carpet").isEmpty ? "" : "\(r.f("carpet")) \(areaUnit)", r.num("price") > 0 ? Money.format(r.num("price")) : ""].filter { !$0.isEmpty }.joined(separator: " · ")
         case "sale": return ["Unit \(engine.bRecord(r.parentID)?.title ?? "")", r.num("value") > 0 ? Money.format(r.num("value")) : "", r.f("loan") == "No loan" ? "" : r.f("bank")].filter { !$0.isEmpty }.joined(separator: " · ")

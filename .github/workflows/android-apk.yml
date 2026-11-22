@@ -7,7 +7,7 @@ on:
     paths: ["android/**", ".github/workflows/android-apk.yml"]
 
 permissions:
-  contents: read
+  contents: write   # first run stores the encrypted signing key in android/signing/
 
 jobs:
   apk:
@@ -20,11 +20,26 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
         with: { gradle-version: "8.11.1" }
       - name: Signing key
+        # One key forever, so updates install over the old app. It is generated here on the first run,
+        # encrypted with your ANDROID_KEYSTORE_PASSWORD secret, and committed — the password never leaves GitHub Secrets.
         env:
-          KS: ${{ secrets.ANDROID_KEYSTORE_B64 }}
+          PW: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
         run: |
-          if [ -n "$KS" ]; then printf '%s' "$KS" | base64 --decode > "$RUNNER_TEMP/iteam.jks"; echo "KEYSTORE_FILE=$RUNNER_TEMP/iteam.jks" >> "$GITHUB_ENV"
-          else echo "::warning::No ANDROID_KEYSTORE_B64 secret: APK is debug-signed, so updates must uninstall the old one first."; fi
+          if [ -z "$PW" ]; then echo "::warning::No ANDROID_KEYSTORE_PASSWORD secret: debug-signed APK (updates need an uninstall)."; exit 0; fi
+          KS="$RUNNER_TEMP/iteam.jks"
+          if [ -f android/signing/iteam.jks.enc ]; then
+            openssl enc -d -aes-256-cbc -pbkdf2 -iter 300000 -pass env:PW -in android/signing/iteam.jks.enc -out "$KS"
+          else
+            keytool -genkeypair -keystore "$KS" -storetype PKCS12 -alias iteam -keyalg RSA -keysize 4096 -validity 10000 \
+              -storepass "$PW" -keypass "$PW" -dname "CN=Devendra Jondhale, O=iTeam, C=IN" >/dev/null
+            mkdir -p android/signing
+            openssl enc -aes-256-cbc -pbkdf2 -iter 300000 -salt -pass env:PW -in "$KS" -out android/signing/iteam.jks.enc
+            git config user.name "iTeam CI"; git config user.email "ci@users.noreply.github.com"
+            git add android/signing/iteam.jks.enc
+            git commit -qm "Android signing key (encrypted) [skip ci]" && git pull -q --rebase && git push -q
+            echo "::notice title=signing::New signing key created and stored encrypted"
+          fi
+          echo "KEYSTORE_FILE=$KS" >> "$GITHUB_ENV"
       - name: Build APK
         env:
           CK_API_TOKEN: ${{ secrets.CK_API_TOKEN }}

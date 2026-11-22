@@ -640,13 +640,23 @@ enum CRMShare {
 
     @MainActor static func charts(_ leads: [CRMLead], groups: [CRMGroup]) -> [PDFChart] {
         let live = leads.filter { !$0.deleted }
-        let stages = CRMStage.allCases.map { s in (s.title, Double(live.filter { $0.stage == s.rawValue }.count), s.color) }.filter { $0.1 > 0 }
-        let value = CRMStage.allCases.map { s in (s.title, live.filter { $0.stage == s.rawValue }.reduce(0) { $0 + $1.dealValue }) }
-        var out = [PDFChart(kind: .pie, title: "Leads by stage", labels: stages.map(\.0), values: stages.map(\.1), colors: stages.map(\.2))]
-        out.append(PDFChart(kind: .bar, title: "Pipeline value by stage", labels: value.map(\.0), values: value.map(\.1)))
-        let byGroup = Dictionary(grouping: live.filter(\.isOpen), by: { l in groups.first { $0.convID == l.groupConvID }?.name ?? "No group" })
-            .map { ($0.key, $0.value.reduce(0) { $0 + $1.dealValue }) }.sorted { $0.0 < $1.0 }
-        if byGroup.count > 1 { out.append(PDFChart(kind: .bar, title: "Open pipeline by team group", labels: byGroup.map(\.0), values: byGroup.map(\.1))) }
+        var sLabels: [String] = [], sCounts: [Double] = [], sColors: [UInt32] = []
+        var vLabels: [String] = [], vValues: [Double] = []
+        for st in CRMStage.allCases {
+            let these = live.filter { $0.stage == st.rawValue }
+            if !these.isEmpty { sLabels.append(st.title); sCounts.append(Double(these.count)); sColors.append(st.color) }
+            vLabels.append(st.title)
+            vValues.append(these.reduce(0.0) { $0 + $1.dealValue })
+        }
+        var out: [PDFChart] = [PDFChart(kind: .pie, title: "Leads by stage", labels: sLabels, values: sCounts, colors: sColors)]
+        out.append(PDFChart(kind: .bar, title: "Pipeline value by stage", labels: vLabels, values: vValues))
+        var byGroup: [String: Double] = [:]
+        for l in live where l.isOpen {
+            let name: String = groups.first(where: { $0.convID == l.groupConvID })?.name ?? "No group"
+            byGroup[name, default: 0] += l.dealValue
+        }
+        let keys = byGroup.keys.sorted()
+        if keys.count > 1 { out.append(PDFChart(kind: .bar, title: "Open pipeline by team group", labels: keys, values: keys.map { byGroup[$0] ?? 0 })) }
         return out
     }
 }

@@ -7,6 +7,7 @@ struct ChatListView: View {
     @Environment(\.look) private var look
     @Environment(\.horizontalSizeClass) private var sizeClass
     @Query(sort: \Conversation.lastActivity, order: .reverse) private var conversations: [Conversation]
+    @State private var showPending = false
     @Query(filter: #Predicate<Contact> { $0.isRequest && !$0.blocked }) private var requests: [Contact]
 
     enum Filter: String, CaseIterable, Identifiable {
@@ -212,9 +213,12 @@ struct ChatListView: View {
                 .listRowBackground(Color.clear)
         default:
             if engine.pendingUploads > 0 {
-                Label("\(engine.pendingUploads) waiting to sync", systemImage: "arrow.triangle.2.circlepath")
-                    .font(.footnote).foregroundStyle(look.textSecondary)
-                    .listRowBackground(Color.clear)
+                Button { showPending = true } label: {
+                    Label("\(engine.pendingUploads) waiting to sync — tap for details", systemImage: "arrow.triangle.2.circlepath")
+                        .font(.footnote).foregroundStyle(look.textSecondary)
+                }
+                .listRowBackground(Color.clear)
+                .sheet(isPresented: $showPending) { PendingSyncView() }
             }
         }
     }
@@ -306,6 +310,34 @@ struct RequestRow: View {
                 Button("Block", systemImage: "hand.raised", role: .destructive) { engine.setBlocked(contact, true) }
                 Button("Report spam and block", systemImage: "exclamationmark.bubble", role: .destructive) { engine.report(contact, reason: "Spam or scam (message request)") }
             } label: { Text("Block") }.buttonStyle(.glass).controlSize(.small)
+        }
+    }
+}
+
+
+/// What's waiting to be sent, and why — with a retry.
+struct PendingSyncView: View {
+    @EnvironmentObject var engine: SyncEngine
+    @Environment(\.dismiss) private var dismiss
+    @Query(sort: \OutboxItem.createdAt) private var items: [OutboxItem]
+    var body: some View {
+        NavigationStack {
+            List {
+                ForEach(items) { i in
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text("\(i.kind == "key" ? "Chat key" : "Update") for \(engine.conversation(i.convID)?.title ?? "a chat")").font(.subheadline.weight(.semibold))
+                        Text("Waiting since \(i.createdAt.formatted(date: .abbreviated, time: .shortened)) · tries \(i.attempts)").font(.caption).foregroundStyle(.secondary)
+                        if let e = i.lastError, !e.isEmpty { Text(e).font(.caption).foregroundStyle(.orange) }
+                    }
+                    .swipeActions { Button("Discard", role: .destructive) { engine.context.delete(i); engine.save(); engine.refreshCounts() } }
+                }
+            }
+            .navigationTitle("Waiting to sync")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) { Button("Done") { dismiss() } }
+                ToolbarItem(placement: .confirmationAction) { Button("Retry now") { engine.retryFailed() } }
+            }
         }
     }
 }

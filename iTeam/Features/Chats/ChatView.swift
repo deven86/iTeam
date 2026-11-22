@@ -118,6 +118,12 @@ struct ChatView: View {
     private func chrome<V: View>(_ v: V, _ conv: Conversation) -> some View {
         v
         .sheet(isPresented: $showGames) { XOGamesView(convID: conv.id) }
+        .safeAreaInset(edge: .top, spacing: 0) {
+            VStack(spacing: 6) {
+                ChatRequestBanner(conv: conv)
+                ChatTasksStrip(convID: conv.id)
+            }
+        }
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .principal) {
@@ -622,6 +628,66 @@ struct GroupCallSheet: View {
                     dismiss()
                 }
                 .disabled(FaceTime.isLink(link) == nil)
+            }
+        }
+    }
+}
+
+
+/// Someone not in my contacts messaged me: add (so they can be added to groups) or block.
+struct ChatRequestBanner: View {
+    let conv: Conversation
+    @EnvironmentObject var engine: SyncEngine
+    var body: some View {
+        if !conv.isGroup, let peer = SyncEngine.peer(inDirect: conv.id, me: engine.me), peer != engine.me,
+           !peer.hasPrefix("demo_"), let c = engine.contact(peer), !c.saved, !c.blocked {
+            HStack(spacing: 10) {
+                Image(systemName: "person.crop.circle.badge.questionmark").font(.title3)
+                Text("\(c.name.isEmpty ? "This person" : c.name) isn't in your contacts").font(.footnote.weight(.semibold))
+                Spacer()
+                Button("Add") { engine.acceptRequest(c); Haptics.success() }.buttonStyle(.glassProminent).controlSize(.small)
+                Button("Block", role: .destructive) { c.blocked = true; c.isRequest = false; engine.save() }.buttonStyle(.glass).controlSize(.small)
+            }
+            .padding(10)
+            .lookFloating(in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+            .padding(.horizontal)
+        }
+    }
+}
+
+/// Open tasks of this chat as tappable chips, so both people see new tasks right away.
+struct ChatTasksStrip: View {
+    let convID: String
+    @EnvironmentObject var engine: SyncEngine
+    @EnvironmentObject var router: Router
+    @Query private var tasks: [TaskItem]
+
+    init(convID: String) {
+        self.convID = convID
+        let cid: String? = convID
+        _tasks = Query(filter: #Predicate<TaskItem> { $0.convID == cid && !$0.deleted }, sort: \TaskItem.createdAt, order: .reverse)
+    }
+
+    var body: some View {
+        let open = tasks.filter { $0.status != .done }
+        if !open.isEmpty {
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 8) {
+                    ForEach(open.prefix(12)) { t in
+                        Button { router.show(task: t.id) } label: {
+                            HStack(spacing: 5) {
+                                Image(systemName: "checklist")
+                                Text(t.title).lineLimit(1)
+                                if t.createdAt > .now.addingTimeInterval(-86400) { Text("NEW").font(.caption2.bold()).foregroundStyle(.orange) }
+                            }
+                            .font(.caption.weight(.semibold))
+                            .padding(.horizontal, 10).padding(.vertical, 6)
+                            .lookFloating(in: Capsule())
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+                .padding(.horizontal)
             }
         }
     }

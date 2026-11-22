@@ -93,7 +93,9 @@ extension SyncEngine {
     func acceptRequest(_ c: Contact) {
         c.saved = true
         c.isRequest = false
+        fixDirectTitle(c)
         save()
+        Task { await refreshProfile(c) }
     }
 
     // MARK: - Doctor & Patient
@@ -286,6 +288,8 @@ extension SyncEngine {
                   uploads: [String: String] = [:], forwarded: Bool = false, showAt: Date? = nil) {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty || !attachments.isEmpty, !conv.left else { return }
+        // Replying to someone who messaged me first = accepting them as a contact (so they can be added to groups).
+        if !conv.isGroup, let peer = Self.peer(inDirect: conv.id, me: me), let c = contact(peer), !c.saved, !c.blocked { acceptRequest(c) }
         let magic = showAt.flatMap { $0 > .now ? $0 : nil }
         let p = MessagePayload(id: UUID().uuidString, text: trimmed, replyTo: replyTo, attachments: attachments, fwd: forwarded ? true : nil,
                                at: magic, ttl: conv.timer > 0 ? conv.timer : nil)

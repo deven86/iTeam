@@ -133,9 +133,10 @@ final class SyncEngine: ObservableObject {
                 let lastPics = UserDefaults.standard.double(forKey: "contacts.refreshedAt")
                 if Date.now.timeIntervalSince1970 - lastPics > 12 * 3600, let ctx = context {
                     UserDefaults.standard.set(Date.now.timeIntervalSince1970, forKey: "contacts.refreshedAt")
-                    let saved = (try? ctx.fetch(FetchDescriptor<Contact>(predicate: #Predicate { $0.saved }))) ?? []
+                    let saved = (try? ctx.fetch(FetchDescriptor<Contact>(predicate: #Predicate { $0.saved || $0.isRequest }))) ?? []
                     for c in saved.prefix(100) where !c.userID.hasPrefix("demo_") { await refreshProfile(c) }
                 }
+                await repairNamelessChats()
                 if !UserDefaults.standard.bool(forKey: "photoShare.v1") {
                     UserDefaults.standard.set(true, forKey: "photoShare.v1")
                     await updatePhotoSharing()
@@ -177,6 +178,25 @@ final class SyncEngine: ObservableObject {
         save()
         refreshCounts()
         Reminders.shared.reschedule(context: context, me: me)
+    }
+
+    /// A direct chat always shows the person's current name (never the "Chat" placeholder).
+    func fixDirectTitle(_ c: Contact) {
+        guard !c.name.isEmpty, let conv = conversation(Self.directID(me, c.userID)) else { return }
+        if conv.title != c.name { conv.title = c.name }
+        var ms = conv.members
+        if let i = ms.firstIndex(where: { $0.id == c.userID }), ms[i].name != c.name { ms[i].name = c.name; conv.members = ms }
+    }
+
+    /// Chats still named "Chat" (the sender's name wasn't known yet): fetch the profile and fix them.
+    func repairNamelessChats() async {
+        guard let ctx = context else { return }
+        let convs = (try? ctx.fetch(FetchDescriptor<Conversation>(predicate: #Predicate { $0.kind == "direct" }))) ?? []
+        for conv in convs where conv.title == "Chat" || conv.title.isEmpty {
+            guard let peer = Self.peer(inDirect: conv.id, me: me), peer != me else { continue }
+            if let c = try? await ensureContact(peer, asRequest: true) { await refreshProfile(c) }
+        }
+        save()
     }
 
     func refreshCounts() {
@@ -494,6 +514,7 @@ final class SyncEngine: ObservableObject {
         c.name = p.name
         if let pic = p.avatar { c.avatar = pic }
         c.plus = p.plus
+        fixDirectTitle(c)
         if p.publicKey != c.publicKey {
             c.publicKey = p.publicKey
             c.verified = false

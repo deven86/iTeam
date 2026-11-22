@@ -14,7 +14,7 @@ struct FightCharacter: Identifiable, Hashable {
     let guardStrength: CGFloat
     let tint: UInt32
     /// Super power (special move) and its element sparkle.
-    var power: FightPower { FightPower.of(id) }
+    var superPower: FightPower { FightPower.of(id) }
     var element: String {
         switch id {
         case "bee": "🍯"; case "turtle": "🫧"; case "skykit": "⭐"; case "fungi": "🍄"; case "dragon": "💧"; case "fox": "✨"

@@ -306,8 +306,8 @@ final class FightScene: SKScene {
     /// The character's super power.
     private func usePower(_ f: FighterNode) {
         GameSound.play("fx_special")
-        powerBanner(for: f.character.power.title, at: f)
-        switch f.character.power {
+        powerBanner(for: f.character.superPower.title, at: f)
+        switch f.character.superPower {
         case .blast: attack("special", by: f)
         case .quake: attack("quake", by: f)
         case .dash: attack("dash", by: f)
@@ -586,7 +586,7 @@ final class FightScene: SKScene {
             if k == "punch" || k == "special" { showFist(foe, big: k == "special") }
             if k == "quake" { quakeWave(foe) }
             if k == "dash" { puff(at: CGPoint(x: ax, y: FightScene.ground), element: foe.character.element) }
-            if k == "special" || k == "quake" || k == "dash" { GameSound.play("fx_special"); powerBanner(for: foe.character.power.title, at: foe) }
+            if k == "special" || k == "quake" || k == "dash" { GameSound.play("fx_special"); powerBanner(for: foe.character.superPower.title, at: foe) }
             run(.wait(forDuration: k == "kick" ? 0.4 : 0.25)) { [weak self] in
                 guard let self, !self.foe.ko, self.foe.pose == "kick" || self.foe.pose == "punch" else { return }
                 self.foe.show(self.foe.blocking ? "block" : "idle")
@@ -598,7 +598,7 @@ final class FightScene: SKScene {
             me.energy = min(100, me.energy + (blocked ? 5 : 15))
             hitEffect(on: foe, blocked: blocked, big: (m.d ?? 0) > 9)
         case "fx":
-            if m.k == "heal" { healGlow(foe); powerBanner(for: foe.character.power.title, at: foe); GameSound.play("fx_special") }
+            if m.k == "heal" { healGlow(foe); powerBanner(for: foe.character.superPower.title, at: foe); GameSound.play("fx_special") }
         case "ko":
             foe.hp = 0
             finish(iWon: true)

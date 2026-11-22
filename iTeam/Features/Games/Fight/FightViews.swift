@@ -275,7 +275,7 @@ struct FightArenaView: View {
                 stat("Speed", c.speed); stat("Power", c.power); stat("Guard", c.guardStrength)
             }
             Text("Kick: \(c.kick) · Shield: \(c.shield) · Punch: \(c.punch)").font(.caption).foregroundStyle(.secondary)
-            Label("Super power: \(c.power.title) \(c.element)", systemImage: "sparkles").font(.caption.bold()).foregroundStyle(.purple)
+            Label("Super power: \(c.superPower.title) \(c.element)", systemImage: "sparkles").font(.caption.bold()).foregroundStyle(.purple)
             ScrollView {
                 LazyVGrid(columns: Array(repeating: GridItem(.flexible()), count: 4), spacing: 10) {
                     ForEach(FightCharacter.all) { f in

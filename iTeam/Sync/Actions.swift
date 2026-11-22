@@ -116,7 +116,14 @@ extension SyncEngine {
         c.isRequest = false
         c.verified = true
         c.blocked = false
-        if let conv = conversation(Self.directID(me, c.userID)) { conv.title = c.name }
+        // Show the new contact at the top of Chats straight away ("recently added").
+        let conv = directConversation(with: c)
+        conv.title = c.name
+        if conv.lastPreview.isEmpty {
+            context.insert(Message(id: UUID().uuidString, convID: conv.id, senderID: "", text: "👋 You added \(c.name) — say hi!", createdAt: .now, status: .sent, isSystem: true))
+            conv.lastPreview = "👋 New contact — say hi!"
+        }
+        conv.lastActivity = .now
         save()
         return c
     }

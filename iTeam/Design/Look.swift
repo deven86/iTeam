@@ -174,6 +174,19 @@ final class LookManager: ObservableObject {
             l.bubbleIn = Color(.secondarySystemBackground)
             l.bubbleInText = .primary
         }
+        // Settings → Appearance → Chat bubble: my own bubble colour and text colour.
+        if let hex = d.object(forKey: "bubble.color") as? Int, hex >= 0 {
+            l.bubbleOut = AnyShapeStyle(Color(hex: UInt32(hex)))
+            switch d.string(forKey: "bubble.text") ?? "auto" {
+            case "white": l.bubbleOutText = .white
+            case "black": l.bubbleOutText = .black
+            default: l.bubbleOutText = BubbleColors.isLight(UInt32(hex)) ? .black : .white
+            }
+        }
+        if let hex = d.object(forKey: "bubble.inColor") as? Int, hex >= 0 {
+            l.bubbleIn = Color(hex: UInt32(hex))
+            l.bubbleInText = BubbleColors.isLight(UInt32(hex)) ? .black : .white
+        }
         return l
     }
 }
@@ -478,5 +491,19 @@ private struct LookFloatingModifier<S: Shape>: ViewModifier {
                 .background(readabilityTint(scheme, clear: false), in: shape)
                 .glassEffect(interactive ? Glass.regular.interactive() : Glass.regular, in: shape)
         }
+    }
+}
+
+
+enum BubbleColors {
+    /// The same choices as the big chat apps: each colour in a strong and a soft shade.
+    static let all: [UInt32] = [0x52A866, 0xDCF8C6, 0x5B4BD5, 0xE6DEFC, 0xB264D6, 0xEDD9F3, 0xD9745A, 0xF8E3D9,
+                                0x3A8076, 0xD2EFEC, 0x3D6AE0, 0xD6E5FA, 0x234E77, 0xD5E1EA, 0x41503D, 0xE0E7DF,
+                                0x6A2331, 0xF4CDD5, 0x333333, 0xD9DADC, 0x4290F5, 0xD3E4FB, 0x46A0DD, 0xD5E3EE,
+                                0x976B4E, 0xF0DFD3, 0xBEA88A, 0xEDE7DF, 0x4AA686, 0xDDF8EC, 0xE0CC42, 0xFAF7BC,
+                                0x7DA344, 0xEAFCC5, 0xD3426E, 0xF8DCE6, 0xD62B3B, 0xF5D9DE]
+    static func isLight(_ hex: UInt32) -> Bool {
+        let r = Double((hex >> 16) & 0xFF), g = Double((hex >> 8) & 0xFF), b = Double(hex & 0xFF)
+        return (0.299 * r + 0.587 * g + 0.114 * b) > 170
     }
 }

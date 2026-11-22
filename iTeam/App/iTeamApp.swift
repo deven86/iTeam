@@ -100,6 +100,7 @@ final class Router: ObservableObject {
     @Published var openConversation: String?
     /// An exact item to open on top of everything (from a notification or Activity).
     @Published var openItem: OpenItem?
+    @Published var openModuleStore = false
     struct OpenItem: Identifiable, Equatable { let kind: String; let module: String; let id: String }
     @Published var openTask: String?
     @Published var openCare: String?

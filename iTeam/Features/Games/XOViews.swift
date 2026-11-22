@@ -120,7 +120,13 @@ struct XOBoardView: View {
         .navigationBarTitleDisplayMode(.inline)
         .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() } } }
         .refreshable { await engine.sync() }
-        .task { await engine.sync() }
+        .task {
+            // While the board is open, check for the other player's move every 2 seconds.
+            while !Task.isCancelled {
+                await engine.sync()
+                try? await Task.sleep(for: .seconds(2))
+            }
+        }
     }
 
     private func grid(_ g: GameMatch, myTurn: Bool) -> some View {

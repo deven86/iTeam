@@ -193,6 +193,8 @@ enum MessageStatus: Int {
     var statusRaw: Int
     var taskID: String?
     var isSystem: Bool
+    /// A system line that opens a game (X and O) when tapped.
+    var gameID: String? = nil
     /// View-once photo/video, and whether I've opened it.
     var viewOnce: Bool = false
     var openedOnce: Bool = false

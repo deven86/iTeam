@@ -52,6 +52,7 @@ struct SettingsView: View {
                     NavigationLink { AppearanceView() } label: {
                         Label { HStack { Text("Appearance"); Spacer(); Text(looks.style.title).foregroundStyle(look.textSecondary) } } icon: { Image(systemName: "paintbrush.fill") }
                     }
+                    NavigationLink { BubbleColorView() } label: { Label("Chat bubble colour", systemImage: "bubble.left.and.text.bubble.right.fill") }
                     Toggle(isOn: $tapHaptics) {
                         Label("Haptic on every tap", systemImage: "hand.tap.fill")
                     }

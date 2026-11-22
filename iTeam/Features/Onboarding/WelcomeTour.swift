@@ -25,10 +25,23 @@ struct WelcomeTour: View {
         Profession(id: "student", title: "Student", icon: "book.fill", modules: []),
     ]
 
+    static func tab(for moduleID: String) -> Router.TabID? {
+        switch moduleID {
+        case "gym-training": .gym
+        case "business-pro": .tasks
+        case "finance-pro", "finance": .finance
+        case "mindfulness": .mind
+        case "doctor-patient": .doctor
+        default: Router.TabID(rawValue: moduleID)
+        }
+    }
+
     private let cards: [(String, String, String)] = [
         ("bubble.left.and.bubble.right.fill", "Chats & groups", "Encrypted chats, voice notes, photos, view-once media, ✨ magic moments and FaceTime calls. Tap + in a chat for tasks, polls, meetings, approvals and games."),
         ("checklist", "Turn talk into work", "Long-press any message → Create Business Task. Assign, set deadlines, follow up — open tasks show as chips at the top of the chat."),
         ("square.grid.2x2.fill", "Modules", "Attendance, Finance, Care, Events, Travel, Bills, Kids and more are free for life. Professional modules are in the Module Store — free for your first year."),
+        ("bag.fill", "The Module Store", "Settings → Module Store lists every module: Attendance, Finance, Care with pets, Events, Travel, Bills, Kids, Rooms and Safety are free for life. Legal, Tuition, Clinic, Gym, Khata, Rent, Pet Care, Survey and Finance Pro are free for your first year — tap Get to add any."),
+        ("star.fill", "Your bottom bar", "The modules you picked are pinned to the bottom bar. Change them any time in Settings → Modules → Bottom bar."),
         ("gearshape.fill", "Make it yours", "Settings → Notifications chooses what reaches you. Pin your favourite modules to the bottom bar. Change your QR code any time."),
     ]
 
@@ -74,6 +87,14 @@ struct WelcomeTour: View {
                 }
                 Button {
                     for m in adds { modules.setOn(m, true) }
+                    // Put the work module right in the bottom bar for one-tap access.
+                    let tabs = adds.compactMap { Self.tab(for: $0.id) }
+                    if !tabs.isEmpty {
+                        let current = modules.pinned.compactMap(Router.TabID.init(rawValue:))
+                        var pins = Array(tabs.prefix(2))
+                        for t in current + [.views, .tasks] where !pins.contains(t) && pins.count < ModuleRegistry.maxPinned { pins.append(t) }
+                        modules.setPins(pins)
+                    }
                     withAnimation { step = 1 }
                 } label: { Text("Continue").frame(maxWidth: .infinity) }
                 .buttonStyle(.glassProminent).controlSize(.large)
@@ -95,6 +116,10 @@ struct WelcomeTour: View {
                 if step < cards.count { withAnimation { step += 1 } } else { finish() }
             } label: { Text(step < cards.count ? "Next" : "Start using iTeam").frame(maxWidth: .infinity) }
             .buttonStyle(.glassProminent).controlSize(.large)
+            if step == 3 {
+                Button("Open the Module Store now") { finish(); Task { @MainActor in try? await Task.sleep(for: .milliseconds(500)); Router.shared.openModuleStore = true } }
+                    .font(.footnote)
+            }
         }
     }
 

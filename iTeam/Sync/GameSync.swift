@@ -47,7 +47,7 @@ extension EventApplier {
             return .ignored
         }
         g.updatedAt = p.at
-        if !line.isEmpty { system(conv, line, at: e.at) }
+        if !line.isEmpty { system(conv, line + " — tap to open", at: e.at, gameID: g.id) }
         if e.from != me && g.involves(me) && (p.action == "invite" || (p.action == "move" && g.turn == me && g.status == "playing")) {
             ctx.insert(ActivityItem(kind: .mention, text: p.action == "invite" ? line : "🎮 Your move in X and O with \(who)", convID: conv.id, actorID: e.from, date: e.at))
         }
@@ -69,7 +69,7 @@ extension SyncEngine {
     func gameAct(_ g: GameMatch, _ action: String, cell: Int? = nil) {
         guard let conv = conversation(g.convID) else { return }
         send(.game(GamePayload(id: g.id, kind: g.kind, xPlayer: g.xPlayer, oPlayer: g.oPlayer, board: g.board, action: action, cell: cell, at: .now)),
-             in: conv, loud: action != "move" || g.moves == 0, preview: action == "move" ? "🎮 Your move in X and O" : nil)
+             in: conv, loud: true, preview: action == "move" ? (g.status == "playing" ? "🎮 \(myName) played — your move" : "🎮 X and O: game over") : action == "accept" ? "🎮 \(myName) accepted — X and O" : nil)
         if conv.isDemo, let bot = [g.xPlayer, g.oPlayer].first(where: { $0.hasPrefix("demo_") }), g.status == "playing", g.turn == bot {
             demoGame(g.id, as: bot, action: "move")
         }

@@ -1008,8 +1008,9 @@ struct EventApplier {
         conv.lastPreview = conv.isGroup && from != me ? "\(engine.name(of: from)): \(preview)" : preview
     }
 
-    func system(_ conv: Conversation, _ text: String, at: Date) {
+    func system(_ conv: Conversation, _ text: String, at: Date, gameID: String? = nil) {
         let m = Message(id: UUID().uuidString, convID: conv.id, senderID: "", text: text, createdAt: at, status: .sent, isSystem: true)
+        m.gameID = gameID
         ctx.insert(m)
         touch(conv, at: at, preview: text, from: me)
     }

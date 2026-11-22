@@ -22,7 +22,17 @@ struct MessageBubble: View {
     private static let quickReactions = ["👍", "❤️", "😂", "😮", "🙏", "✅"]
 
     var body: some View {
-        if message.isSystem {
+        if message.isSystem, let gid = message.gameID {
+            Button { router.openItem = Router.OpenItem(kind: "game", module: "", id: gid) } label: {
+                Label(message.text, systemImage: "gamecontroller.fill")
+                    .font(.caption.weight(.semibold))
+                    .padding(.horizontal, 12).padding(.vertical, 7)
+                    .lookFloating(in: Capsule())
+            }
+            .buttonStyle(.plain)
+            .padding(.vertical, 4)
+            .frame(maxWidth: .infinity)
+        } else if message.isSystem {
             Text(message.text)
                 .font(.caption)
                 .multilineTextAlignment(.center)
@@ -151,7 +161,7 @@ struct MessageBubble: View {
                                            bottomTrailingRadius: mine ? 6 : 18, topTrailingRadius: 18, style: .continuous)
         if mine {
             shape.fill(look.bubbleOut)
-        } else if look.glassCards {
+        } else if look.glassCards && UserDefaults.standard.object(forKey: "bubble.inColor") == nil {
             Color.clear.glassEffect(look.glassClear ? .clear : .regular, in: shape)
         } else {
             shape.fill(look.bubbleIn)

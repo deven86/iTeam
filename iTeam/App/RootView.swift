@@ -216,6 +216,7 @@ struct RootView: View {
             }
             .sheet(item: $restoreOffer) { f in RestoreOfferView(found: f) }
             .sheet(item: $router.openItem) { item in OpenItemView(item: item) }
+            .sheet(isPresented: $router.openModuleStore) { NavigationStack { ModuleStoreView() } }
             .fullScreenCover(isPresented: Binding(get: { !tourDone && engine.isSetUp }, set: { if !$0 { tourDone = true } })) { WelcomeTour() }
             .task {
                 TapHaptics.shared.install()

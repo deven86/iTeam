@@ -16,7 +16,7 @@ def note(t, m): print(f"::notice title={t}::{m}")
 aid = call("GET", "/apps?filter[bundleId]=com.jondhale.iteam")["data"][0]["id"]
 gc = (call("GET", f"/apps/{aid}/gameCenterDetail") or {}).get("data")
 if not gc:
-    gc = (call("POST", "/gameCenterDetails", {"data": {"type": "gameCenterDetails", "attributes": {"challengeEnabled": False},
+    gc = (call("POST", "/gameCenterDetails", {"data": {"type": "gameCenterDetails", "attributes": {},
           "relationships": {"app": {"data": {"type": "apps", "id": aid}}}}}) or {}).get("data")
 if not gc: raise SystemExit("Could not turn on Game Center")
 gid = gc["id"]; note("game center", f"on ({gid})")

@@ -4,6 +4,7 @@ import SwiftData
 extension EventApplier {
     func applyGame(_ p: GamePayload, _ e: Event, conv: Conversation?) -> Result {
         guard let conv else { return .needsConversation }
+        if p.kind == "fight" { return applyFight(p, e, conv: conv) }
         let gid = p.id
         let existing = try? ctx.fetch(FetchDescriptor<GameMatch>(predicate: #Predicate { $0.id == gid })).first
         let who = e.from == me ? "You" : engine.name(of: e.from)

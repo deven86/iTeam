@@ -18,6 +18,7 @@ struct ChatView: View {
     @State private var taskFrom: Message?
     @State private var showInfo = false
     @State private var showGames = false
+    @State private var showFight = false
     @State private var showRecommend = false
     @State private var photoItems: [PhotosPickerItem] = []
     @State private var showFiles = false
@@ -121,6 +122,7 @@ struct ChatView: View {
     private func chrome<V: View>(_ v: V, _ conv: Conversation) -> some View {
         v
         .sheet(isPresented: $showGames) { XOGamesView(convID: conv.id) }
+        .sheet(isPresented: $showFight) { FightInviteView(convID: conv.id) }
         .sheet(isPresented: $showRecommend) { RecommendContactView(conv: conv) }
         .safeAreaInset(edge: .top, spacing: 0) {
             VStack(spacing: 6) {
@@ -147,6 +149,7 @@ struct ChatView: View {
                         }
                     }
                     Button("Play X and O", systemImage: "gamecontroller.fill") { showGames = true }
+                    if conv.members.count > 1 { Button("Fluffy Fight", systemImage: "figure.boxing") { showFight = true } }
                     Button("Share chat as text", systemImage: "text.alignleft") {
                         shareItems = ShareItems(items: [ShareText.chatText(conv, messages, engine: engine)])
                     }
@@ -423,6 +426,7 @@ struct ChatView: View {
                     }
                     Button("Recommend a contact", systemImage: "person.crop.circle.badge.plus") { showRecommend = true }
                     Button("Play X and O", systemImage: "gamecontroller") { showGames = true }
+                    if conv.members.count > 1 { Button("Fluffy Fight", systemImage: "figure.boxing") { showFight = true } }
                     Button("Check In", systemImage: "location.circle") { showCheckIn = true }
                     Button("Event invite", systemImage: "party.popper") { showEvent = true }
                     Button("✨ Magic moment (send later)", systemImage: "sparkles") { magicOpen = true }

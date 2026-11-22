@@ -11,7 +11,7 @@ struct XOGamesView: View {
 
     init(convID: String) {
         self.convID = convID
-        _games = Query(filter: #Predicate<GameMatch> { $0.convID == convID && !$0.deleted }, sort: \GameMatch.createdAt, order: .reverse)
+        _games = Query(filter: #Predicate<GameMatch> { $0.convID == convID && !$0.deleted && $0.kind == "xo" }, sort: \GameMatch.createdAt, order: .reverse)
     }
 
     private var conv: Conversation? { engine.conversation(convID) }

@@ -17,6 +17,10 @@ import SwiftData
     var createdAt: Date = Date.now
     var updatedAt: Date = Date.distantPast
     var deleted: Bool = false
+    /// Fluffy Fight: what the loser takes on (a task or a time slot — never a person). "" = just for fun.
+    var stake: String = ""
+    /// Fluffy Fight: the Game Center match code both phones use to find each other.
+    var code: Int = 0
 
     init(id: String) { self.id = id }
 
@@ -45,4 +49,7 @@ struct GamePayload: Codable {
     var action: String
     var cell: Int? = nil
     var at: Date
+    /// Fluffy Fight: the stake and the reported winner.
+    var stake: String? = nil
+    var winner: String? = nil
 }

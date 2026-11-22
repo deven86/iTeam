@@ -28,6 +28,7 @@ jobs:
       - name: Build APK
         env:
           CK_API_TOKEN: ${{ secrets.CK_API_TOKEN }}
+          CK_ENV: ${{ vars.CK_ENV || 'development' }}
           KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
         run: |
           [ -n "$CK_API_TOKEN" ] || echo "::warning::CK_API_TOKEN secret missing — the app will open but can't connect."

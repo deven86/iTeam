@@ -95,6 +95,7 @@ targets:
         com.apple.developer.healthkit.access: []
         com.apple.security.application-groups:
           - group.com.jondhale.iteam
+        com.apple.developer.game-center: true
 
   iTeamNotify:
     type: app-extension

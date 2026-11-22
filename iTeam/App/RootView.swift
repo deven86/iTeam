@@ -485,7 +485,7 @@ struct OpenItemView: View {
             if let spec = BizSpecs.spec(item.module) { NavigationStack { BizParentView(spec: spec, recordID: item.id) } }
             else { ContentUnavailableView("Not found", systemImage: "questionmark") }
         case "meeting": NavigationStack { MeetingDetailView(meetingID: item.id) }
-        case "game": XOBoardView(gameID: item.id)
+        case "game": GameOpenView(gameID: item.id)
         default: ContentUnavailableView("Not found", systemImage: "questionmark")
         }
     }

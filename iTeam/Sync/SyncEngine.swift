@@ -113,7 +113,7 @@ final class SyncEngine: ObservableObject {
     // MARK: - Sync loop
 
     func sync() async {
-        guard isSetUp, context != nil else { return }
+        guard isSetUp, context != nil, !ScreenshotMode.on else { return }
         if running { again = true; return }
         running = true
         defer { running = false }

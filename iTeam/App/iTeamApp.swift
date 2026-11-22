@@ -17,7 +17,8 @@ struct iTeamApp: App {
         Backup.applyPendingRestore()
         let schema = Schema(ITeamSchema.models)
         // The local store is never mirrored to iCloud by SwiftData; CloudKit only carries encrypted events.
-        let config = ModelConfiguration(schema: schema, cloudKitDatabase: .none)
+        let config = ScreenshotMode.on ? ModelConfiguration(schema: schema, isStoredInMemoryOnly: true, cloudKitDatabase: .none)
+                                       : ModelConfiguration(schema: schema, cloudKitDatabase: .none)
         do {
             container = try ModelContainer(for: schema, configurations: config)
         } catch {
@@ -27,6 +28,7 @@ struct iTeamApp: App {
         }
         MainActor.assumeIsolated {
             SyncEngine.shared.attach(container)
+            ScreenshotMode.prepare(SyncEngine.shared)
         }
     }
 

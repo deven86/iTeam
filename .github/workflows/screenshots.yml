@@ -1,0 +1,70 @@
+name: App Store screenshots
+
+# Builds for the simulator and captures App Store screenshots (6.9" iPhone + 13" iPad)
+# using the app's in-memory sample data (-uiScreenshots). Real data is never used.
+on: workflow_dispatch
+
+permissions:
+  contents: write
+
+jobs:
+  shots:
+    runs-on: macos-15-intel
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v5
+      - name: Select Xcode 26
+        run: |
+          X=$(ls -d /Applications/Xcode_26*.app 2>/dev/null | sort -V | tail -1)
+          sudo xcode-select -s "$X/Contents/Developer"
+          xcodebuild -version
+      - name: Generate project
+        run: brew install xcodegen && xcodegen generate
+      - name: Build for simulator
+        run: |
+          set +e
+          xcodebuild build -project iTeam.xcodeproj -scheme iTeam -configuration Debug \
+            -destination 'generic/platform=iOS Simulator' -derivedDataPath dd CODE_SIGNING_ALLOWED=NO > "$RUNNER_TEMP/build.log" 2>&1
+          s=$?; set -e
+          if [ $s -ne 0 ]; then grep -E "error:" "$RUNNER_TEMP/build.log" | sort -u | head -25 | while IFS= read -r l; do echo "::error title=compile::$l"; done; exit $s; fi
+          echo "::notice title=build::BUILD SUCCEEDED"
+      - name: Capture
+        run: |
+          APP=$(ls -d dd/Build/Products/Debug-iphonesimulator/iTeam.app)
+          pick() { xcrun simctl list devices available -j | python3 -c "
+          import json,sys,re
+          d=json.load(sys.stdin)['devices']
+          c=[(rt,x) for rt,v in d.items() if 'iOS' in rt for x in v if re.search(sys.argv[1], x['name'])]
+          c.sort(key=lambda t: (t[0], t[1]['name']))
+          print(c[-1][1]['udid'] if c else '')" "$1"; }
+          PHONE=$(pick 'iPhone 1[6-9] Pro Max')
+          PAD=$(pick 'iPad Pro 13')
+          echo "::notice title=devices::phone=$PHONE pad=$PAD"
+          mkdir -p shots
+          for DEV in "$PHONE:iphone" "$PAD:ipad"; do
+            U=${DEV%%:*}; N=${DEV##*:}
+            [ -n "$U" ] || { echo "::error title=device::no $N simulator"; exit 1; }
+            xcrun simctl boot "$U" || true
+            xcrun simctl bootstatus "$U" -b
+            xcrun simctl ui "$U" appearance light || true
+            xcrun simctl status_bar "$U" override --time 9:41 --dataNetwork wifi --wifiMode active --wifiBars 3 --cellularMode active --cellularBars 4 --batteryState charged --batteryLevel 100 || true
+            xcrun simctl install "$U" "$APP"
+            # first launch warms up caches
+            xcrun simctl launch "$U" com.jondhale.iteam -uiScreenshots -screen chats >/dev/null; sleep 60; xcrun simctl terminate "$U" com.jondhale.iteam || true
+            i=1
+            for S in chats chat tasks attendance finance legal survey hub; do
+              xcrun simctl launch "$U" com.jondhale.iteam -uiScreenshots -screen $S >/dev/null
+              sleep 45   # the Intel simulator is slow to finish launching
+              xcrun simctl io "$U" screenshot "shots/${N}_0${i}_${S}.png"
+              xcrun simctl terminate "$U" com.jondhale.iteam || true
+              i=$((i+1))
+            done
+            xcrun simctl shutdown "$U" || true
+          done
+          for f in shots/*.png; do echo "$f $(sips -g pixelWidth -g pixelHeight "$f" | awk '/pixel/{print $2}' | tr '\n' 'x')"; done
+      - name: Save into appstore/screenshots on main
+        run: |
+          git config user.name "iTeam CI"; git config user.email "ci@users.noreply.github.com"
+          rm -rf dd
+          mkdir -p appstore/screenshots && rm -f appstore/screenshots/*.png && cp shots/*.png appstore/screenshots/
+          git add appstore/screenshots && git commit -qm "App Store screenshots $(date -u +%F)" && git pull --rebase -q && git push -q

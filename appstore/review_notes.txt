@@ -1,0 +1,9 @@
+Sign in with Apple is the only login; no phone number or separate account is needed.
+
+To try the app alone, open Chats: demo chats with "Asha" and "Rahul" are created on first launch and reply automatically, so tasks, attendance, finance and other modules can be tested without a second device. Modules > Module Store lists every module; tap "Get — Free" to add one, then "Try a demo" inside it.
+
+There is no server. Messages and records are end-to-end encrypted on the device (CryptoKit) and passed through the app's CloudKit public database as encrypted envelopes, which are deleted after 45 days.
+
+User-generated content: Rooms messages have Report, and chat or contact info has "Report and block"; blocked users can no longer message the user, and reports reach the developer through Settings > Help & complaints.
+
+All modules are free during the first year; there are no in-app purchases in this version. AI features are optional (Settings > AI & My Day), use Apple Intelligence on the device by default, and never give medical advice.

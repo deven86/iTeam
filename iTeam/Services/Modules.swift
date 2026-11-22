@@ -185,7 +185,7 @@ final class ModuleRegistry: ObservableObject {
     static let attendance = ModuleInfo(
         id: "attendance", title: "Attendance",
         tagline: "Punch in by phone, selfie + location, rotating QR or kiosk — with leaves, holidays and Tally export.",
-        icon: "person.badge.clock.fill", colors: [0x11998E, 0x38EF7D], availability: .paid,
+        icon: "person.badge.clock.fill", colors: [0x11998E, 0x38EF7D], availability: .included,
         productID: Store.attendanceProductID, fallbackPrice: "₹99 / $0.99 a month",
         problems: ["Paper registers and buddy-punching", "Arguments about late marks, half days and leave",
                    "Month-end: counting days by hand for salary and Tally"],
@@ -259,7 +259,7 @@ final class ModuleRegistry: ObservableObject {
         benefits: ["“What did I miss?” summaries", "Suggested tasks from messages", "Runs on-device with Apple Intelligence (iPhone 15 Pro and newer)"],
         previews: [.assistant], note: "In development.")
 
-    static let all: [ModuleInfo] = [businessTasks, businessPro, iLifeCare, travel, events, safety, rooms, bills, kids, khata, tuition, rent, legal, clinic, attendance, gymTraining, mindfulness, teamWorkspace, filesKnowledge, aiAssistant]
+    static let all: [ModuleInfo] = [businessTasks, businessPro, iLifeCare, travel, events, safety, rooms, bills, kids, khata, tuition, rent, legal, clinic, attendance, gymTraining, mindfulness, teamWorkspace]
 
     @Published private var enabled: [String: Bool]
     /// Modules the user wants in the iPhone bottom bar, in order (Router.TabID raw values).
@@ -299,7 +299,8 @@ final class ModuleRegistry: ObservableObject {
 
     /// Shown in the app (paid modules show their store page until subscribed).
     /// Free extras are added from the Module Store ("Get"); core and paid ones start on.
-    static let optIn: Set<String> = ["doctor-patient", "travel", "events", "safety", "rooms", "bills", "kids"]
+    /// Core modules show for everyone; professional modules start hidden and are added from the Module Store.
+    static let optIn: Set<String> = ["business-pro", "gym-training", "mindfulness", "khata", "tuition", "rent", "legal", "clinic"]
     func isVisible(_ m: ModuleInfo) -> Bool { enabled[m.id] ?? !Self.optIn.contains(m.id) }
 
     func setOn(_ m: ModuleInfo, _ on: Bool) {

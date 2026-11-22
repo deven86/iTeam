@@ -193,6 +193,8 @@ struct ModuleDetailView: View {
         case .comingSoon:
             Label("We're building this. It will appear here when ready.", systemImage: "hammer").font(.subheadline)
         case .paid:
+            Text("*Note: professional module — free for your first year, no payment or card needed. Core modules are free for life.")
+                .font(.caption).foregroundStyle(look.textSecondary)
             if unlocked {
                 Label(Store.allFree ? "Free for everyone — enjoy!" : store.isOwner ? "Free for you as the owner" : "Active on this Apple ID",
                       systemImage: store.isOwner ? "crown.fill" : "checkmark.seal.fill").foregroundStyle(look.success)

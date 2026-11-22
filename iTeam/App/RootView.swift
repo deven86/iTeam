@@ -22,6 +22,9 @@ struct RootView: View {
     private var rxToReview: [Prescription] { waitingRx.filter { $0.patientID == engine.me } }
     @Query(filter: #Predicate<InviteEvent> { !$0.deleted }) private var invites: [InviteEvent]
     @AppStorage("onboard.tour.done") private var tourDone = false
+    @Query(filter: #Predicate<SurveyRecord> { $0.kind == "survey" && !$0.deleted }) private var surveyRecs: [SurveyRecord]
+    /// People asked to answer a survey see the Survey tab free.
+    private var surveysShared: Bool { surveyRecs.contains { $0.ownerID != engine.me } }
     @Query(filter: #Predicate<AttRecord> { $0.kind == "member" && !$0.deleted }) private var attMembers: [AttRecord]
     /// Employees and admins use Attendance free once someone adds them.
     private var inAttendance: Bool { attMembers.contains { $0.member.userID == engine.me && $0.member.accepted != false } }
@@ -46,11 +49,12 @@ struct RootView: View {
         if modules.isOn(ModuleRegistry.bills) { a.append(.bills) }
         if modules.isOn(ModuleRegistry.kids) || sharedBiz.contains("kids") { a.append(.kids) }
         for (info, spec) in [(ModuleRegistry.khata, BizSpecs.khata), (ModuleRegistry.tuition, BizSpecs.tuition), (ModuleRegistry.rent, BizSpecs.rent),
-                             (ModuleRegistry.legal, BizSpecs.legal), (ModuleRegistry.clinic, BizSpecs.clinic)] {
+                             (ModuleRegistry.legal, BizSpecs.legal), (ModuleRegistry.clinic, BizSpecs.clinic), (ModuleRegistry.petCare, BizSpecs.petcare)] {
             if modules.isOn(info) || (sharedBiz.contains(spec.module) && modules.isVisible(info)) { a.append(spec.tab) }
         }
         if modules.isOn(ModuleRegistry.businessTasks) { a.append(.tasks); a.append(.meetings) }
         if modules.isOn(ModuleRegistry.finance) { a.append(.finance) }
+        if modules.isOn(ModuleRegistry.survey) || surveysShared { a.append(.survey) }
         if modules.isOn(ModuleRegistry.attendance) || (inAttendance && modules.isVisible(ModuleRegistry.attendance)) { a.append(.attendance) }
         // Paid modules appear once bought (or unlocked for the owner / TestFlight testing) — or when
         // someone else shared a profile with you, because members use shared profiles free.
@@ -150,6 +154,11 @@ struct RootView: View {
         }
         .hidden(!inBar.contains(.meetings))
 
+        Tab("Survey", systemImage: "list.clipboard.fill", value: Router.TabID.survey) {
+            SurveyHomeView()
+        }
+        .hidden(!inBar.contains(.survey))
+
         Tab("Finance", systemImage: "indianrupeesign.circle.fill", value: Router.TabID.finance) {
             FinanceHomeView()
         }
@@ -195,7 +204,7 @@ struct RootView: View {
             .onChange(of: inBar) { _, bar in
                 router.barTabs = bar
                 // A tab that just left the bar reopens inside the hub instead of vanishing.
-                if [Router.TabID.views, .events, .rooms, .doctor, .safety, .khata, .tuition, .rent, .legal, .clinic, .bills, .kids, .travel, .meetings, .attendance, .finance, .tasks, .care, .gym, .mind, .activity].contains(router.tab), !bar.contains(router.tab) {
+                if [Router.TabID.views, .events, .rooms, .doctor, .safety, .khata, .tuition, .rent, .legal, .clinic, .bills, .kids, .travel, .petcare, .survey, .meetings, .attendance, .finance, .tasks, .care, .gym, .mind, .activity].contains(router.tab), !bar.contains(router.tab) {
                     router.tab = .chats
                 }
             }
@@ -261,9 +270,11 @@ struct ModulesHubView: View {
         case .bills: BizHomeView(spec: BizSpecs.bills)
         case .kids: BizHomeView(spec: BizSpecs.kids)
         case .travel: BizHomeView(spec: BizSpecs.travel)
+        case .petcare: BizHomeView(spec: BizSpecs.petcare)
         case .meetings: MeetingsHomeView()
         case .attendance: AttendanceHomeView()
         case .finance: FinanceHomeView()
+        case .survey: SurveyHomeView()
         case .tasks: TaskDashboardView()
         case .care: CareHomeView()
         case .gym: GymModuleView()
@@ -349,7 +360,8 @@ struct ModulesHubView: View {
         case .meetings: ("Meetings", "person.3.fill", [0x4568DC, 0xB06AB3])
         case .attendance: ("Attendance", ModuleRegistry.attendance.icon, ModuleRegistry.attendance.colors)
         case .finance: ("Finance", ModuleRegistry.finance.icon, ModuleRegistry.finance.colors)
-        case .khata, .tuition, .rent, .legal, .clinic, .bills, .kids, .travel:
+        case .survey: ("Survey", ModuleRegistry.survey.icon, ModuleRegistry.survey.colors)
+        case .khata, .tuition, .rent, .legal, .clinic, .bills, .kids, .travel, .petcare:
             BizSpecs.all.first { $0.tab == t }.map { ($0.title, $0.icon, $0.colors) } ?? ("", "square", [0, 0])
         case .tasks: ("Tasks", ModuleRegistry.businessTasks.icon, ModuleRegistry.businessTasks.colors)
         case .care: ("Care", ModuleRegistry.iLifeCare.icon, ModuleRegistry.iLifeCare.colors)

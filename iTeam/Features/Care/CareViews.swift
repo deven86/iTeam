@@ -37,9 +37,18 @@ struct CareHomeView: View {
                     Section { todayCard.listRowBackground(Color.clear).listRowInsets(EdgeInsets()) }
                     CarePrescriptionsSection()
                     Section("People") {
-                        ForEach(profiles) { p in
+                        ForEach(profiles.filter { $0.relation != "Pet" }) { p in
                             NavigationLink(value: p.id) { profileRow(p) }
                         }
+                    }
+                    .lookRows()
+                    Section {
+                        ForEach(profiles.filter { $0.relation == "Pet" }) { p in
+                            NavigationLink(value: p.id) { profileRow(p) }
+                        }
+                        Button { newPet = true; showNew = true } label: { Label("Add a pet", systemImage: "pawprint.fill") }
+                    } header: { Text("Pets") } footer: {
+                        Text("Medicines, feeding and vaccinations for pets, with reminders for everyone you share with. Pets added in Pet Care appear here automatically.")
                     }
                     .lookRows()
                 }
@@ -54,7 +63,7 @@ struct CareHomeView: View {
                 }
             }
             .refreshable { await engine.sync() }
-            .sheet(isPresented: $showNew) { NavigationStack { CareProfileEditor(profile: nil) { id in path = [id] } } }
+            .sheet(isPresented: $showNew, onDismiss: { newPet = false }) { NavigationStack { CareProfileEditor(profile: nil, presetRelation: newPet ? "Pet" : "") { id in path = [id] } } }
             .sheet(isPresented: $showPaywall) { CarePaywall() }
             .onChange(of: router.openCare) { _, id in
                 guard let id else { return }
@@ -64,6 +73,8 @@ struct CareHomeView: View {
             .onAppear { if let id = router.openCare { path = [id]; router.openCare = nil } }
         }
     }
+
+    @State private var newPet = false
 
     private func startNew() {
         showNew = true   // Care is free for everyone
@@ -385,6 +396,7 @@ struct CareProfileView: View {
 
 struct CareProfileEditor: View {
     let profile: CareProfile?
+    var presetRelation: String = ""
     var onSaved: (String) -> Void
     @EnvironmentObject var engine: SyncEngine
     @Environment(\.dismiss) private var dismiss
@@ -459,6 +471,7 @@ struct CareProfileEditor: View {
             }
         }
         .onAppear {
+            if profile == nil && !presetRelation.isEmpty && relation.isEmpty { relation = presetRelation }
             guard let p = profile else { return }
             name = p.name; relation = p.relation; bloodGroup = p.bloodGroup; allergies = p.allergies
             conditions = p.conditions; emergency = p.emergencyContact; notes = p.notes; avatar = p.avatar

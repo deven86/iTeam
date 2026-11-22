@@ -20,6 +20,7 @@ struct WelcomeTour: View {
         Profession(id: "landlord", title: "Landlord / property", icon: "house.and.flag.fill", modules: [ModuleRegistry.rent]),
         Profession(id: "business", title: "Business owner / employer", icon: "briefcase.fill", modules: [ModuleRegistry.businessPro, ModuleRegistry.financePro]),
         Profession(id: "wellness", title: "Wellness / meditation coach", icon: "leaf.fill", modules: [ModuleRegistry.mindfulness]),
+        Profession(id: "pets", title: "Pet parent / vet", icon: "pawprint.fill", modules: [ModuleRegistry.petCare]),
         Profession(id: "family", title: "Family / personal use", icon: "house.fill", modules: []),
         Profession(id: "student", title: "Student", icon: "book.fill", modules: []),
     ]

@@ -741,6 +741,9 @@ struct EventApplier {
         case .album(let p):
             return applyAlbum(p, e)
 
+        case .survey(let p):
+            return applySurvey(p, e, conv: conv, personal: personal)
+
         case .nowPlaying(let text):
             if e.from != me, let c = engine.contact(e.from), !c.blocked { c.nowPlaying = text; c.nowPlayingAt = e.at }
 

@@ -205,7 +205,34 @@ enum BizSpecs {
         ],
         balanceLabel: "Spent", clientWord: "travel group", paid: false)
 
-    static let all: [BizSpec] = [khata, tuition, rent, legal, clinic, bills, kids, travel]
+    static let petcare = BizSpec(
+        module: "petcare", tab: .petcare, title: "Pet Care", icon: "pawprint.fill", colors: [0xEA580C, 0xF59E0B],
+        parent: BizKind(id: "pet", label: "Pet", plural: "Pets", icon: "pawprint.circle.fill",
+                        fields: [.init(key: .title, label: "Pet name"), .init(key: .subtitle, label: "Species", options: ["Dog", "Cat", "Bird", "Rabbit", "Fish", "Other"]),
+                                 .init(key: .date, label: "Birth date"), .init(key: .phone, label: "Vet phone"), .init(key: .notes, label: "Notes, allergies, diet")],
+                        linkable: true, extras: ["Breed", "Weight (kg)", "Microchip / tag ID"]),
+        children: [
+            BizKind(id: "vaccine", label: "Vaccination", plural: "Vaccinations", icon: "syringe",
+                    fields: [.init(key: .title, label: "Vaccine"), .init(key: .date, label: "Given on"), .init(key: .due, label: "Next booster"),
+                             .init(key: .status, label: "Status"), .init(key: .notes, label: "Batch / vet")],
+                    statuses: ["Due", "Done"], doneStatuses: ["Done"]),
+            BizKind(id: "deworming", label: "Deworming / tick & flea", plural: "Deworming", icon: "pills",
+                    fields: [.init(key: .title, label: "Treatment"), .init(key: .date, label: "Given on"), .init(key: .due, label: "Next due"), .init(key: .status, label: "Status")],
+                    statuses: ["Due", "Done"], doneStatuses: ["Done"]),
+            BizKind(id: "medication", label: "Medicine", plural: "Medicines", icon: "pills.fill",
+                    fields: [.init(key: .title, label: "Medicine"), .init(key: .subtitle, label: "Dose"), .init(key: .date, label: "Daily time"), .init(key: .notes, label: "Instructions")]),
+            BizKind(id: "feeding", label: "Feeding", plural: "Feeding", icon: "fork.knife",
+                    fields: [.init(key: .title, label: "Meal (e.g. Breakfast)"), .init(key: .subtitle, label: "Food & quantity"), .init(key: .date, label: "Daily time")]),
+            BizKind(id: "vet", label: "Vet visit", plural: "Vet visits", icon: "cross.case",
+                    fields: [.init(key: .date, label: "Date"), .init(key: .title, label: "Reason"), .init(key: .amount, label: "Cost"), .init(key: .notes, label: "Diagnosis / advice")]),
+            BizKind(id: "grooming", label: "Grooming / training", plural: "Grooming & training", icon: "scissors",
+                    fields: [.init(key: .date, label: "Date"), .init(key: .title, label: "What"), .init(key: .amount, label: "Cost"), .init(key: .notes, label: "Notes")]),
+            BizKind(id: "weight", label: "Weight", plural: "Weight log", icon: "scalemass",
+                    fields: [.init(key: .date, label: "Date"), .init(key: .title, label: "Weight (kg)")]),
+        ],
+        balanceLabel: "Spent", clientWord: "pet parent")
+
+    static let all: [BizSpec] = [khata, tuition, rent, legal, clinic, bills, kids, travel, petcare]
     static func spec(_ module: String) -> BizSpec? { all.first { $0.module == module } }
 
     static func money(_ v: Double) -> String { "₹" + (v.rounded() == v ? String(Int(v)) : String(format: "%.2f", v)) }

@@ -77,6 +77,8 @@ struct Event: Codable {
         case finance(FinPayload)
         /// A photo/video in an event or trip album.
         case album(AlbumPayload)
+        /// Surveys and responses.
+        case survey(SurveyPayload)
     }
 }
 

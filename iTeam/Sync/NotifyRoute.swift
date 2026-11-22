@@ -18,6 +18,7 @@ enum NotifyRoute {
         Kind(id: "minis", title: "Minis & posts", icon: "play.rectangle.fill"),
         Kind(id: "safety", title: "Check In & safety", icon: "location.circle.fill"),
         Kind(id: "games", title: "Games", icon: "gamecontroller.fill"),
+        Kind(id: "surveys", title: "Surveys", icon: "list.clipboard.fill"),
         Kind(id: "rooms", title: "Rooms private messages", icon: "bubble.left.and.text.bubble.right.fill"),
         Kind(id: "groups", title: "Groups (added, changes)", icon: "person.2.fill"),
     ]
@@ -59,6 +60,7 @@ enum NotifyRoute {
         case .game(let p): return ("games", "iteam://item/game/\(p.id)")
         case .finance: return ("finance", "iteam://open/finance")
         case .album: return ("events", nil)
+        case .survey: return ("surveys", "iteam://open/survey")
         }
     }
 }

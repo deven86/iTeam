@@ -20,6 +20,7 @@ struct ModuleInfo: Identifiable {
         case eventsDashboard, eventForm, roomsDashboard, roomChat, safetyDashboard, meetingDashboard, meetingForm, meetingMinutes
         case attDashboard, attMember, attKiosk, attEmployee
         case finDashboard, finForm, finPro
+        case surveyDashboard, surveyForm
     }
 
     let id: String
@@ -110,6 +111,14 @@ final class ModuleRegistry: ObservableObject {
                    fallbackPrice: product == nil ? "Free" : "₹99 / $0.99 a month",
                    problems: problems, benefits: benefits, previews: [.bizDashboard(spec.module), .bizForm(spec.module)], note: note)
     }
+
+    static let petCare = biz("petcare", BizSpecs.petcare, tagline: "Vaccinations, deworming, feeding, medicines, vet visits and grooming — synced to iLife Care.",
+        product: Store.petCareProductID,
+        problems: ["Missed boosters and deworming dates", "Who fed the dog? Did anyone give the medicine?", "Vet papers scattered everywhere"],
+        benefits: ["Every pet automatically appears in free iLife Care, with medicine and feeding reminders for the whole family",
+                   "Vaccination and deworming due dates with reminders", "Vet visits with diagnosis, cost and reports attached",
+                   "Grooming, training and weight log", "Costs flow into Finance", "Vets and trainers: link the pet parent — they see only their pet"],
+        note: "Professional module: only the pet owner or vet pays. Family and pet parents see shared pets free — and always in iLife Care.")
 
     static let travel = biz("travel", BizSpecs.travel, tagline: "Plan trips together — days, bookings, packing and expenses.",
         product: nil,
@@ -229,6 +238,20 @@ final class ModuleRegistry: ObservableObject {
         previews: [.finPro, .finDashboard],
         note: "Professional module: only the master account pays; everyone else in the company uses it free.")
 
+    static let survey = ModuleInfo(
+        id: "survey", title: "Survey",
+        tagline: "Land, building, online and poll surveys — with photos, videos and GPS, online or offline.",
+        icon: "list.clipboard.fill", colors: [0x6366F1, 0x10B981], availability: .paid,
+        productID: Store.surveyProductID, fallbackPrice: "₹99 / $0.99 a month",
+        problems: ["Field surveys on paper, photos lost on someone's phone", "Google Forms can't do GPS, site photos or offline work"],
+        benefits: ["Ready templates: land survey, building survey, online survey, poll",
+                   "Questions with text, numbers, choices, ratings, photos, video, GPS location and dates",
+                   "Online: send to a chat or group — answers come privately to you",
+                   "Offline field mode: collect one response per plot, flat or person, even without internet",
+                   "Live results; PDF report with charts and Excel (CSV) export"],
+        previews: [.surveyDashboard, .surveyForm],
+        note: "Professional module: only the survey creator pays. People who answer never pay.")
+
     static let gymTraining = ModuleInfo(
         id: "gym-training", title: "Gym & Training",
         tagline: "Memberships, trainer sessions and payments — shared with your trainer, clients or family.",
@@ -289,7 +312,7 @@ final class ModuleRegistry: ObservableObject {
         benefits: ["“What did I miss?” summaries", "Suggested tasks from messages", "Runs on-device with Apple Intelligence (iPhone 15 Pro and newer)"],
         previews: [.assistant], note: "In development.")
 
-    static let all: [ModuleInfo] = [businessTasks, businessPro, iLifeCare, travel, events, safety, rooms, bills, kids, khata, tuition, rent, legal, clinic, attendance, finance, financePro, gymTraining, mindfulness, teamWorkspace]
+    static let all: [ModuleInfo] = [businessTasks, businessPro, iLifeCare, travel, events, safety, rooms, bills, kids, khata, tuition, rent, legal, clinic, petCare, survey, attendance, finance, financePro, gymTraining, mindfulness, teamWorkspace]
 
     @Published private var enabled: [String: Bool]
     /// Modules the user wants in the iPhone bottom bar, in order (Router.TabID raw values).
@@ -330,7 +353,7 @@ final class ModuleRegistry: ObservableObject {
     /// Shown in the app (paid modules show their store page until subscribed).
     /// Free extras are added from the Module Store ("Get"); core and paid ones start on.
     /// Core modules show for everyone; professional modules start hidden and are added from the Module Store.
-    static let optIn: Set<String> = ["finance-pro", "business-pro", "gym-training", "mindfulness", "khata", "tuition", "rent", "legal", "clinic"]
+    static let optIn: Set<String> = ["survey", "petcare", "finance-pro", "business-pro", "gym-training", "mindfulness", "khata", "tuition", "rent", "legal", "clinic"]
     func isVisible(_ m: ModuleInfo) -> Bool { enabled[m.id] ?? !Self.optIn.contains(m.id) }
 
     func setOn(_ m: ModuleInfo, _ on: Bool) {

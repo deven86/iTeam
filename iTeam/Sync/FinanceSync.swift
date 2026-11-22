@@ -117,7 +117,7 @@ extension SyncEngine {
             case ("tuition", "fee"), ("legal", "fee"), ("clinic", "bill"): isIn = true
             case ("rent", "charge"): if !paid { isIn = true; status = "due" }
             case ("bills", "bill"), ("kids", "fee"): isIn = false
-            case ("travel", "booking"), ("travel", "expense"): isIn = false; status = "paid"
+            case ("travel", "booking"), ("travel", "expense"), ("petcare", "vet"), ("petcare", "grooming"): isIn = false; status = "paid"
             default: isIn = nil
             }
             guard let isIn else { continue }

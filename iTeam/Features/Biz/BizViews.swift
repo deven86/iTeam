@@ -32,6 +32,22 @@ extension SyncEngine {
         }
     }
 
+    /// Pet Care → core iLife Care: every pet is a Care profile; medicines and feeding become Care reminders (Taken/Skip for the family).
+    func petBridge(_ p: BizPayload) {
+        let pid = p.parentID.isEmpty ? p.id : p.parentID
+        guard let pet = try? context.fetch(FetchDescriptor<BizRecord>(predicate: #Predicate { $0.id == pid })).first else { return }
+        let careID = "c_" + pet.id
+        let conv = conversation(pet.convID) ?? DemoChats.notesToSelf(self)
+        if p.kind == "pet" || careProfile(careID) == nil {
+            saveCareProfile(in: conv, id: careID, name: "\(pet.title) (\(pet.subtitle.isEmpty ? "Pet" : pet.subtitle))", relation: "Pet", bloodGroup: "",
+                            allergies: "", conditions: "", emergencyContact: pet.phone, notes: pet.notes, avatar: nil, deleted: pet.deleted)
+        }
+        if p.kind == "medication" || p.kind == "feeding", let prof = careProfile(careID) {
+            saveMedicine(prof, id: "m_" + p.id, name: p.title, dose: p.subtitle, form: p.kind == "feeding" ? "Meal" : "Medicine",
+                         times: [p.date.map { Att.minutes($0) } ?? 540], instructions: p.notes, startDate: .now, endDate: nil, stock: nil, deleted: p.deleted)
+        }
+    }
+
     /// Rent: creates each month's charge when the due date arrives (with the yearly raise), so pending rent matches the agreement.
     func autoRentCharges() {
         let me = self.me
@@ -713,7 +729,7 @@ struct BizEditor: View {
             else { Picker(f.label, selection: $subtitle) { ForEach(f.options, id: \.self) { Text($0).tag($0) } } }
         case .phone: TextField(f.label, text: $phone).keyboardType(.phonePad)
         case .amount: TextField(f.label + " (₹)", text: $amount).keyboardType(.decimalPad)
-        case .date: DatePicker(f.label, selection: $date, displayedComponents: kind.statuses.isEmpty ? [.date] : [.date, .hourAndMinute])
+        case .date: DatePicker(f.label, selection: $date, displayedComponents: f.label.lowercased().contains("time") ? [.hourAndMinute] : (kind.statuses.isEmpty ? [.date] : [.date, .hourAndMinute]))
         case .due: DatePicker(f.label, selection: $due, displayedComponents: [.date])
         case .status: Picker(f.label, selection: $status) { ForEach(kind.statuses, id: \.self) { Text($0).tag($0) } }
         case .notes: TextField(f.label, text: $notes, axis: .vertical).lineLimit(2...6)
@@ -750,6 +766,7 @@ struct BizEditor: View {
         p.files = files; p.extra = extra
         p.at = .now
         engine.saveBiz(p, convID: parent?.convID ?? r?.convID ?? "", uploads: uploads)
+        if spec.module == "petcare" { engine.petBridge(p) }
         if existing == nil, !linkTo.isEmpty, let c = engine.contact(linkTo),
            let rec = try? engine.context.fetch(FetchDescriptor<BizRecord>(predicate: #Predicate { $0.id == p.id })).first {
             engine.linkBiz(rec, to: c)

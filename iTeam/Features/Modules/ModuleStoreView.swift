@@ -295,6 +295,8 @@ struct ModulePreviewScreen: View {
         case .meetingMinutes: "Minutes of meeting"
         case .attDashboard: "Attendance dashboard"
         case .finDashboard: "Finance dashboard"
+        case .surveyDashboard: "Survey results"
+        case .surveyForm: "Field survey"
         case .finForm: "Add expense"
         case .finPro: "Cheques & approvals"
         case .attMember: "Add member"
@@ -539,6 +541,16 @@ struct ModulePreviewScreen: View {
             row("checkmark.circle", "Attended: 5 of 6")
             row("doc.text", "Decisions & action items")
             row("doc.richtext", "Export minutes as PDF")
+        case .surveyDashboard:
+            HStack(spacing: 6) { stat("4", "Surveys"); stat("126", "Responses"); stat("3", "To answer") }
+            row("building.2", "Building survey · 38 flats", "Open")
+            row("map", "Plot survey Gat 112", "12 resp.")
+            bar("Leakage seen · 34%", 0.34)
+        case .surveyForm:
+            row("text.cursor", "Survey / Gat no.: 112/3")
+            row("location.fill", "GPS: 19.2183, 73.0868")
+            row("camera.fill", "Site photos · 4")
+            row("checkmark.circle", "Encroachment: No")
         case .finDashboard:
             HStack(spacing: 6) { stat("₹82k", "Income"); stat("₹47k", "Expenses"); stat("₹35k", "Net") }
             row("arrow.down.left.circle.fill", "Fees — Rahul (Tuition)", "+₹3,000")

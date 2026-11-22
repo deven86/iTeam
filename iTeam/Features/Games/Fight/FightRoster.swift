@@ -18,11 +18,14 @@ struct FightCharacter: Identifiable, Hashable {
     var element: String {
         switch id {
         case "bee": "🍯"; case "turtle": "🫧"; case "skykit": "⭐"; case "fungi": "🍄"; case "dragon": "💧"; case "fox": "✨"
-        case "cosmicbear": "🌌"; case "unicorn": "🌈"; case "lion": "⚙️"; case "tiger": "🔥"; case "gryphon": "🔥"; default: "🪽"
+        case "cosmicbear": "🌌"; case "unicorn": "🌈"; case "lion": "⚙️"; case "tiger": "🔥"; case "gryphon": "🔥"
+        case "cow": "🔔"; case "raptor", "trex": "🦴"; case "rhino": "🪨"; case "witch": "🔮"; case "phantasma", "dolly": "👻"
+        case "eagle": "🪶"; case "mermaid": "🐚"; case "batcat": "🦇"; case "werewolf": "🌙"; case "cinderwyrm": "🔥"; case "chrono": "⏳"
+        default: "🪽"
         }
     }
     /// Most kick and fist drawings face left; Chompy's kick faces right.
-    var kickFacesLeft: Bool { id != "turtle" }
+    var kickFacesLeft: Bool { !["turtle", "mermaid", "chrono"].contains(id) }
 
     func image(_ pose: String) -> UIImage? { UIImage(named: "fx_\(id)_\(pose)") }
     var color: Color { Color(hex: tint) }
@@ -40,6 +43,20 @@ struct FightCharacter: Identifiable, Hashable {
         .init(id: "tiger", name: "Cog-Tiger", kick: "Stripe-Pounce", shield: "Gear-Shield", punch: "Smirk-Puff", speed: 1.0, power: 1.15, guardStrength: 0.95, tint: 0xE08A2E),
         .init(id: "gryphon", name: "Gryphon-Bear", kick: "Flame-Flight", shield: "Inferno-Shield", punch: "Smirk-Puff", speed: 1.05, power: 1.1, guardStrength: 0.9, tint: 0xD9572B),
         .init(id: "angelbear", name: "Halo Bear", kick: "Halo-Flight", shield: "Halo-Shield", punch: "Cloud-Puff", speed: 1.0, power: 0.95, guardStrength: 1.15, tint: 0xEADFC8),
+        // Arcane Mythos & friends (Devendra's sheets, Nov 2026)
+        .init(id: "cow", name: "Moo-Moo Cow", kick: "Arcane-Moo", shield: "Aegis-Bell", punch: "Terra-Graze", speed: 0.95, power: 1.0, guardStrength: 1.1, tint: 0xE8A0B4),
+        .init(id: "raptor", name: "Chibi Raptor", kick: "Arcane-Pounce", shield: "Aegis-Claw", punch: "Terra-Swipe", speed: 1.2, power: 0.95, guardStrength: 0.9, tint: 0x3B4FB0),
+        .init(id: "trex", name: "Chibi T-Rex", kick: "Arcane-Roar", shield: "Fossil-Ward", punch: "Cretaceous-Stomp", speed: 0.9, power: 1.2, guardStrength: 1.0, tint: 0x3F6B3A),
+        .init(id: "rhino", name: "Chibi Rhino", kick: "Comet-Horn", shield: "Aegis-Rock", punch: "Terra-Stomp", speed: 0.85, power: 1.15, guardStrength: 1.2, tint: 0x6B6575),
+        .init(id: "witch", name: "Astra the Witch", kick: "Arcane-Weave", shield: "Arcane-Zen", punch: "Astra-Flight", speed: 1.05, power: 1.05, guardStrength: 0.9, tint: 0x5B3FA0),
+        .init(id: "phantasma", name: "Phantasma", kick: "Boo!", shield: "Ethereal-Zen", punch: "Phase-Shift", speed: 1.15, power: 0.9, guardStrength: 1.0, tint: 0xB9C6F0),
+        .init(id: "dolly", name: "Ghost Doll", kick: "Spectral Float", shield: "Ecto-Calm", punch: "Possession Rush", speed: 1.1, power: 1.0, guardStrength: 0.95, tint: 0x9AA8BF),
+        .init(id: "eagle", name: "Aethon the Eagle", kick: "Aethon-Dive", shield: "Wing-Guard", punch: "Talon-Strike", speed: 1.2, power: 1.0, guardStrength: 0.85, tint: 0xC8902E),
+        .init(id: "mermaid", name: "Starry Mermaid", kick: "Aqua-Smash", shield: "Faerie-Shield", punch: "Aqua-Volute", speed: 1.0, power: 0.95, guardStrength: 1.1, tint: 0x6CC5D9),
+        .init(id: "batcat", name: "Chibi Vampire", kick: "Stardust-Kick", shield: "Vamp-Shield", punch: "Sanguine-Flight", speed: 1.15, power: 1.0, guardStrength: 0.9, tint: 0x2A2540),
+        .init(id: "werewolf", name: "Chibi Werewolf", kick: "Stardust-Kick", shield: "Fenrir-Shield", punch: "Fenrir-Swipe", speed: 1.05, power: 1.1, guardStrength: 0.95, tint: 0x2F4A9A),
+        .init(id: "cinderwyrm", name: "Cinder-Wyrm", kick: "Stardust-Kick", shield: "Wyrm-Shield", punch: "Ember-Swipe", speed: 1.0, power: 1.15, guardStrength: 0.95, tint: 0xB0222E),
+        .init(id: "chrono", name: "Chrono-Weaver", kick: "Chrono-Shift", shield: "Inferno-Shield", punch: "Wind-up Punch", speed: 0.9, power: 1.2, guardStrength: 1.1, tint: 0x8A6A35),
     ]
 
     static func find(_ id: String) -> FightCharacter { all.first { $0.id == id } ?? all[0] }
@@ -63,9 +80,9 @@ enum FightPower: String {
 
     static func of(_ id: String) -> FightPower {
         switch id {
-        case "bee", "fox", "skykit": .dash
-        case "turtle", "lion", "cosmicbear": .quake
-        case "angelbear", "unicorn", "fungi": .heal
+        case "bee", "fox", "skykit", "raptor", "dolly", "eagle", "batcat": .dash
+        case "turtle", "lion", "cosmicbear", "cow", "trex", "rhino": .quake
+        case "angelbear", "unicorn", "fungi", "phantasma", "mermaid": .heal
         default: .blast
         }
     }

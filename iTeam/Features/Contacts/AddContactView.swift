@@ -13,7 +13,7 @@ struct AddContactView: View {
     @Environment(\.look) private var look
 
     enum Mode: String, CaseIterable, Identifiable {
-        case myCode = "My code", scan = "Scan", paste = "Paste link"
+        case myCode = "My code", scan = "Scan", nearby = "Nearby", paste = "Paste link"
         var id: String { rawValue }
     }
 
@@ -36,6 +36,7 @@ struct AddContactView: View {
                     switch mode {
                     case .myCode: myCode
                     case .scan: scanner
+                    case .nearby: NearbyView()
                     case .paste: paste
                     }
 

@@ -97,6 +97,7 @@ struct SurveyHomeView: View {
                 Section("My surveys") {
                     if mine.isEmpty {
                         Button("Create a survey", systemImage: "plus") { creating = true }
+                        Button("Personal checklist just for me", systemImage: "person.fill.checkmark") { creating = true }
                         Button("Try a demo", systemImage: "wand.and.stars") { SurveyDemo.create(engine) }
                     }
                     ForEach(mine) { s in NavigationLink { SurveyDetailView(surveyID: s.id) } label: { row(s, responses) } }
@@ -154,10 +155,10 @@ struct SurveyEditor: View {
             if existing == nil {
                 Section {
                     Picker("Send to", selection: $convID) {
-                        Text("Nobody — I'll collect offline (field survey)").tag("")
+                        Text("Just me — personal / field survey (offline)").tag("")
                         ForEach(chats.filter { !$0.left && !$0.id.hasPrefix("s_") }) { c in Text(c.title).tag(c.id) }
                     }
-                } footer: { Text("Online: everyone in the chat or group can answer; answers come privately to you. Offline: you fill it on your phone for each plot, building or person — works without internet and syncs later.") }
+                } footer: { Text("Online: everyone in the chat or group can answer; answers come privately to you. Just me: fill it yourself — a personal checklist, site visit or plot-by-plot field survey. Works without internet and stays on your own devices.") }
             }
             Section("Questions") {
                 ForEach($d.questions) { $q in

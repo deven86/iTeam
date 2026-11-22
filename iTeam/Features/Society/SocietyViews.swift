@@ -27,6 +27,9 @@ struct SocietyHomeView: View {
                             EmptyStateView(icon: "building.2.crop.circle.fill", title: "Society & Apartment",
                                            message: "Maintenance bills, complaints, notices, and a gate & reception kiosk where guards ask flat owners to approve visitors — and staff punch attendance.")
                             Button { create = true } label: { Label("Set up a society", systemImage: "plus") }.buttonStyle(.glassProminent).controlSize(.large)
+                            Button { trackMyHome() } label: { Label("Just my own flat (personal)", systemImage: "house.fill") }.buttonStyle(.glass)
+                            Text("Personal: track your flat's maintenance, payments, complaints and notices yourself — even if your society isn't on iTeam.")
+                                .font(.caption).foregroundStyle(.secondary).multilineTextAlignment(.center)
                             Button("Try a demo") { SocietyDemo.create(engine) }
                         }
                         .frame(maxWidth: .infinity).listRowBackground(Color.clear)
@@ -59,6 +62,22 @@ struct SocietyHomeView: View {
             .refreshable { await engine.sync() }
             .sheet(isPresented: $create) { NavigationStack { SocietyEditor { activeID = $0 } } }
             .fullScreenCover(isPresented: $kiosk) { if let s = active { SocietyKioskView(society: s) } }
+        }
+    }
+}
+
+extension SocietyHomeView {
+    /// Self use: a private society with just my flat, on my own devices.
+    func trackMyHome() {
+        let sid = engine.socCreate(name: "My home", address: "", committee: [], maintenance: 0)
+        activeID = sid
+        Task { @MainActor in
+            try? await Task.sleep(for: .milliseconds(400))
+            guard let soc = engine.socRecord(sid) else { return }
+            var u = SocUnitData()
+            u.flat = "My flat"; u.ownerUserID = engine.me; u.ownerName = engine.myName; u.members = 1
+            engine.socSaveUnit(society: soc, existing: nil, u)
+            Haptics.big()
         }
     }
 }

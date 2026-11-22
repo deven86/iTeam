@@ -89,6 +89,22 @@ struct ChatListView: View {
 
     @ViewBuilder
     private var listContent: some View {
+            // Title row: Chats with Rooms always beside it.
+            Section {
+                HStack(alignment: .center, spacing: 12) {
+                    Text("Chats").font(.largeTitle.bold())
+                    Button { router.go(.rooms) } label: {
+                        Label("Rooms", systemImage: "person.3.sequence.fill")
+                            .font(.headline)
+                            .padding(.horizontal, 14).padding(.vertical, 8)
+                    }
+                    .buttonStyle(.glass)
+                    .accessibilityHint("Open public and private rooms")
+                    Spacer()
+                }
+                .listRowBackground(Color.clear)
+                .listRowInsets(EdgeInsets(top: 0, leading: 4, bottom: 0, trailing: 0))
+            }
             Section {
                 Picker("Filter", selection: $filter) {
                     ForEach(Filter.allCases) { Text($0.rawValue).tag($0) }
@@ -186,6 +202,8 @@ struct ChatListView: View {
         .searchable(text: $search, prompt: "Search chats")
         .refreshable { await engine.sync() }
         .navigationTitle("Chats")
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar(removing: .title)
         .toolbar {
             ToolbarItem(placement: .topBarLeading) {
                 Button { editProfile = true } label: {

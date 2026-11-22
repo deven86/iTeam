@@ -52,6 +52,7 @@ private val Teal = Color(0xFF00B4D8)
 class MainActivity : ComponentActivity() {
     private var openConv = mutableStateOf<String?>(null)
     private var pastedInvite = mutableStateOf<String?>(null)
+    private var signInTick = mutableIntStateOf(0)
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -60,7 +61,7 @@ class MainActivity : ComponentActivity() {
         handle(intent)
         setContent {
             MaterialTheme(colorScheme = if (isSystemInDarkTheme()) darkColorScheme(primary = Brand, secondary = Teal) else lightColorScheme(primary = Brand, secondary = Teal)) {
-                Surface(Modifier.fillMaxSize()) { App(Store.get(this), openConv, pastedInvite) }
+                Surface(Modifier.fillMaxSize()) { App(Store.get(this), openConv, pastedInvite, signInTick) }
             }
         }
     }
@@ -69,11 +70,17 @@ class MainActivity : ComponentActivity() {
     private fun handle(i: Intent?) {
         i?.getStringExtra("conv")?.let { openConv.value = it }
         i?.data?.toString()?.takeIf { it.startsWith("iteam://add") }?.let { pastedInvite.value = it }
+        // Back from Apple ID sign-in in the browser.
+        i?.data?.toString()?.let { u ->
+            val t = android.net.Uri.parse(u).getQueryParameter("ckWebAuthToken")
+                ?: Regex("ckWebAuthToken=([^&#]+)").find(u)?.groupValues?.get(1)?.let { java.net.URLDecoder.decode(it, "UTF-8") }
+            if (t != null) { Store.get(this).webToken = t; signInTick.intValue++ }
+        }
     }
 }
 
 @Composable
-fun App(store: Store, openConv: MutableState<String?>, pastedInvite: MutableState<String?>) {
+fun App(store: Store, openConv: MutableState<String?>, pastedInvite: MutableState<String?>, signInTick: MutableIntState) {
     val cloud = remember { CloudKit(store) }
     val sync = remember { Sync(store, cloud) }
     var signedIn by remember { mutableStateOf(store.me.isNotEmpty() && store.webToken.isNotEmpty() && store.identity != null) }
@@ -85,7 +92,21 @@ fun App(store: Store, openConv: MutableState<String?>, pastedInvite: MutableStat
     if (!cloud.configured) {
         Centered("This build has no CloudKit token yet.\n\nAdd the CK_API_TOKEN secret on GitHub and run the Android APK workflow again."); return
     }
-    if (authURL != null) { AppleSignIn(authURL!!) { token -> store.webToken = token; authURL = null; tick++ }; return }
+    // Sign-in opens in the real browser (Apple blocks it inside web views); the app reopens with the token.
+    LaunchedEffect(authURL) {
+        authURL?.let { u -> if (u.isNotEmpty()) ctx.startActivity(Intent(Intent.ACTION_VIEW, android.net.Uri.parse(u))) }
+    }
+    LaunchedEffect(signInTick.intValue) { if (signInTick.intValue > 0) { authURL = null; tick++ } }
+    if (authURL != null) {
+        Column(Modifier.fillMaxSize().padding(28.dp), verticalArrangement = Arrangement.Center, horizontalAlignment = Alignment.CenterHorizontally) {
+            Logo(); Spacer(Modifier.height(16.dp))
+            Text("Sign in with your Apple ID in the browser that just opened. You'll come back here automatically.", textAlign = TextAlign.Center)
+            Spacer(Modifier.height(16.dp))
+            Button({ authURL?.let { ctx.startActivity(Intent(Intent.ACTION_VIEW, android.net.Uri.parse(it))) } }) { Text("Open sign-in again") }
+            TextButton({ authURL = null; store.webToken = ""; tick++ }) { Text("Cancel") }
+        }
+        return
+    }
     if (!signedIn) {
         SignInScreen(store, sync, onAuth = { authURL = it }, onDone = { signedIn = true; tick++ }, tick = tick); return
     }

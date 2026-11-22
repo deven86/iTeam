@@ -14,6 +14,7 @@ struct FinanceHomeView: View {
     @State private var importing = false
     @State private var goals = false
     @State private var approve: FinRecord?
+    @State private var proList: String?
 
     private var pro: Bool { modules.isOn(ModuleRegistry.financePro) }
     private var books: [(id: String, name: String)] { engine.finBooks }
@@ -48,6 +49,16 @@ struct FinanceHomeView: View {
                 attention(ls)
                 entries(ls.filter(inMonth))
                 categories(paid.filter { !$0.isIn })
+                if pro {
+                    Section("Finance Pro") {
+                        Button { proList = "recurring" } label: { Label("Recurring payments (rent, salary, EMIs)", systemImage: "repeat") }
+                        Button { proList = "approvals" } label: { Label("Payment approvals", systemImage: "checkmark.seal") }
+                        Button { proList = "cheques" } label: { Label("Cheques & bounce follow-ups", systemImage: "doc.text") }
+                        Button { importing = true } label: { Label("Import bank statement (CSV)", systemImage: "building.columns") }
+                        Button { goals = true } label: { Label("Savings goals", systemImage: "target") }
+                    }
+                    .lookRows()
+                }
                 if !pro {
                     Section {
                         NavigationLink { ModuleStoreView() } label: {
@@ -67,6 +78,9 @@ struct FinanceHomeView: View {
             .sheet(item: $approve) { r in NavigationStack { FinApproveView(record: r) } }
             .sheet(isPresented: $importing) { NavigationStack { FinBankImportView(book: book, existing: all.filter { $0.book == book }) } }
             .sheet(isPresented: $goals) { NavigationStack { FinGoalsView(book: book) } }
+            .sheet(item: Binding(get: { proList.map { FinDir(dir: $0) } }, set: { proList = $0?.dir })) { x in
+                NavigationStack { FinProList(mode: x.dir, book: book, records: all.filter { $0.book == book && $0.kind == "entry" }) }
+            }
             .shareSheet($shareItems)
         }
     }
@@ -184,6 +198,9 @@ struct FinanceHomeView: View {
             }
             ToolbarItem(placement: .secondaryAction) { Button("Import bank statement (CSV)", systemImage: "building.columns") { importing = true } }
             ToolbarItem(placement: .secondaryAction) { Button("Savings goals", systemImage: "target") { goals = true } }
+            ToolbarItem(placement: .secondaryAction) { Button("Recurring payments", systemImage: "repeat") { proList = "recurring" } }
+            ToolbarItem(placement: .secondaryAction) { Button("Payment approvals", systemImage: "checkmark.seal") { proList = "approvals" } }
+            ToolbarItem(placement: .secondaryAction) { Button("Cheques", systemImage: "doc.text") { proList = "cheques" } }
         }
     }
 }
@@ -197,6 +214,7 @@ struct FinEntryEditor: View {
     let existing: FinRecord?
     let direction: String
     let pro: Bool
+    var preset: String = ""
     @EnvironmentObject var engine: SyncEngine
     @Environment(\.dismiss) private var dismiss
     @State private var dir = "out"
@@ -304,6 +322,12 @@ struct FinEntryEditor: View {
             amountText = r.amount.formatted(.number.grouping(.never)); date = r.date; status = r.status; category = r.category; d = r.d
         } else {
             category = cats.first ?? "Other"
+            switch preset {
+            case "recurring": d.repeatRule = "monthly"; status = "due"
+            case "approvals": needsApproval = true
+            case "cheques": d.mode = "Cheque"; d.chequeStatus = "issued"
+            default: break
+            }
         }
     }
 
@@ -564,5 +588,82 @@ enum FinExport {
         \(v) </REQUESTDATA>
         </IMPORTDATA></BODY></ENVELOPE>
         """
+    }
+}
+
+
+/// Finance Pro lists: recurring payments, approvals, cheques.
+struct FinProList: View {
+    let mode: String
+    let book: String
+    let records: [FinRecord]
+    @EnvironmentObject var engine: SyncEngine
+    @Environment(\.dismiss) private var dismiss
+    @State private var adding = false
+    @State private var editing: FinRecord?
+    @State private var deciding: FinRecord?
+
+    private var isCompany: Bool { book != "personal" }
+    private var isOwner: Bool { !isCompany || engine.attRecord(book)?.company.ownerID == engine.me }
+
+    var body: some View {
+        let list: [FinRecord] = switch mode {
+        case "recurring": records.filter { $0.d.repeatRule != "none" && $0.status != "rejected" }.sorted { $0.date < $1.date }
+        case "approvals": records.filter { $0.status == "pending" || !$0.d.decidedBy.isEmpty }.sorted { $0.updatedAt > $1.updatedAt }
+        default: records.filter { $0.d.mode == "Cheque" }.sorted { $0.date > $1.date }
+        }
+        List {
+            Section {
+                if list.isEmpty { Text(empty).foregroundStyle(.secondary) }
+                ForEach(list) { r in
+                    HStack {
+                        Button { mode == "approvals" && r.status == "pending" && isOwner ? (deciding = r) : (editing = r) } label: {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(r.d.title.isEmpty ? r.category : r.d.title).font(.subheadline.weight(.semibold)).foregroundStyle(Color.primary)
+                                Text(detail(r)).font(.caption).foregroundStyle(.secondary)
+                            }
+                        }
+                        Spacer()
+                        Text(Fin.money(r.amount)).font(.subheadline.bold())
+                        if mode == "recurring" && r.status == "due" {
+                            Button("Paid") { engine.finMarkPaid(r); Haptics.success() }.buttonStyle(.glassProminent).controlSize(.small)
+                        }
+                    }
+                }
+            } footer: { Text(help) }
+        }
+        .navigationTitle(mode == "recurring" ? "Recurring payments" : mode == "approvals" ? "Payment approvals" : "Cheques")
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .cancellationAction) { Button("Done") { dismiss() } }
+            if mode != "approvals" || (isCompany && !isOwner) {
+                ToolbarItem(placement: .primaryAction) { Button { adding = true } label: { Image(systemName: "plus") } }
+            }
+        }
+        .sheet(isPresented: $adding) { NavigationStack { FinEntryEditor(book: book, existing: nil, direction: "out", pro: true, preset: mode) } }
+        .sheet(item: $editing) { r in NavigationStack { FinEntryEditor(book: r.book, existing: r, direction: r.direction, pro: true) } }
+        .sheet(item: $deciding) { r in NavigationStack { FinApproveView(record: r) } }
+    }
+
+    private var empty: String {
+        switch mode {
+        case "recurring": "No recurring payments yet. Tap + to add rent, salary, an EMI or a subscription."
+        case "approvals": isCompany ? (isOwner ? "No approval requests. When an admin adds a payment with “Needs owner's approval”, it appears here for you to approve." : "Tap + to ask the owner to approve a payment (cheque, RTGS, UPI).") : "Approvals work in a company book. Switch to a company with the building button at the top left of Finance (companies come from Attendance)."
+        default: "No cheques yet. Add an entry with mode “Cheque”."
+        }
+    }
+    private var help: String {
+        switch mode {
+        case "recurring": "Each stays as “To pay” on its date. Tap Paid: the payment is recorded and the item moves to its next date."
+        case "approvals": "Only the company owner approves. Admins ask for approval; the decision is logged in the company's admin group."
+        default: "Set the cheque status in the entry. Bounced cheques get a daily follow-up reminder until cleared."
+        }
+    }
+    private func detail(_ r: FinRecord) -> String {
+        switch mode {
+        case "recurring": return "\(r.d.repeatRule.capitalized) · next \(r.date.formatted(date: .abbreviated, time: .omitted))"
+        case "approvals": return r.status == "pending" ? "Waiting · asked by \(engine.name(of: r.by))" : "\(r.status == "rejected" ? "Rejected" : "Approved") by \(engine.name(of: r.d.decidedBy))"
+        default: return "No. \(r.d.chequeNo) · \(r.d.chequeStatus.isEmpty ? "—" : r.d.chequeStatus.capitalized) · \(r.d.party)"
+        }
     }
 }

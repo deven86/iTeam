@@ -21,6 +21,7 @@ struct RootView: View {
     @Query(filter: #Predicate<BizRecord> { !$0.deleted && $0.parentID == "" }) private var bizRecords: [BizRecord]
     private var rxToReview: [Prescription] { waitingRx.filter { $0.patientID == engine.me } }
     @Query(filter: #Predicate<InviteEvent> { !$0.deleted }) private var invites: [InviteEvent]
+    @AppStorage("onboard.tour.done") private var tourDone = false
     @Query(filter: #Predicate<AttRecord> { $0.kind == "member" && !$0.deleted }) private var attMembers: [AttRecord]
     /// Employees and admins use Attendance free once someone adds them.
     private var inAttendance: Bool { attMembers.contains { $0.member.userID == engine.me && $0.member.accepted != false } }
@@ -206,6 +207,7 @@ struct RootView: View {
             }
             .sheet(item: $restoreOffer) { f in RestoreOfferView(found: f) }
             .sheet(item: $router.openItem) { item in OpenItemView(item: item) }
+            .fullScreenCover(isPresented: Binding(get: { !tourDone && engine.isSetUp }, set: { if !$0 { tourDone = true } })) { WelcomeTour() }
             .task {
                 TapHaptics.shared.install()
                 engine.setForeground(true)

@@ -78,6 +78,17 @@ if ar:
     if call("PATCH", f"/ageRatingDeclarations/{d['id']}", {"data": {"type": "ageRatingDeclarations", "id": d["id"], "attributes": new}}) is not None:
         note("age rating", "answered (chat & user content with report/block; health topics; nothing objectionable)")
 
+# ---------- Withdraw a waiting submission (to swap the build) ----------
+if E.get("WITHDRAW") == "yes":
+    for st in ("WAITING_FOR_REVIEW", "READY_FOR_REVIEW"):
+        for sub in (call("GET", f"/reviewSubmissions?filter[app]={aid}&filter[platform]=IOS&filter[state]={st}") or {}).get("data", []):
+            if call("PATCH", f"/reviewSubmissions/{sub['id']}", {"data": {"type": "reviewSubmissions", "id": sub["id"], "attributes": {"canceled": True}}}) is not None:
+                note("withdrawn", f"submission {sub['id']} removed from review")
+    for _ in range(30):
+        vs = call("GET", f"/apps/{aid}/appStoreVersions?filter[platform]=IOS&limit=5")["data"]
+        if not any(x["attributes"].get("appStoreState") in ("WAITING_FOR_REVIEW",) for x in vs): break
+        print("waiting for the version to become editable…"); time.sleep(20)
+
 # ---------- Version ----------
 vers = call("GET", f"/apps/{aid}/appStoreVersions?filter[platform]=IOS&limit=20")["data"]
 open_states = {"PREPARE_FOR_SUBMISSION", "DEVELOPER_REJECTED", "REJECTED", "METADATA_REJECTED", "INVALID_BINARY"}
@@ -94,7 +105,8 @@ vid = v["id"]; note("version", f"{VERSION} ({v['attributes'].get('appStoreState'
 # Build
 build = None
 for _ in range(40):
-    b = call("GET", f"/builds?filter[app]={aid}&filter[preReleaseVersion.version]={VERSION}&sort=-uploadedDate&limit=1")
+    want = f"&filter[version]={E['BUILD']}" if E.get("BUILD") else ""
+    b = call("GET", f"/builds?filter[app]={aid}&filter[preReleaseVersion.version]={VERSION}{want}&sort=-uploadedDate&limit=1")
     if b and b["data"]:
         build = b["data"][0]
         if build["attributes"]["processingState"] == "VALID": break

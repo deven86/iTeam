@@ -15,6 +15,12 @@ on:
       submit:
         description: "Type yes to submit for App Review"
         default: "no"
+      build:
+        description: "Exact build number (blank = newest)"
+        default: ""
+      withdraw:
+        description: "Type yes to pull a waiting submission first (to swap the build)"
+        default: "no"
 
 permissions:
   contents: read
@@ -47,6 +53,8 @@ jobs:
           PHONE: ${{ inputs.phone }}
           EMAIL: ${{ inputs.email }}
           SUBMIT: ${{ inputs.submit }}
+          BUILD: ${{ inputs.build }}
+          WITHDRAW: ${{ inputs.withdraw }}
           FIRST: Devendra
           LAST: Jondhale
           APP_NAME: iTeam Chat

@@ -105,6 +105,10 @@ struct AttWelcomeView: View {
                 EmptyStateView(icon: "person.badge.clock.fill", title: "Attendance",
                                message: "Punch in and out by phone, selfie with location, rotating QR or a kiosk. Late and half-day rules, leaves, holidays, and registers in PDF, Excel (CSV) and Tally.",
                                actionTitle: modules.isOn(ModuleRegistry.attendance) ? "Set up my company" : nil) { creating = true }
+                Button("Track my own attendance", systemImage: "person.crop.circle.badge.clock") { selfTrack() }
+                    .buttonStyle(.glassProminent)
+                Text("Just for you: punch in and out, leaves and a monthly register — no company or employees needed.")
+                    .font(.footnote).foregroundStyle(.secondary).multilineTextAlignment(.center).padding(.horizontal)
                 if modules.isOn(ModuleRegistry.attendance) {
                     Button("Try a demo", systemImage: "wand.and.stars") { AttDemo.create(engine) }.buttonStyle(.glass)
                 } else {
@@ -126,6 +130,23 @@ struct AttWelcomeView: View {
                 name = ""
             }
             Button("Cancel", role: .cancel) {}
+        }
+    }
+
+    /// Self use: a one-person "company" with me as the only member.
+    private func selfTrack() {
+        let id = engine.attCreateCompany(name: "My attendance")
+        UserDefaults.standard.set(id, forKey: "att.current")
+        Task { @MainActor in
+            try? await Task.sleep(for: .milliseconds(500))
+            guard let company = engine.attRecord(id) else { return }
+            var m = AttMemberData()
+            m.userID = engine.me
+            let parts = engine.myName.split(separator: " ", maxSplits: 1).map(String.init)
+            m.first = parts.first ?? "Me"; m.last = parts.count > 1 ? parts[1] : ""
+            m.accepted = true
+            engine.attSaveMember(company: company, existing: nil, m)
+            Haptics.big()
         }
     }
 }

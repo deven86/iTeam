@@ -6,17 +6,22 @@ import PhotosUI
 /// clients a trainer shared with only see the records about themselves.
 struct GymModuleView: View {
     @ObservedObject private var store = Store.shared
-    @State private var section = 0
+    @AppStorage("gym.section") private var section = 0
 
     var body: some View {
         if store.isUnlocked(Store.gymProductID) {
             Group {
-                if section == 0 { FitnessHomeView() } else { GymHomeView() }
+                switch section {
+                case 0: FitnessHomeView()
+                case 1: MyGymView()
+                default: GymHomeView()
+                }
             }
             .safeAreaInset(edge: .bottom, spacing: 0) {
                 Picker("Gym", selection: $section) {
-                    Label("My training", systemImage: "figure.strengthtraining.traditional").tag(0)
-                    Label("Clients & memberships", systemImage: "person.2.fill").tag(1)
+                    Text("My training").tag(0)
+                    Text("My gym").tag(1)
+                    Text("Clients & family").tag(2)
                 }
                 .pickerStyle(.segmented)
                 .padding(8)
@@ -26,6 +31,38 @@ struct GymModuleView: View {
         } else {
             GymHomeView()
         }
+    }
+}
+
+/// Personal use (from iLife): my own membership, trainer, sessions, payments, expenses and progress photos.
+/// A "Self" record is created on first open, kept in Notes to self until I pick a trainer on iTeam.
+struct MyGymView: View {
+    @EnvironmentObject var engine: SyncEngine
+    @Query(filter: #Predicate<GymMember> { $0.relation == "Self" && !$0.deleted }) private var selves: [GymMember]
+    private var mine: GymMember? { selves.first { $0.createdBy == engine.me } }
+
+    var body: some View {
+        NavigationStack {
+            if let m = mine {
+                GymMemberView(memberID: m.id)
+            } else {
+                VStack(spacing: 16) {
+                    EmptyStateView(icon: "dumbbell.fill", title: "My gym",
+                                   message: "Your membership, personal trainer, sessions, payments, protein & gear spend, and front/side/back progress photos — just for you.")
+                    Button { create() } label: { Label("Start my gym tracking", systemImage: "plus") }
+                        .buttonStyle(.glassProminent).controlSize(.large)
+                }
+                .padding()
+                .lookScreen()
+                .onAppear { create() }
+            }
+        }
+    }
+
+    private func create() {
+        guard mine == nil, !engine.me.isEmpty else { return }
+        engine.saveGymMember(in: DemoChats.notesToSelf(engine), name: engine.myName.isEmpty ? "Me" : engine.myName, relation: "Self",
+                             phone: "", goal: "", trainer: "", fee: 0, avatar: nil)
     }
 }
 
@@ -443,7 +480,7 @@ struct GymMemberEditor: View {
 
     /// Who can be picked as trainer: people in the record's chat (existing) or any contact (new — the chat follows).
     private var trainerChoices: [(id: String, name: String)] {
-        if let m = member, let conv = engine.conversation(m.convID) {
+        if let m = member, let conv = engine.conversation(m.convID), conv.id != engine.selfConversationID {
             return conv.members.filter { $0.id != engine.me }.map { ($0.id, $0.name) }
         }
         if !chatID.isEmpty, let conv = engine.conversation(chatID) {
@@ -499,8 +536,15 @@ struct GymMemberEditor: View {
             ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
             ToolbarItem(placement: .confirmationAction) {
                 Button("Save") {
-                    let conv = member.flatMap { engine.conversation($0.convID) }
+                    var conv = member.flatMap { engine.conversation($0.convID) }
                         ?? (chatID.isEmpty ? DemoChats.notesToSelf(engine) : engine.conversation(chatID))
+                    // A personal record gets a trainer on iTeam: move it (with its history) to our one-to-one chat.
+                    if let m = member, m.convID == engine.selfConversationID, !trainerID.isEmpty,
+                       let c = contacts.first(where: { $0.userID == trainerID }) {
+                        let direct = engine.directConversation(with: c)
+                        engine.gymMove(m, to: direct)
+                        conv = direct
+                    }
                     guard let conv else { return }
                     let trainerName = trainerID.isEmpty ? trainer : (trainerChoices.first { $0.id == trainerID }?.name ?? trainer)
                     let id = engine.saveGymMember(in: conv, id: member?.id, name: name.trimmingCharacters(in: .whitespaces),

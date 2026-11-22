@@ -72,7 +72,8 @@ extension SyncEngine {
 
     func addIAPSchedule(child: BizRecord) {
         guard let birth = child.date else { return }
-        let existing = Set(((try? context.fetch(FetchDescriptor<BizRecord>(predicate: #Predicate { $0.parentID == child.id && !$0.deleted }))) ?? []).map(\.title))
+        let cid = child.id
+        let existing = Set(((try? context.fetch(FetchDescriptor<BizRecord>(predicate: #Predicate { $0.parentID == cid && !$0.deleted }))) ?? []).map(\.title))
         for (name, days) in Self.iapSchedule where !existing.contains(name) {
             let due = Calendar.current.date(byAdding: .day, value: days, to: birth) ?? birth
             var v = BizPayload(BizRecord(id: "k_" + UUID().uuidString))

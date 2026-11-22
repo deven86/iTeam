@@ -680,6 +680,30 @@ extension SyncEngine {
         send(.gymPayment(p), in: conv, loud: id == nil, preview: "🧾 \(m.name): \(Money.format(amount))", uploads: uploads)
     }
 
+    /// Re-shares a gym record and all its history into another chat (e.g. Notes to self → chat with my trainer).
+    func gymMove(_ m: GymMember, to conv: Conversation) {
+        let mid = m.id
+        send(.gymMember(GymMemberPayload(id: m.id, name: m.name, relation: m.relation, phone: m.phone, goal: m.goal, trainer: m.trainer,
+                                         fee: m.feePerSession, avatar: m.avatar, deleted: false, at: .now)), in: conv, loud: false)
+        for p in (try? context.fetch(FetchDescriptor<GymPlan>(predicate: #Predicate { $0.memberID == mid && !$0.deleted }))) ?? [] {
+            send(.gymPlan(GymPlanPayload(id: p.id, memberID: mid, gymName: p.gymName, branch: p.branch, planName: p.planName, start: p.startDate,
+                                         end: p.endDate, fee: p.fee, notes: p.notes, deleted: false, at: .now)), in: conv, loud: false)
+        }
+        for s in (try? context.fetch(FetchDescriptor<GymSession>(predicate: #Predicate { $0.memberID == mid && !$0.deleted }))) ?? [] {
+            send(.gymSession(GymSessionPayload(id: s.id, memberID: mid, date: s.date, trainer: s.trainer, workout: s.workout, notes: s.notes,
+                                               deleted: false, at: .now)), in: conv, loud: false)
+        }
+        for p in (try? context.fetch(FetchDescriptor<GymPayment>(predicate: #Predicate { $0.memberID == mid && !$0.deleted }))) ?? [] {
+            send(.gymPayment(GymPaymentPayload(id: p.id, memberID: mid, kind: p.kind, amount: p.amount, date: p.date, method: p.method,
+                                               sessions: p.sessions, notes: p.notes, receipts: p.receipts, deleted: false, at: .now)), in: conv, loud: false)
+        }
+        for ph in (try? context.fetch(FetchDescriptor<GymPhoto>(predicate: #Predicate { $0.memberID == mid && !$0.deleted }))) ?? [] {
+            guard let ref = ph.photo else { continue }
+            send(.gymPhoto(GymPhotoPayload(id: ph.id, memberID: mid, pose: ph.pose, date: ph.date, photo: ref, note: ph.note, weight: ph.weight,
+                                           deleted: false, at: .now)), in: conv, loud: false)
+        }
+    }
+
     /// The trainer someone picked accepts or declines.
     func answerTrainer(_ m: GymMember, accept: Bool, note: String) {
         guard let conv = conversation(m.convID) else { return }

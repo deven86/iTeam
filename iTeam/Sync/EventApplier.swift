@@ -411,6 +411,7 @@ struct EventApplier {
                     gymAlert("🏋️ \(engine.name(of: e.from)) added \(g.name) to Gym & Training in “\(conv.title)”", conv: conv, from: e.from, at: e.at)
                 }
             }
+            if existing != nil, e.from == m.createdBy, m.convID != conv.id, conv.id != engine.selfConversationID { m.convID = conv.id }
             m.name = g.name; m.relation = g.relation; m.phone = g.phone; m.goal = g.goal
             m.trainer = g.trainer; m.feePerSession = g.fee; m.deleted = g.deleted; m.updatedAt = g.at
             if let a = g.avatar { m.avatar = a }

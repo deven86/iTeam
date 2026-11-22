@@ -14,6 +14,14 @@ def call(m, path, body=None):
 def note(t, m): print(f"::notice title={t}::{m}")
 
 aid = call("GET", "/apps?filter[bundleId]=com.jondhale.iteam")["data"][0]["id"]
+# The App ID needs the Game Center capability (then run Signing setup with force).
+bid = next(b["id"] for b in call("GET", "/bundleIds?filter[identifier]=com.jondhale.iteam&limit=20")["data"]
+           if b["attributes"]["identifier"] == "com.jondhale.iteam")
+caps = [c["attributes"]["capabilityType"] for c in (call("GET", f"/bundleIds/{bid}/bundleIdCapabilities") or {}).get("data", [])]
+if "GAME_CENTER" not in caps:
+    if call("POST", "/bundleIdCapabilities", {"data": {"type": "bundleIdCapabilities", "attributes": {"capabilityType": "GAME_CENTER"},
+            "relationships": {"bundleId": {"data": {"type": "bundleIds", "id": bid}}}}}): note("app id", "Game Center capability added")
+else: note("app id", "Game Center capability already on")
 gc = (call("GET", f"/apps/{aid}/gameCenterDetail") or {}).get("data")
 if not gc:
     gc = (call("POST", "/gameCenterDetails", {"data": {"type": "gameCenterDetails", "attributes": {},

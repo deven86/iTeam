@@ -289,11 +289,11 @@ struct FightArenaView: View {
                     scene = s
                     phase = .fighting
                     net.send(FightMsg(t: "hi", u: engine.me, c: pick, n: engine.myName), reliable: true)
-                    if net.isHost { net.send(FightMsg(t: "go"), reliable: true); s.begin() }
                 }
             } else if m.t == "go" {
                 scene?.begin()
             } else {
+                if m.t == "s", let s = scene, !s.started { s.begin() }
                 scene?.receive(m)
             }
         }
@@ -303,7 +303,22 @@ struct FightArenaView: View {
             report(iWon: true)
             phase = .done
         }
-        net.send(FightMsg(t: "hi", u: engine.me, c: pick, n: engine.myName), reliable: true)
+        // Handshake: keep saying hello (and, as host, "go") until the other phone answers — the first
+        // messages can arrive before the other side is listening.
+        Task { @MainActor in
+            var goSent = 0
+            for _ in 0..<40 {
+                if phase == .done || FightNet.shared.match == nil { return }
+                net.send(FightMsg(t: "hi", u: engine.me, c: pick, n: engine.myName), reliable: true)
+                if let s = scene {
+                    if net.isHost && goSent < 4 { net.send(FightMsg(t: "go"), reliable: true); goSent += 1; s.begin() }
+                    if s.started && goSent >= 4 { return }
+                    if !net.isHost && s.started { return }
+                }
+                try? await Task.sleep(for: .seconds(1))
+            }
+            if scene == nil { status = "Couldn't reach \(opponentName). Ask them to open the fight again." }
+        }
     }
 
     private func wire(_ s: FightScene) {

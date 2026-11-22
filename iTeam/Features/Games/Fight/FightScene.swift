@@ -216,8 +216,10 @@ final class FightScene: SKScene {
     // MARK: Start / end
 
     /// 3-2-1 then fight. Online, both phones call this when the host says "go".
+    private var counting = false
     func begin() {
-        guard !started else { return }
+        guard !started, !counting else { return }
+        counting = true
         var steps: [SKAction] = []
         for t in ["3", "2", "1", "Fluff!"] {
             steps.append(SKAction.run { [weak self] in self?.setBanner(t) })

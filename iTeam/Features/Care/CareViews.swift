@@ -11,9 +11,19 @@ struct CareHomeView: View {
     @Query(filter: #Predicate<CareProfile> { !$0.deleted }, sort: \CareProfile.name) private var profiles: [CareProfile]
     @Query(filter: #Predicate<Medicine> { $0.active && !$0.deleted }) private var meds: [Medicine]
     @Query private var logs: [DoseLog]
+    @Query(filter: #Predicate<BizRecord> { $0.kind == "vaccine" && $0.status == "Due" && !$0.deleted }) private var vaccines: [BizRecord]
     @State private var path: [String] = []
     @State private var showNew = false
     @State private var showPaywall = false
+
+    private var upcomingVaccines: [BizRecord] {
+        let limit = Date.now.addingTimeInterval(60 * 86400)
+        return vaccines.filter { ($0.due ?? .distantFuture) < limit }.sorted { ($0.due ?? .distantFuture) < ($1.due ?? .distantFuture) }.prefix(12).map { $0 }
+    }
+    private func parentName(_ v: BizRecord) -> String {
+        let pid = v.parentID
+        return (try? engine.context.fetch(FetchDescriptor<BizRecord>(predicate: #Predicate { $0.id == pid })).first)?.title ?? ""
+    }
 
     var body: some View {
         NavigationStack(path: $path) {
@@ -42,6 +52,24 @@ struct CareHomeView: View {
                         }
                     }
                     .lookRows()
+                    if !upcomingVaccines.isEmpty {
+                        Section {
+                            ForEach(upcomingVaccines) { v in
+                                Button { router.openItem = Router.OpenItem(kind: "biz", module: v.module, id: v.parentID) } label: {
+                                    HStack {
+                                        Image(systemName: "syringe").foregroundStyle(look.accent)
+                                        VStack(alignment: .leading, spacing: 2) {
+                                            Text(v.title).font(.subheadline).lineLimit(2)
+                                            Text("\(parentName(v)) · \(v.due?.formatted(date: .abbreviated, time: .omitted) ?? "")")
+                                                .font(.caption).foregroundStyle((v.due ?? .distantFuture) < .now ? look.danger : look.textSecondary)
+                                        }
+                                    }
+                                }
+                                .foregroundStyle(.primary)
+                            }
+                        } header: { Text("Vaccinations due") } footer: { Text("From Kids and Pet Care, for the next 60 days.") }
+                        .lookRows()
+                    }
                     Section {
                         ForEach(profiles.filter { $0.relation == "Pet" }) { p in
                             NavigationLink(value: p.id) { profileRow(p) }

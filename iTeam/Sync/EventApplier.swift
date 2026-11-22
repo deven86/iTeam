@@ -665,6 +665,12 @@ struct EventApplier {
                     let isAdmin = conv?.members.first { $0.id == e.from }.map { $0.role != .member } ?? true
                     if (!existing.subjectID.isEmpty && existing.subjectID != e.from) || (conv?.isGroup == true && !isAdmin) { p.status = "Reverting" }
                 }
+                // Bills in a group: a member's "Paid" waits for a group admin to approve.
+                if existing.module == "bills", conv?.isGroup == true, !client {
+                    let isAdmin = conv?.members.first { $0.id == e.from }.map { $0.role != .member } ?? false
+                    if !isAdmin && p.status == "Paid" && existing.status != "Paid" { p.status = "Approving" }
+                    if !isAdmin && existing.status == "Approving" && p.status != "Approving" { p.status = "Approving" }
+                }
                 // While waiting, only the client (or, with no client, a group admin) can settle it as Due.
                 if existing.status == "Reverting" && !client && p.status == "Due" {
                     let isAdmin = conv?.members.first { $0.id == e.from }.map { $0.role != .member } ?? true
@@ -689,9 +695,12 @@ struct EventApplier {
             if let conv, !personal {
                 let who = e.from == me ? "You" : engine.name(of: e.from)
                 let line = p.status == "Reverting" && existing?.status != "Reverting"
-                    ? "↩️ \(who) wants to move “\(p.title)” back to Due — needs approval" : BizSpecs.logLine(p, who: who, isNew: existing == nil)
+                    ? "↩️ \(who) wants to move “\(p.title)” back to Due — needs approval"
+                    : p.status == "Approving" && existing?.status != "Approving"
+                    ? "💸 \(who) paid “\(p.title)”\(p.amount > 0 ? " (\(Money.format(p.amount)))" : "") — waiting for a group admin to approve"
+                    : BizSpecs.logLine(p, who: who, isNew: existing == nil)
                 system(conv, line, at: e.at)
-                if e.from != me && (p.subjectID == me || r.ownerID == me || p.status == "Reverting") {
+                if e.from != me && (p.subjectID == me || r.ownerID == me || p.status == "Reverting" || p.status == "Approving") {
                     ctx.insert(ActivityItem(kind: .taskUpdated, text: BizSpecs.logLine(p, who: who, isNew: existing == nil), convID: conv.id, actorID: e.from, date: e.at))
                 }
             }

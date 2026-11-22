@@ -5,6 +5,8 @@ import SwiftData
 struct TaskEditorView: View {
     let conv: Conversation?
     let source: Message?
+    /// Prefilled title (e.g. a pet-care duty).
+    var prefillTitle: String = ""
     @EnvironmentObject var engine: SyncEngine
     @Environment(\.dismiss) private var dismiss
     @Environment(\.look) private var look
@@ -165,6 +167,7 @@ struct TaskEditorView: View {
         }
         .onAppear {
             if let conv { chatID = conv.id }
+            if draft.title.isEmpty && !prefillTitle.isEmpty { draft.title = prefillTitle }
             if let source, draft.title.isEmpty {
                 draft.title = String(source.text.prefix(120))
                 if source.text.count > 120 { draft.notes = source.text }

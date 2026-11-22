@@ -158,15 +158,15 @@ enum BizSpecs {
             BizKind(id: "bill", label: "Bill / renewal", plural: "Bills", icon: "doc.text",
                     fields: [.init(key: .title, label: "What (electricity, insurance, PUC…)"), .init(key: .amount, label: "Amount"), .init(key: .due, label: "Due date"),
                              .init(key: .subtitle, label: "Repeats", options: ["Once", "Monthly", "Every 3 months", "Yearly"]), .init(key: .status, label: "Status"), .init(key: .notes, label: "Account no., notes")],
-                    statuses: ["Due", "Paid"], doneStatuses: ["Paid"], sign: 1, countWhen: "Due"),
+                    statuses: ["Due", "Approving", "Paid"], doneStatuses: ["Paid"], sign: 1, countWhen: "Due"),
         ],
         balanceLabel: "Due", clientWord: "", paid: false)
 
     static let kids = BizSpec(
         module: "kids", tab: .kids, title: "Kids", icon: "figure.and.child.holdinghands", colors: [0xFDC830, 0xF37335],
         parent: BizKind(id: "child", label: "Child", plural: "Children", icon: "face.smiling",
-                        fields: [.init(key: .title, label: "Name"), .init(key: .subtitle, label: "School & class"), .init(key: .phone, label: "School / teacher phone"),
-                                 .init(key: .notes, label: "Allergies, blood group, notes")],
+                        fields: [.init(key: .title, label: "Name"), .init(key: .date, label: "Birth date"), .init(key: .subtitle, label: "School & class"),
+                                 .init(key: .phone, label: "School / teacher phone"), .init(key: .notes, label: "Allergies, blood group, notes")],
                         linkable: true),
         children: [
             BizKind(id: "vaccine", label: "Vaccination", plural: "Vaccinations", icon: "syringe",

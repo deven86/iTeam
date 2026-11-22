@@ -48,6 +48,41 @@ extension SyncEngine {
         }
     }
 
+    /// Kids → core iLife Care: each child is a Care profile; vaccinations show in Care's "Vaccinations due".
+    func kidsBridge(_ p: BizPayload) {
+        guard p.kind == "child" else { return }
+        let careID = "c_" + p.id
+        let conv = conversation(convID(ofBiz: p.id)) ?? DemoChats.notesToSelf(self)
+        saveCareProfile(in: conv, id: careID, name: p.title, relation: "Child", bloodGroup: "", allergies: "", conditions: "",
+                        emergencyContact: p.phone, notes: p.notes, avatar: nil, deleted: p.deleted)
+    }
+
+    private func convID(ofBiz id: String) -> String {
+        (try? context.fetch(FetchDescriptor<BizRecord>(predicate: #Predicate { $0.id == id })).first)?.convID ?? ""
+    }
+
+    /// India immunisation schedule (IAP) from the birth date — a checklist to confirm with the paediatrician.
+    static let iapSchedule: [(String, Int)] = [
+        ("BCG, OPV-0, Hepatitis B-1", 0), ("DTwP/DTaP-1, IPV-1, Hib-1, Hep B-2, Rotavirus-1, PCV-1", 42),
+        ("DTwP/DTaP-2, IPV-2, Hib-2, Hep B-3, Rotavirus-2, PCV-2", 70), ("DTwP/DTaP-3, IPV-3, Hib-3, Hep B-4, Rotavirus-3, PCV-3", 98),
+        ("Influenza-1", 183), ("Influenza-2", 213), ("Typhoid conjugate vaccine", 244), ("MMR-1", 274), ("Hepatitis A-1", 365),
+        ("MMR-2, Varicella-1, PCV booster", 456), ("DTwP/DTaP booster-1, IPV booster-1, Hib booster-1", 487),
+        ("Hepatitis A-2, Varicella-2", 548), ("DTwP/DTaP booster-2, IPV booster-2, MMR-3", 1642), ("HPV (2 doses)", 3285), ("Tdap/Td", 3650),
+    ]
+
+    func addIAPSchedule(child: BizRecord) {
+        guard let birth = child.date else { return }
+        let existing = Set(((try? context.fetch(FetchDescriptor<BizRecord>(predicate: #Predicate { $0.parentID == child.id && !$0.deleted }))) ?? []).map(\.title))
+        for (name, days) in Self.iapSchedule where !existing.contains(name) {
+            let due = Calendar.current.date(byAdding: .day, value: days, to: birth) ?? birth
+            var v = BizPayload(BizRecord(id: "k_" + UUID().uuidString))
+            v.module = "kids"; v.kind = "vaccine"; v.parentID = child.id; v.subjectID = child.subjectID
+            v.title = name; v.due = due; v.status = due < Calendar.current.startOfDay(for: .now) ? "Done" : "Due"
+            v.notes = "IAP schedule — confirm with your paediatrician"
+            saveBiz(v, convID: child.convID)
+        }
+    }
+
     /// Rent: creates each month's charge when the due date arrives (with the yearly raise), so pending rent matches the agreement.
     func autoRentCharges() {
         let me = self.me
@@ -382,6 +417,7 @@ struct BizParentView: View {
     @State private var shareItems: ShareItems?
     @State private var confirmDelete = false
     @State private var viewing: BizRecord?
+    @State private var petDuty = false
 
     init(spec: BizSpec, recordID: String) {
         self.spec = spec; self.recordID = recordID
@@ -422,6 +458,22 @@ struct BizParentView: View {
                     .lookRows()
                 }
             }
+            if spec.module == "kids" && mine {
+                Section {
+                    Button("Add India vaccination schedule (IAP)", systemImage: "syringe") { engine.addIAPSchedule(child: r) }
+                        .disabled(r.date == nil)
+                } footer: {
+                    Text(r.date == nil ? "Add the birth date (Edit) to fill in the schedule." :
+                            "Adds every vaccine from birth to 12 years with due dates; past ones are marked done. Confirm with your paediatrician. Reminders come before each due date.")
+                }
+                .lookRows()
+            }
+            if spec.module == "petcare" {
+                Section {
+                    Button("Assign a duty (walk, feed, vet trip)", systemImage: "person.badge.clock") { petDuty = true }
+                } footer: { Text("Creates a task in this pet's chat; the person you pick must accept it, then gets reminders.") }
+                .lookRows()
+            }
             if spec.module == "travel" || spec.module == "kids" {
                 Section {
                     NavigationLink { AlbumView(owner: r.id, convID: r.convID, title: "\(r.title) album") } label: {
@@ -443,6 +495,9 @@ struct BizParentView: View {
         .sheet(isPresented: $linking) { NavigationStack { BizLinkContact(record: r) } }
         .sheet(item: $viewing) { c in NavigationStack { BizRecordViewer(record: c, spec: spec) } }
         .sheet(isPresented: $sharingChat) { NavigationStack { BizLinkChat(record: r) } }
+        .sheet(isPresented: $petDuty) {
+            NavigationStack { TaskEditorView(conv: engine.conversation(r.convID), source: nil, prefillTitle: "🐾 \(r.title): ") }
+        }
         .shareSheet($shareItems)
         .confirmationDialog("Delete \(r.title)?", isPresented: $confirmDelete, titleVisibility: .visible) {
             Button("Delete", role: .destructive) { var p = BizPayload(r); p.deleted = true; engine.saveBiz(p, convID: r.convID); dismiss() }
@@ -460,6 +515,13 @@ struct BizParentView: View {
                     let yes = k.statuses.count > 1 ? k.statuses[1] : "Done"
                     Button(yes) { answer(c, yes) }.buttonStyle(.glassProminent).controlSize(.small)
                     if k.statuses.count > 2 { Button(k.statuses[2], role: .destructive) { answer(c, k.statuses[2]) }.buttonStyle(.glass).controlSize(.small) }
+                }
+            }
+            if c.status == "Approving" && engine.conversation(c.convID)?.members.first(where: { $0.id == engine.me })?.role != .member {
+                HStack {
+                    Text("Marked paid — approve?").font(.caption)
+                    Button("Approve") { answer(c, "Paid") }.buttonStyle(.glassProminent).controlSize(.small)
+                    Button("Not paid", role: .destructive) { answer(c, "Due") }.buttonStyle(.glass).controlSize(.small)
                 }
             }
             if c.status == "Reverting" && (isClient || (!c.convID.isEmpty && engine.conversation(c.convID)?.members.first { $0.id == engine.me }?.role != .member && c.subjectID.isEmpty)) {
@@ -671,6 +733,9 @@ struct BizEditor: View {
                     TextField(label, text: Binding(get: { extra[label] ?? "" }, set: { extra[label] = $0 }))
                         .keyboardType(label.contains("%") ? .decimalPad : .default)
                 }
+                if existing?.status == "Approving" {
+                    Label("Paid — waiting for a group admin to approve", systemImage: "hourglass").font(.caption).foregroundStyle(.orange)
+                }
                 if existing?.status == "Reverting" {
                     Label("Waiting for approval to move back to Due", systemImage: "hourglass").font(.caption).foregroundStyle(.orange)
                 }
@@ -767,6 +832,7 @@ struct BizEditor: View {
         p.at = .now
         engine.saveBiz(p, convID: parent?.convID ?? r?.convID ?? "", uploads: uploads)
         if spec.module == "petcare" { engine.petBridge(p) }
+        if spec.module == "kids" { engine.kidsBridge(p) }
         if existing == nil, !linkTo.isEmpty, let c = engine.contact(linkTo),
            let rec = try? engine.context.fetch(FetchDescriptor<BizRecord>(predicate: #Predicate { $0.id == p.id })).first {
             engine.linkBiz(rec, to: c)

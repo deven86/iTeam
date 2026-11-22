@@ -20,6 +20,7 @@ enum NotifyRoute {
         Kind(id: "games", title: "Games", icon: "gamecontroller.fill"),
         Kind(id: "surveys", title: "Surveys", icon: "list.clipboard.fill"),
         Kind(id: "crm", title: "CRM leads & quotes", icon: "person.crop.circle.badge.checkmark"),
+        Kind(id: "society", title: "Society: visitors, bills, notices", icon: "building.2.crop.circle.fill"),
         Kind(id: "rooms", title: "Rooms private messages", icon: "bubble.left.and.text.bubble.right.fill"),
         Kind(id: "groups", title: "Groups (added, changes)", icon: "person.2.fill"),
     ]
@@ -51,6 +52,7 @@ enum NotifyRoute {
         case .gymPlan(let p): return ("gym", "iteam://item/gym/\(p.memberID)")
         case .gymSession(let p): return ("gym", "iteam://item/gym/\(p.memberID)")
         case .gymPayment(let p): return ("gym", "iteam://item/gym/\(p.memberID)")
+        case .society: return ("society", "iteam://open/society")
         case .crmGroup: return ("crm", "iteam://open/crm")
         case .crmLead(let p): return ("crm", "iteam://item/crm/\(p.id)")
         case .crmActivity(let p): return ("crm", "iteam://item/crm/\(p.leadID)")

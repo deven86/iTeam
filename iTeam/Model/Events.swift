@@ -44,6 +44,8 @@ struct Event: Codable {
         case crmGroup(CRMGroupPayload)
         case crmLead(CRMLeadPayload)
         case crmActivity(CRMActivityPayload)
+        /// Society & Apartment Manager: units, bills, complaints, visitors, notices.
+        case society(SocietyPayload)
         case crmQuoteAnswer(activityID: String, leadID: String, accept: Bool, reason: String)
         /// The trainer someone picked answers: accept or decline.
         case gymTrainerAnswer(memberID: String, accept: Bool, note: String)

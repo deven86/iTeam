@@ -28,6 +28,9 @@ struct RootView: View {
     @Query(filter: #Predicate<CRMLead> { !$0.deleted }) private var crmLeads: [CRMLead]
     /// In someone's CRM team or a client with a lead shared with me.
     private var crmShared: Bool { crmLeads.contains { $0.ownerID != engine.me } }
+    @Query(filter: #Predicate<SocietyRecord> { $0.kind == "society" && !$0.deleted }) private var societyRecs: [SocietyRecord]
+    /// A flat owner or committee member of someone's society.
+    private var inSociety: Bool { societyRecs.contains { $0.society.ownerID != engine.me } }
     @Query(filter: #Predicate<AttRecord> { $0.kind == "member" && !$0.deleted }) private var attMembers: [AttRecord]
     /// Employees and admins use Attendance free once someone adds them.
     private var inAttendance: Bool { attMembers.contains { $0.member.userID == engine.me && $0.member.accepted != false } }
@@ -59,6 +62,7 @@ struct RootView: View {
         if modules.isOn(ModuleRegistry.finance) { a.append(.finance) }
         if modules.isOn(ModuleRegistry.survey) || surveysShared { a.append(.survey) }
         if modules.isOn(ModuleRegistry.crm) || crmShared { a.append(.crm) }
+        if modules.isOn(ModuleRegistry.society) || inSociety { a.append(.society) }
         if modules.isOn(ModuleRegistry.attendance) || (inAttendance && modules.isVisible(ModuleRegistry.attendance)) { a.append(.attendance) }
         // Paid modules appear once bought (or unlocked for the owner / TestFlight testing) — or when
         // someone else shared a profile with you, because members use shared profiles free.
@@ -103,6 +107,7 @@ struct RootView: View {
 
             moduleTabs
             moduleTabs2
+            moduleTabs3
 
             Tab("Settings", systemImage: "gearshape.fill", value: Router.TabID.settings) {
                 SettingsView()
@@ -152,6 +157,19 @@ struct RootView: View {
     }
 
     @TabContentBuilder<Router.TabID>
+    private var moduleTabs3: some TabContent<Router.TabID> {
+        Tab("CRM", systemImage: "person.crop.circle.badge.checkmark", value: Router.TabID.crm) {
+            CRMHomeView()
+        }
+        .hidden(!inBar.contains(.crm))
+
+        Tab("Society", systemImage: "building.2.crop.circle.fill", value: Router.TabID.society) {
+            SocietyHomeView()
+        }
+        .hidden(!inBar.contains(.society))
+    }
+
+    @TabContentBuilder<Router.TabID>
     private var moduleTabs2: some TabContent<Router.TabID> {
         Tab("Meetings", systemImage: "person.3.fill", value: Router.TabID.meetings) {
             MeetingsHomeView()
@@ -163,10 +181,6 @@ struct RootView: View {
         }
         .hidden(!inBar.contains(.survey))
 
-        Tab("CRM", systemImage: "person.crop.circle.badge.checkmark", value: Router.TabID.crm) {
-            CRMHomeView()
-        }
-        .hidden(!inBar.contains(.crm))
 
         Tab("Finance", systemImage: "indianrupeesign.circle.fill", value: Router.TabID.finance) {
             FinanceHomeView()
@@ -213,7 +227,7 @@ struct RootView: View {
             .onChange(of: inBar) { _, bar in
                 router.barTabs = bar
                 // A tab that just left the bar reopens inside the hub instead of vanishing.
-                if [Router.TabID.views, .events, .rooms, .doctor, .safety, .khata, .tuition, .rent, .legal, .clinic, .bills, .kids, .travel, .petcare, .survey, .crm, .meetings, .attendance, .finance, .tasks, .care, .gym, .mind, .activity].contains(router.tab), !bar.contains(router.tab) {
+                if [Router.TabID.views, .events, .rooms, .doctor, .safety, .khata, .tuition, .rent, .legal, .clinic, .bills, .kids, .travel, .petcare, .survey, .crm, .society, .meetings, .attendance, .finance, .tasks, .care, .gym, .mind, .activity].contains(router.tab), !bar.contains(router.tab) {
                     router.tab = .chats
                 }
             }
@@ -288,6 +302,7 @@ struct ModulesHubView: View {
         case .finance: FinanceHomeView()
         case .survey: SurveyHomeView()
         case .crm: CRMHomeView()
+        case .society: SocietyHomeView()
         case .tasks: TaskDashboardView()
         case .care: CareHomeView()
         case .gym: GymModuleView()
@@ -375,6 +390,7 @@ struct ModulesHubView: View {
         case .finance: ("Finance", ModuleRegistry.finance.icon, ModuleRegistry.finance.colors)
         case .survey: ("Survey", ModuleRegistry.survey.icon, ModuleRegistry.survey.colors)
         case .crm: ("CRM", ModuleRegistry.crm.icon, ModuleRegistry.crm.colors)
+        case .society: ("Society", ModuleRegistry.society.icon, ModuleRegistry.society.colors)
         case .khata, .tuition, .rent, .legal, .clinic, .bills, .kids, .travel, .petcare:
             BizSpecs.all.first { $0.tab == t }.map { ($0.title, $0.icon, $0.colors) } ?? ("", "square", [0, 0])
         case .tasks: ("Tasks", ModuleRegistry.businessTasks.icon, ModuleRegistry.businessTasks.colors)

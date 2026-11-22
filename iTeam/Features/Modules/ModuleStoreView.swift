@@ -299,6 +299,8 @@ struct ModulePreviewScreen: View {
         case .surveyForm: "Field survey"
         case .crmDashboard: "Pipeline"
         case .crmForm: "Lead"
+        case .socDashboard: "Committee"
+        case .socGate: "Gate kiosk"
         case .finForm: "Add expense"
         case .finPro: "Cheques & approvals"
         case .attMember: "Add member"
@@ -554,6 +556,16 @@ struct ModulePreviewScreen: View {
             row("arrow.left.arrow.right", "Acme Retail · ₹4.5L", "Negotiation")
             row("doc.text.fill", "Patil Constructions · ₹2.8L", "Proposal")
             bar("Won this month · 38%", 0.38)
+        case .socDashboard:
+            HStack(spacing: 6) { stat("48", "Flats"); stat("₹36k", "Dues"); stat("3", "Complaints") }
+            row("person.badge.clock.fill", "Delivery for A-101", "Waiting")
+            row("doc.text.fill", "Maintenance Nov · 41 of 48 paid")
+            row("megaphone.fill", "Water tank cleaning Sunday")
+        case .socGate:
+            row("shippingbox.fill", "Ramesh (Swiggy) → A-101", "Allowed ✓")
+            row("car.fill", "Cab MH05 AB 1234 → B-204", "Waiting")
+            row("person.badge.clock", "Guard Sunil · in 08:02")
+            row("lock.fill", "Exit needs Face ID")
         case .crmForm:
             row("person.fill", "Lead: Acme Retail")
             row("indianrupeesign", "Deal value: ₹4,50,000 · 70%")

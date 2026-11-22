@@ -88,7 +88,7 @@ struct iTeamApp: App {
 @MainActor
 final class Router: ObservableObject {
     static let shared = Router()
-    enum TabID: String, Hashable { case chats, views, rooms, doctor, safety, events, khata, tuition, rent, legal, clinic, bills, kids, travel, petcare, survey, crm, meetings, attendance, finance, tasks, care, gym, mind, activity, hub, settings }
+    enum TabID: String, Hashable { case chats, views, rooms, doctor, safety, events, khata, tuition, rent, legal, clinic, bills, kids, travel, petcare, survey, crm, society, meetings, attendance, finance, tasks, care, gym, mind, activity, hub, settings }
 
     @Published var tab: TabID = .chats
     /// Module tabs currently in the bottom bar (set by RootView). Others open inside the Modules hub.

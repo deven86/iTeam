@@ -35,6 +35,7 @@ struct XOGamesView: View {
                             Button { open = g } label: { row(g) }.foregroundStyle(Color.primary)
                         }
                     }
+                    if engine.conversation(convID)?.isGroup == true { leaderboard }
                     Section("Score") {
                         let me = engine.me
                         let done = games.filter { $0.status == "won" || $0.status == "draw" }
@@ -82,6 +83,27 @@ struct XOGamesView: View {
     }
 }
 
+
+extension XOGamesView {
+    /// Group leaderboard: wins in this group's X and O games.
+    @ViewBuilder var leaderboard: some View {
+        let done = games.filter { $0.status == "won" }
+        let tally = Dictionary(grouping: done, by: \.winner).map { ($0.key, $0.value.count) }.sorted { $0.1 > $1.1 }
+        if !tally.isEmpty {
+            Section("Leaderboard 🏆") {
+                ForEach(Array(tally.enumerated()), id: \.offset) { idx, row in
+                    HStack {
+                        Text(["🥇", "🥈", "🥉"].indices.contains(idx) ? ["🥇", "🥈", "🥉"][idx] : "\(idx + 1).")
+                        Text(row.0 == engine.me ? "You" : engine.name(of: row.0)).fontWeight(idx == 0 ? .bold : .regular)
+                        Spacer()
+                        Text("\(row.1) win\(row.1 == 1 ? "" : "s")").foregroundStyle(.secondary)
+                    }
+                }
+            }
+        }
+    }
+}
+
 struct XOBoardView: View {
     let gameID: String
     @EnvironmentObject var engine: SyncEngine
@@ -115,6 +137,7 @@ struct XOBoardView: View {
             Spacer()
         }
         .padding()
+        .overlay { if g.status == "won" { WinnerBlast(title: g.winner == me ? "You win! 🏆" : "\(engine.name(of: g.winner)) wins! 🏆").id(g.id + g.winner) } }
         .lookScreen()
         .navigationTitle("X and O")
         .navigationBarTitleDisplayMode(.inline)
@@ -136,6 +159,7 @@ struct XOBoardView: View {
                 let c = g.cells[i]
                 Button {
                     Haptics.thump()
+                    GameSound.play("fx_pop")
                     engine.gameAct(g, "move", cell: i)
                 } label: {
                     Text(c == "-" ? " " : String(c))
@@ -150,7 +174,12 @@ struct XOBoardView: View {
         }
         .frame(maxWidth: 380)
         .animation(.snappy, value: g.board)
-        .onChange(of: g.status) { _, s in if s == "won" { g.winner == engine.me ? Haptics.success() : Haptics.warning() } }
+        .onChange(of: g.status) { _, s in
+            if s == "won" {
+                if g.winner == engine.me { Haptics.success() } else { Haptics.warning(); GameSound.play("fx_lose") }
+            }
+        }
+        .onChange(of: g.board) { old, new in if old != new { GameSound.play("fx_pop", volume: 0.6) } }
     }
 
     @ViewBuilder

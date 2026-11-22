@@ -93,6 +93,16 @@ final class FightScene: SKScene {
     /// HUD + result callbacks for SwiftUI.
     var onEnd: ((_ iWon: Bool?) -> Void)?
     var onHaptic: ((Bool) -> Void)?
+    /// My energy 0…100 for the Special button.
+    var onEnergy: ((CGFloat) -> Void)?
+    private var lastEnergy: CGFloat = -1
+    let arena: FightArena
+    let backdrop: UIImage?
+    /// Everything that shakes (stage + fighters); the HUD stays still.
+    let world = SKNode()
+    private var combo = 0
+    private var lastHitAt: TimeInterval = 0
+    private var guardUntil: TimeInterval = 0
 
     private(set) var started = false
     private(set) var finished = false
@@ -109,19 +119,23 @@ final class FightScene: SKScene {
     private let banner = SKLabelNode(fontNamed: "AvenirNext-Heavy")
     let foeName: String
 
-    init(mode: Mode, mine: FightCharacter, theirs: FightCharacter, myName: String, theirName: String) {
+    init(mode: Mode, mine: FightCharacter, theirs: FightCharacter, myName: String, theirName: String,
+         arena: FightArena = .meadow, backdrop: UIImage? = nil) {
         self.mode = mode
+        self.arena = arena
+        self.backdrop = backdrop
         me = FighterNode(mine)
         foe = FighterNode(theirs)
         foeName = theirName
         super.init(size: CGSize(width: 1000, height: 700))
         scaleMode = .aspectFit
         backgroundColor = UIColor(red: 0.93, green: 0.90, blue: 0.98, alpha: 1)
+        addChild(world)
         buildStage()
         me.position = CGPoint(x: 240, y: Self.ground)
         foe.position = CGPoint(x: 760, y: Self.ground)
         remoteTarget = foe.position
-        addChild(me); addChild(foe)
+        world.addChild(me); world.addChild(foe)
         buildHUD(myName: myName, theirName: theirName)
     }
 
@@ -129,26 +143,54 @@ final class FightScene: SKScene {
 
     // MARK: Stage
 
+    private static func ui(_ hex: UInt32, _ alpha: CGFloat = 1) -> UIColor {
+        UIColor(red: CGFloat((hex >> 16) & 0xFF) / 255, green: CGFloat((hex >> 8) & 0xFF) / 255, blue: CGFloat(hex & 0xFF) / 255, alpha: alpha)
+    }
+
     private func buildStage() {
-        let sky = SKSpriteNode(texture: SKTexture(image: Self.gradient(top: UIColor(red: 0.80, green: 0.86, blue: 1.0, alpha: 1),
-                                                                         bottom: UIColor(red: 1.0, green: 0.88, blue: 0.93, alpha: 1))))
-        sky.size = size; sky.position = CGPoint(x: size.width / 2, y: size.height / 2); sky.zPosition = -20
-        addChild(sky)
-        for (i, c) in [UIColor(red: 0.74, green: 0.86, blue: 0.74, alpha: 1), UIColor(red: 0.64, green: 0.80, blue: 0.66, alpha: 1)].enumerated() {
-            let hill = SKShapeNode(ellipseOf: CGSize(width: 900, height: 260))
+        if let backdrop {
+            // The challenger's own photo as the arena.
+            let bg = SKSpriteNode(texture: SKTexture(image: backdrop))
+            let s = max(size.width / backdrop.size.width, size.height / backdrop.size.height)
+            bg.size = CGSize(width: backdrop.size.width * s, height: backdrop.size.height * s)
+            bg.position = CGPoint(x: size.width / 2, y: size.height / 2); bg.zPosition = -20
+            world.addChild(bg)
+            let floor = SKShapeNode(rect: CGRect(x: -50, y: 0, width: size.width + 100, height: Self.ground))
+            floor.fillColor = UIColor.black.withAlphaComponent(0.25); floor.strokeColor = .clear; floor.zPosition = -10
+            world.addChild(floor)
+            return
+        }
+        let sky = SKSpriteNode(texture: SKTexture(image: Self.gradient(top: Self.ui(arena.sky.0), bottom: Self.ui(arena.sky.1))))
+        sky.size = CGSize(width: size.width + 100, height: size.height + 60); sky.position = CGPoint(x: size.width / 2, y: size.height / 2); sky.zPosition = -20
+        world.addChild(sky)
+        for (i, c) in [Self.ui(arena.hills.0), Self.ui(arena.hills.1)].enumerated() {
+            let hill = SKShapeNode(ellipseOf: CGSize(width: 900, height: arena == .city ? 420 : 260))
             hill.fillColor = c; hill.strokeColor = .clear
             hill.position = CGPoint(x: i == 0 ? 250 : 780, y: Self.ground + 10); hill.zPosition = -15 + CGFloat(i)
-            addChild(hill)
+            world.addChild(hill)
         }
-        let floor = SKShapeNode(rect: CGRect(x: 0, y: 0, width: size.width, height: Self.ground))
-        floor.fillColor = UIColor(red: 0.96, green: 0.86, blue: 0.74, alpha: 1); floor.strokeColor = .clear; floor.zPosition = -10
-        addChild(floor)
-        for i in 0..<14 {
-            let dot = SKShapeNode(circleOfRadius: CGFloat.random(in: 2...5))
-            dot.fillColor = UIColor.white.withAlphaComponent(0.7); dot.strokeColor = .clear
-            dot.position = CGPoint(x: CGFloat(i) * 75 + 20, y: CGFloat.random(in: 420...660)); dot.zPosition = -18
-            dot.run(.repeatForever(.sequence([.fadeAlpha(to: 0.2, duration: Double.random(in: 0.8...1.6)), .fadeAlpha(to: 0.8, duration: 1)])))
-            addChild(dot)
+        if arena == .city {
+            for i in 0..<9 {
+                let h = CGFloat.random(in: 140...320)
+                let b = SKShapeNode(rect: CGRect(x: 0, y: 0, width: 80, height: h), cornerRadius: 4)
+                b.fillColor = Self.ui(0x2A3150); b.strokeColor = .clear; b.position = CGPoint(x: CGFloat(i) * 115 - 10, y: Self.ground); b.zPosition = -12
+                for w in 0..<Int(h / 40) where Bool.random() {
+                    let win = SKShapeNode(rect: CGRect(x: 14 + CGFloat(w % 2) * 30, y: 20 + CGFloat(w) * 36, width: 16, height: 12))
+                    win.fillColor = Self.ui(0xFFE08A, 0.9); win.strokeColor = .clear; b.addChild(win)
+                }
+                world.addChild(b)
+            }
+        }
+        let floor = SKShapeNode(rect: CGRect(x: -50, y: 0, width: size.width + 100, height: Self.ground))
+        floor.fillColor = Self.ui(arena.ground); floor.strokeColor = .clear; floor.zPosition = -10
+        world.addChild(floor)
+        for i in 0..<16 {
+            let dot = SKLabelNode(text: arena.sparkle)
+            dot.fontSize = CGFloat.random(in: 14...26); dot.fontColor = UIColor.white.withAlphaComponent(0.8)
+            dot.position = CGPoint(x: CGFloat(i) * 66 + 20, y: CGFloat.random(in: 400...670)); dot.zPosition = -18
+            dot.run(.repeatForever(.sequence([.fadeAlpha(to: 0.2, duration: Double.random(in: 0.8...1.6)), .fadeAlpha(to: 0.9, duration: 1)])))
+            if arena == .snow { dot.run(.repeatForever(.sequence([.moveBy(x: 0, y: -400, duration: Double.random(in: 4...7)), .moveBy(x: 0, y: 400, duration: 0)]))) }
+            world.addChild(dot)
         }
     }
 
@@ -211,6 +253,7 @@ final class FightScene: SKScene {
         if started && !finished {
             timerLabel.text = "\(max(0, Int(ceil(Self.roundSeconds - (now - startTime)))))"
         }
+        if abs(me.energy - lastEnergy) >= 1 { lastEnergy = me.energy; onEnergy?(me.energy) }
     }
 
     // MARK: Start / end
@@ -222,7 +265,7 @@ final class FightScene: SKScene {
         counting = true
         var steps: [SKAction] = []
         for t in ["3", "2", "1", "Fluff!"] {
-            steps.append(SKAction.run { [weak self] in self?.setBanner(t) })
+            steps.append(SKAction.run { [weak self] in self?.setBanner(t); GameSound.play(t == "Fluff!" ? "fx_go" : "fx_beep") })
             steps.append(SKAction.wait(forDuration: 0.7))
         }
         run(.sequence(steps + [.run { [weak self] in
@@ -237,7 +280,11 @@ final class FightScene: SKScene {
         finished = true
         let winner = iWon == true ? me : (iWon == false ? foe : nil)
         let loser = iWon == true ? foe : (iWon == false ? me : nil)
-        if let loser { knockOut(loser) }
+        if let loser { knockOut(loser); shake(26) }
+        GameSound.play("fx_ko")
+        run(.wait(forDuration: 0.6)) { GameSound.play(iWon == false ? "fx_lose" : "fx_win") }
+        speed = 0.5
+        run(.wait(forDuration: 0.5)) { [weak self] in self?.speed = 1 }
         if let winner { winner.show("win"); winner.run(.repeat(.sequence([.moveBy(x: 0, y: 40, duration: 0.18), .moveBy(x: 0, y: -40, duration: 0.18)]), count: 4)) }
         setBanner(iWon == nil ? "Double flop!" : (iWon! ? "You win!" : "\(foeName) wins!"))
         confetti()
@@ -249,20 +296,93 @@ final class FightScene: SKScene {
 
     func punch() { attack("punch") }
     func kick() { attack("kick") }
-    func special() { guard me.energy >= 100 else { return }; me.energy = 0; attack("special") }
+    func special() { guard me.energy >= 100, started, !finished, !me.ko else { return }; me.energy = 0; usePower(me) }
     func jump() {
         guard started, !finished, !me.airborne, !me.ko else { return }
         me.vy = 760
+        GameSound.play("fx_jump", volume: 0.6)
+    }
+
+    /// The character's super power.
+    private func usePower(_ f: FighterNode) {
+        GameSound.play("fx_special")
+        powerBanner(for: f.character.power.title, at: f)
+        switch f.character.power {
+        case .blast: attack("special", by: f)
+        case .quake: attack("quake", by: f)
+        case .dash: attack("dash", by: f)
+        case .heal:
+            f.hp = min(100, f.hp + 25)
+            if f === me { guardUntil = now + 3; if mode == .online { send?(FightMsg(t: "fx", k: "heal"), true); sendState(force: true) } }
+            healGlow(f)
+        }
+    }
+
+    private func powerBanner(for text: String, at f: FighterNode) {
+        let l = SKLabelNode(fontNamed: "AvenirNext-Heavy")
+        l.text = "\(f.character.element) \(text)!"; l.fontSize = 34; l.fontColor = .white
+        l.position = CGPoint(x: f.position.x, y: f.position.y + 300); l.zPosition = 60; l.setScale(0.3)
+        let back = SKShapeNode(rectOf: CGSize(width: l.frame.width / 0.3 + 30, height: 50), cornerRadius: 25)
+        back.fillColor = UIColor.systemPurple.withAlphaComponent(0.85); back.strokeColor = .clear; back.zPosition = -1; back.position = CGPoint(x: 0, y: 12)
+        l.addChild(back)
+        addChild(l)
+        l.run(.sequence([.scale(to: 1, duration: 0.15), .wait(forDuration: 0.6), .fadeOut(withDuration: 0.25), .removeFromParent()]))
+    }
+
+    private func healGlow(_ f: FighterNode) {
+        let ring = SKShapeNode(circleOfRadius: 120)
+        ring.strokeColor = UIColor.systemGreen.withAlphaComponent(0.8); ring.lineWidth = 10; ring.glowWidth = 12
+        ring.position = CGPoint(x: 0, y: 120); ring.zPosition = 6
+        f.addChild(ring)
+        ring.run(.sequence([.group([.scale(to: 1.4, duration: 0.8), .fadeOut(withDuration: 0.8)]), .removeFromParent()]))
+        for _ in 0..<12 {
+            let h = SKLabelNode(text: ["💚", "✚", "✨"].randomElement()!); h.fontSize = 28
+            h.position = CGPoint(x: CGFloat.random(in: -70...70), y: CGFloat.random(in: 20...200)); h.zPosition = 7
+            f.addChild(h)
+            h.run(.sequence([.group([.moveBy(x: 0, y: 90, duration: 0.9), .fadeOut(withDuration: 0.9)]), .removeFromParent()]))
+        }
+    }
+
+    private func shake(_ amount: CGFloat) {
+        var steps: [SKAction] = []
+        for i in 0..<6 {
+            let d = amount * (1 - CGFloat(i) / 6)
+            steps.append(.moveBy(x: CGFloat.random(in: -d...d), y: CGFloat.random(in: -d...d) / 2, duration: 0.03))
+        }
+        steps.append(.move(to: .zero, duration: 0.04))
+        world.removeAction(forKey: "shake")
+        world.run(.sequence(steps), withKey: "shake")
     }
 
     private func attack(_ kind: String, by f: FighterNode? = nil) {
         let f = f ?? me
         guard started, !finished, !f.ko, now >= f.busyUntil else { return }
-        let (windup, total): (TimeInterval, TimeInterval) = kind == "kick" ? (0.18, 0.55) : kind == "special" ? (0.2, 0.7) : (0.1, 0.32)
+        let (windup, total): (TimeInterval, TimeInterval) = switch kind {
+        case "kick": (0.18, 0.55)
+        case "special": (0.2, 0.7)
+        case "quake": (0.35, 0.8)
+        case "dash": (0.25, 0.6)
+        default: (0.1, 0.32)
+        }
         f.busyUntil = now + total
         f.blocking = false
-        f.show(kind == "kick" ? "kick" : "punch")
-        if kind != "kick" { showFist(f, big: kind == "special") }
+        f.show(kind == "kick" || kind == "dash" ? "kick" : "punch")
+        if kind == "punch" || kind == "special" { showFist(f, big: kind == "special") }
+        if kind == "punch" { GameSound.play("fx_punch", volume: 0.7) } else if kind == "kick" { GameSound.play("fx_kick", volume: 0.8) }
+        if kind == "quake" {
+            f.run(.sequence([.moveBy(x: 0, y: 120, duration: 0.15), .moveBy(x: 0, y: -120, duration: 0.15)]))
+            run(.wait(forDuration: 0.3)) { [weak self, weak f] in if let f { self?.quakeWave(f) } }
+        }
+        if kind == "dash" {
+            // Vanish in a puff, reappear behind the foe.
+            let other = f === me ? foe : me
+            let behind = other.position.x + (f.position.x < other.position.x ? 110 : -110)
+            puff(at: f.position, element: f.character.element)
+            f.position.x = min(max(behind, 90), size.width - 90)
+            f.facingRight = f.position.x < other.position.x
+            f.orient()
+            puff(at: f.position, element: f.character.element)
+        }
         let dir: CGFloat = f.facingRight ? 1 : -1
         f.sprite.run(.sequence([.moveBy(x: 14 * dir, y: 0, duration: windup), .moveBy(x: -14 * dir, y: 0, duration: 0.15)]))
         run(.wait(forDuration: windup)) { [weak self, weak f] in
@@ -306,7 +426,7 @@ final class FightScene: SKScene {
         guard !defender.ko else { return }
         let dx = defender.position.x - attackerX
         let facing = facingRight ? dx > 0 : dx < 0
-        let range: CGFloat = kind == "kick" ? 215 : kind == "special" ? 2000 : 170
+        let range: CGFloat = switch kind { case "kick": 215; case "special", "dash": 2000; case "quake": 460; default: 170 }
         guard facing, abs(dx) <= range else { return }
         if kind == "special" {
             // The flying fist takes a moment to arrive; jumping over it dodges.
@@ -317,19 +437,22 @@ final class FightScene: SKScene {
             }
             return
         }
-        if kind == "punch" && defender.airborne { return }
+        if (kind == "punch" || kind == "quake") && defender.airborne { pop("Dodged!", at: defender); return }
         land(kind, attacker: attacker, defender: defender)
     }
 
     private func land(_ kind: String, attacker: FighterNode, defender: FighterNode) {
         guard !finished else { return }
-        let base: CGFloat = kind == "kick" ? 11 : kind == "special" ? 20 : 7
+        let base: CGFloat = switch kind { case "kick": 11; case "special", "dash": 20; case "quake": 17; default: 7 }
         var dmg = base * attacker.character.power
         let blocked = defender.blocking
         if blocked { dmg *= 0.25 / defender.character.guardStrength }
+        if defender === me && now < guardUntil { dmg *= 0.5 }
         defender.hp = max(0, defender.hp - dmg)
         defender.energy = min(100, defender.energy + (blocked ? 4 : 8))
-        hitEffect(on: defender, blocked: blocked, big: kind != "punch")
+        hitEffect(on: defender, blocked: blocked, big: kind != "punch", element: attacker.character.element)
+        if kind != "punch" { shake(blocked ? 6 : 14) }
+        if defender !== me { countCombo() }
         if defender === me {
             onHaptic?(kind != "punch")
             if mode == .online {
@@ -345,15 +468,50 @@ final class FightScene: SKScene {
 
     // MARK: Effects (no blood — stars, sparkles and "BONK!")
 
-    private func hitEffect(on f: FighterNode, blocked: Bool, big: Bool) {
+    private func countCombo() {
+        combo = now - lastHitAt < 1.3 ? combo + 1 : 1
+        lastHitAt = now
+        guard combo >= 2 else { return }
+        let l = SKLabelNode(fontNamed: "AvenirNext-HeavyItalic")
+        l.text = "×\(combo) Combo!"; l.fontSize = 44; l.fontColor = UIColor.systemOrange
+        l.position = CGPoint(x: size.width / 2, y: size.height - 150); l.zPosition = 70; l.setScale(0.4)
+        addChild(l)
+        l.run(.sequence([.scale(to: 1.15, duration: 0.12), .scale(to: 1, duration: 0.08), .wait(forDuration: 0.5), .fadeOut(withDuration: 0.2), .removeFromParent()]))
+    }
+
+    private func puff(at p: CGPoint, element: String) {
+        for i in 0..<10 {
+            let c = SKLabelNode(text: i % 3 == 0 ? element : "☁︎")
+            c.fontSize = CGFloat.random(in: 26...44); c.fontColor = .white
+            c.position = CGPoint(x: p.x + CGFloat.random(in: -50...50), y: p.y + CGFloat.random(in: 20...200)); c.zPosition = 40
+            addChild(c)
+            c.run(.sequence([.group([.scale(to: 1.6, duration: 0.4), .fadeOut(withDuration: 0.4)]), .removeFromParent()]))
+        }
+    }
+
+    private func quakeWave(_ f: FighterNode) {
+        shake(20)
+        for dir in [-1.0, 1.0] {
+            for i in 0..<6 {
+                let r = SKLabelNode(text: i % 2 == 0 ? f.character.element : "💥")
+                r.fontSize = 40; r.position = CGPoint(x: f.position.x, y: Self.ground + 10); r.zPosition = 30
+                addChild(r)
+                r.run(.sequence([.wait(forDuration: Double(i) * 0.05),
+                                 .group([.moveBy(x: CGFloat(dir) * 460, y: 0, duration: 0.5), .fadeOut(withDuration: 0.5)]), .removeFromParent()]))
+            }
+        }
+    }
+
+    private func hitEffect(on f: FighterNode, blocked: Bool, big: Bool, element: String = "✦") {
         let dir: CGFloat = f.facingRight ? -1 : 1
         f.run(.moveBy(x: (blocked ? 12 : (big ? 46 : 26)) * dir, y: 0, duration: 0.12))
         f.sprite.colorBlendFactor = 0
         f.sprite.color = blocked ? UIColor.cyan : UIColor.white
         f.sprite.run(.sequence([.colorize(withColorBlendFactor: 0.6, duration: 0.03), .colorize(withColorBlendFactor: 0, duration: 0.18)]))
         pop(blocked ? "Blocked!" : ["BONK!", "BOP!", "POW!", "FWUMP!", "BOING!"].randomElement()!, at: f)
+        GameSound.play(blocked ? "fx_block" : "fx_hit", volume: big ? 1 : 0.7)
         for _ in 0..<(big ? 10 : 6) {
-            let star = SKLabelNode(text: ["✦", "★", "✧", "♥"].randomElement()!)
+            let star = SKLabelNode(text: [element, "★", "✧", "♥", element].randomElement()!)
             star.fontSize = CGFloat.random(in: 22...40)
             star.fontColor = [UIColor.systemYellow, .systemPink, .systemPurple, .systemTeal].randomElement()!
             star.position = CGPoint(x: f.position.x, y: f.position.y + 140); star.zPosition = 40
@@ -424,8 +582,11 @@ final class FightScene: SKScene {
             // Mirrored stage: their "facing right" is facing left here.
             let fr = !(m.b ?? true)
             foe.facingRight = fr
-            foe.show(k == "kick" ? "kick" : "punch")
-            if k != "kick" { showFist(foe, big: k == "special") }
+            foe.show(k == "kick" || k == "dash" ? "kick" : "punch")
+            if k == "punch" || k == "special" { showFist(foe, big: k == "special") }
+            if k == "quake" { quakeWave(foe) }
+            if k == "dash" { puff(at: CGPoint(x: ax, y: FightScene.ground), element: foe.character.element) }
+            if k == "special" || k == "quake" || k == "dash" { GameSound.play("fx_special"); powerBanner(for: foe.character.power.title, at: foe) }
             run(.wait(forDuration: k == "kick" ? 0.4 : 0.25)) { [weak self] in
                 guard let self, !self.foe.ko, self.foe.pose == "kick" || self.foe.pose == "punch" else { return }
                 self.foe.show(self.foe.blocking ? "block" : "idle")
@@ -436,6 +597,8 @@ final class FightScene: SKScene {
             let blocked = m.b ?? false
             me.energy = min(100, me.energy + (blocked ? 5 : 15))
             hitEffect(on: foe, blocked: blocked, big: (m.d ?? 0) > 9)
+        case "fx":
+            if m.k == "heal" { healGlow(foe); powerBanner(for: foe.character.power.title, at: foe); GameSound.play("fx_special") }
         case "ko":
             foe.hp = 0
             finish(iWon: true)
@@ -521,7 +684,7 @@ final class FightScene: SKScene {
         cpuNext = now + Double.random(in: 0.22...0.45)
         let dist = abs(foe.position.x - me.position.x)
         foe.blocking = now < cpuBlockUntil
-        if foe.energy >= 100 && Bool.random() { foe.energy = 0; attack("special", by: foe); return }
+        if foe.energy >= 100 && Bool.random() { foe.energy = 0; usePower(foe); return }
         // React to my attacks sometimes.
         if (me.pose == "kick" || me.pose == "punch") && dist < 230 && Double.random(in: 0...1) < 0.35 {
             cpuBlockUntil = now + 0.5; foe.blocking = true; foe.show("block"); cpuMove = 0; return

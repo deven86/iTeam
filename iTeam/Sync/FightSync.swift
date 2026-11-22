@@ -13,7 +13,7 @@ extension EventApplier {
             guard p.action == "invite", e.from == p.xPlayer || e.from == p.oPlayer, p.xPlayer != p.oPlayer else { return .ignored }
             g = GameMatch(id: p.id)
             g.convID = conv.id; g.kind = "fight"; g.createdBy = e.from; g.xPlayer = p.xPlayer; g.oPlayer = p.oPlayer
-            g.createdAt = e.at; g.stake = p.stake ?? ""; g.code = p.cell ?? 0
+            g.createdAt = e.at; g.stake = p.stake ?? ""; g.code = p.cell ?? 0; g.board = p.board
             ctx.insert(g)
         }
         guard g.involves(e.from), p.at >= g.updatedAt else { return .ignored }
@@ -55,12 +55,13 @@ extension EventApplier {
 
 @MainActor
 extension SyncEngine {
-    func fightInvite(in conv: Conversation, opponent: String, stake: String) -> String {
+    /// arena: a FightArena id, or "photo:<base64 JSON AttachmentRef>" for the challenger's own background.
+    func fightInvite(in conv: Conversation, opponent: String, stake: String, arena: String = "meadow", uploads: [String: String] = [:]) -> String {
         let id = "fight_" + UUID().uuidString
         let code = Int.random(in: 100_000...2_000_000_000)
-        send(.game(GamePayload(id: id, kind: "fight", xPlayer: opponent, oPlayer: me, board: "", action: "invite", cell: code, at: .now,
+        send(.game(GamePayload(id: id, kind: "fight", xPlayer: opponent, oPlayer: me, board: arena, action: "invite", cell: code, at: .now,
                                stake: stake.isEmpty ? nil : stake)),
-             in: conv, loud: true, preview: "🥊 \(myName) challenged you to a Fluffy Fight")
+             in: conv, loud: true, preview: "🥊 \(myName) challenged you to a Fluffy Fight", uploads: uploads)
         if conv.isDemo, opponent.hasPrefix("demo_") { demoFight(id, as: opponent) }
         return id
     }

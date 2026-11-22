@@ -1,6 +1,7 @@
 import SwiftUI
 import SwiftData
 import SpriteKit
+import PhotosUI
 
 /// Opens a game from a chat line: X and O or Fluffy Fight.
 struct GameOpenView: View {
@@ -25,6 +26,12 @@ struct FightInviteView: View {
     @State private var stake = ""
     @State private var practice = false
     @State private var sent: String?
+    @State private var arena = "meadow"
+    @State private var photoItem: PhotosPickerItem?
+    @State private var photo: UIImage?
+    @State private var photoRef: (board: String, uploads: [String: String])?
+    @Query private var allGames: [GameMatch]
+    private var sentGame: GameMatch? { allGames.first { $0.id == sent } }
 
     private var conv: Conversation? { engine.conversation(convID) }
     private var others: [MemberInfo] { (conv?.members ?? []).filter { $0.id != engine.me } }
@@ -57,7 +64,10 @@ struct FightInviteView: View {
                     Text("A task or a time slot only — never a person. The result is posted in this chat.")
                 }
                 Section {
-                    Button { send() } label: { Label("Send challenge", systemImage: "figure.boxing") }
+                    ArenaPicker(arena: $arena, photo: $photo, photoItem: $photoItem)
+                } header: { Text("Where you fight") } footer: { Text("Pick an arena, or use your own photo — your opponent sees the same background.") }
+                Section {
+                    Button { send() } label: { Label("Send challenge & enter the arena", systemImage: "figure.boxing") }
                         .disabled(opponent.isEmpty)
                     Button { practice = true } label: { Label("Practice against the computer", systemImage: "cpu") }
                 }
@@ -66,19 +76,72 @@ struct FightInviteView: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Close") { dismiss() } } }
             .onAppear { if opponent.isEmpty { opponent = others.first?.id ?? "" } }
-            .fullScreenCover(isPresented: $practice) { FightArenaView(game: nil, opponentName: "Computer") }
-            .sheet(item: Binding(get: { sent.map { IDBox(id: $0) } }, set: { sent = $0?.id })) { b in FightLobbyView(gameID: b.id) }
+            .fullScreenCover(isPresented: $practice) { FightArenaView(game: nil, opponentName: "Computer", practiceArena: arena, practicePhoto: photo) }
+            .fullScreenCover(item: Binding(get: { sentGame.map { GameBox(game: $0) } }, set: { if $0 == nil { sent = nil; dismiss() } })) { b in
+                FightArenaView(game: b.game, opponentName: engine.name(of: opponent))
+            }
+            .onChange(of: photoItem) { _, item in
+                Task {
+                    guard let d = try? await item?.loadTransferable(type: Data.self), let img = UIImage(data: d) else { return }
+                    photo = img
+                    if let p = try? Attachments.prepareImage(d), let json = try? JSONEncoder().encode(p.ref) {
+                        photoRef = ("photo:" + json.base64EncodedString(), [p.upload.0: p.upload.1])
+                        arena = "photo"
+                    }
+                }
+            }
         }
     }
 
     private func send() {
         guard let conv else { return }
-        sent = engine.fightInvite(in: conv, opponent: opponent, stake: stake.trimmingCharacters(in: .whitespacesAndNewlines))
+        let board = arena == "photo" ? (photoRef?.board ?? "meadow") : arena
+        sent = engine.fightInvite(in: conv, opponent: opponent, stake: stake.trimmingCharacters(in: .whitespacesAndNewlines),
+                                  arena: board, uploads: arena == "photo" ? (photoRef?.uploads ?? [:]) : [:])
         Haptics.big()
     }
 }
 
 private struct IDBox: Identifiable { let id: String }
+private struct GameBox: Identifiable { let game: GameMatch; var id: String { game.id } }
+
+/// Arena themes + "My photo".
+struct ArenaPicker: View {
+    @Binding var arena: String
+    @Binding var photo: UIImage?
+    @Binding var photoItem: PhotosPickerItem?
+    var body: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 10) {
+                ForEach(FightArena.allCases) { a in
+                    Button { arena = a.rawValue; Haptics.tap() } label: {
+                        VStack(spacing: 4) {
+                            RoundedRectangle(cornerRadius: 12)
+                                .fill(LinearGradient(colors: [Color(hex: a.sky.0), Color(hex: a.sky.1)], startPoint: .top, endPoint: .bottom))
+                                .overlay(alignment: .bottom) { Rectangle().fill(Color(hex: a.ground)).frame(height: 14) }
+                                .overlay(Text(a.sparkle).font(.title3))
+                                .frame(width: 74, height: 54)
+                                .overlay(RoundedRectangle(cornerRadius: 12).stroke(arena == a.rawValue ? Color.purple : .clear, lineWidth: 3))
+                            Text(a.title).font(.caption2)
+                        }
+                    }.buttonStyle(.plain)
+                }
+                PhotosPicker(selection: $photoItem, matching: .images) {
+                    VStack(spacing: 4) {
+                        Group {
+                            if let photo { Image(uiImage: photo).resizable().scaledToFill() } else { Image(systemName: "photo.badge.plus").font(.title2) }
+                        }
+                        .frame(width: 74, height: 54).clipShape(RoundedRectangle(cornerRadius: 12))
+                        .background(RoundedRectangle(cornerRadius: 12).fill(Color.gray.opacity(0.15)))
+                        .overlay(RoundedRectangle(cornerRadius: 12).stroke(arena == "photo" ? Color.purple : .clear, lineWidth: 3))
+                        Text("My photo").font(.caption2)
+                    }
+                }.buttonStyle(.plain)
+            }
+            .padding(.vertical, 4)
+        }
+    }
+}
 
 // MARK: - Lobby (from the chat line)
 
@@ -121,7 +184,7 @@ struct FightLobbyView: View {
             Section {
                 switch g.status {
                 case "invite" where g.createdBy != me:
-                    Button { engine.fightAct(g, "accept"); Haptics.big() } label: { Label("Accept the challenge", systemImage: "hand.thumbsup.fill") }
+                    Button { engine.fightAct(g, "accept"); Haptics.big(); arena = true } label: { Label("Accept & fight now", systemImage: "hand.thumbsup.fill") }
                     Button(role: .destructive) { engine.fightAct(g, "decline") } label: { Label("Not now", systemImage: "xmark") }
                 case "invite", "playing":
                     Button { arena = true } label: { Label("Enter the arena", systemImage: "figure.boxing") }
@@ -151,6 +214,11 @@ struct FightArenaView: View {
     /// nil = practice against the computer.
     let game: GameMatch?
     let opponentName: String
+    var practiceArena: String = "meadow"
+    var practicePhoto: UIImage? = nil
+    @State private var backdrop: UIImage?
+    @State private var energy: CGFloat = 0
+    @AppStorage("game.sound") private var soundOn = true
     @EnvironmentObject var engine: SyncEngine
     @Environment(\.dismiss) private var dismiss
     @ObservedObject private var net = FightNet.shared
@@ -180,6 +248,13 @@ struct FightArenaView: View {
             }
         }
         .onDisappear { if !vsComputer { FightNet.shared.cancel() } }
+        .task {
+            // The challenger's own photo, if they picked one.
+            if let b = game?.board, b.hasPrefix("photo:"), let d = Data(base64Encoded: String(b.dropFirst(6))),
+               let ref = try? JSONDecoder().decode(AttachmentRef.self, from: d), let url = try? await Attachments.load(ref) {
+                backdrop = UIImage(contentsOfFile: url.path)
+            } else if game == nil { backdrop = practiceArena == "photo" ? practicePhoto : nil }
+        }
     }
 
     // Character select
@@ -199,7 +274,8 @@ struct FightArenaView: View {
             HStack(spacing: 14) {
                 stat("Speed", c.speed); stat("Power", c.power); stat("Guard", c.guardStrength)
             }
-            Text("Kick: \(c.kick) · Shield: \(c.shield) · Special: \(c.punch)").font(.caption).foregroundStyle(.secondary)
+            Text("Kick: \(c.kick) · Shield: \(c.shield) · Punch: \(c.punch)").font(.caption).foregroundStyle(.secondary)
+            Label("Super power: \(c.power.title) \(c.element)", systemImage: "sparkles").font(.caption.bold()).foregroundStyle(.purple)
             ScrollView {
                 LazyVGrid(columns: Array(repeating: GridItem(.flexible()), count: 4), spacing: 10) {
                     ForEach(FightCharacter.all) { f in
@@ -266,7 +342,8 @@ struct FightArenaView: View {
 
     private func startCPU() {
         let foe = FightCharacter.all.filter { $0.id != pick }.randomElement() ?? FightCharacter.all[1]
-        let s = FightScene(mode: .cpu, mine: FightCharacter.find(pick), theirs: foe, myName: "You", theirName: opponentName)
+        let s = FightScene(mode: .cpu, mine: FightCharacter.find(pick), theirs: foe, myName: "You", theirName: opponentName,
+                           arena: arenaTheme, backdrop: backdrop)
         wire(s)
         scene = s
         phase = .fighting
@@ -282,7 +359,7 @@ struct FightArenaView: View {
                 opponentChar = m.c ?? "bee"; opponentID = m.u ?? ""
                 if scene == nil {
                     let s = FightScene(mode: .online, mine: FightCharacter.find(pick), theirs: FightCharacter.find(opponentChar),
-                                       myName: "You", theirName: m.n ?? opponentName)
+                                       myName: "You", theirName: m.n ?? opponentName, arena: arenaTheme, backdrop: backdrop)
                     s.isHost = net.isHost
                     s.send = { msg, reliable in net.send(msg, reliable: reliable) }
                     wire(s)
@@ -321,8 +398,13 @@ struct FightArenaView: View {
         }
     }
 
+    private var arenaTheme: FightArena {
+        FightArena(rawValue: game?.board ?? practiceArena) ?? .meadow
+    }
+
     private func wire(_ s: FightScene) {
         s.onHaptic = { big in big ? Haptics.big() : Haptics.thump() }
+        s.onEnergy = { e in energy = e }
         s.onEnd = { iWon in
             report(iWon: iWon)
             phase = .done
@@ -346,7 +428,7 @@ struct FightArenaView: View {
                 Spacer()
                 Text("Fluffy Fight").font(.headline)
                 Spacer()
-                Image(systemName: "xmark.circle.fill").font(.title2).hidden()
+                Button { soundOn.toggle() } label: { Image(systemName: soundOn ? "speaker.wave.2.fill" : "speaker.slash.fill").font(.title3) }
             }.padding(.horizontal)
             if let scene {
                 SpriteView(scene: scene, preferredFramesPerSecond: 60)
@@ -382,36 +464,136 @@ struct FightArenaView: View {
 
     private var controls: some View {
         HStack(alignment: .bottom) {
-            HStack(spacing: 10) {
-                hold("arrow.left") { scene?.left = $0 }
-                hold("arrow.right") { scene?.right = $0 }
+            Joystick { dx, up in
+                scene?.left = dx < -0.25
+                scene?.right = dx > 0.25
+                if up { scene?.jump() }
             }
             Spacer()
-            VStack(spacing: 10) {
-                HStack(spacing: 10) {
-                    tap("Jump", "arrow.up", .teal) { scene?.jump() }
-                    tap("Special", "sparkles", .purple) { scene?.special() }
-                }
-                HStack(spacing: 10) {
-                    tap("Punch", "hand.raised.fill", .pink) { scene?.punch() }
-                    tap("Kick", "figure.kickboxing", .orange) { scene?.kick() }
-                    hold("shield.fill", label: "Block") { scene?.blockHeld = $0 }
-                }
+            ZStack {
+                ActionButton(icon: "hand.raised.fill", label: "Punch", colors: [.pink, .red], size: 76) { scene?.punch() }
+                    .offset(x: -70, y: 0)
+                ActionButton(icon: "figure.kickboxing", label: "Kick", colors: [.orange, .yellow], size: 76) { scene?.kick() }
+                    .offset(x: 10, y: -62)
+                HoldActionButton(icon: "shield.fill", label: "Block", colors: [.blue, .cyan]) { scene?.blockHeld = $0 }
+                    .offset(x: 30, y: 30)
+                SpecialButton(energy: energy) { scene?.special() }
+                    .offset(x: -80, y: -96)
             }
+            .frame(width: 200, height: 190)
         }
-        .padding(.horizontal, 14)
+        .padding(.horizontal, 18)
+        .padding(.bottom, 8)
     }
 
     private func tap(_ label: String, _ icon: String, _ color: Color, action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            VStack(spacing: 2) { Image(systemName: icon).font(.title2); Text(label).font(.caption2.weight(.bold)) }
-                .foregroundStyle(.white).frame(width: 66, height: 66)
-                .background(Circle().fill(color.gradient))
-        }.buttonStyle(.plain)
+        ActionButton(icon: icon, label: label, colors: [color, color.opacity(0.7)], size: 66, action: action)
     }
 
     private func hold(_ icon: String, label: String? = nil, _ set: @escaping (Bool) -> Void) -> some View {
         HoldButton(icon: icon, label: label, onChange: set)
+    }
+}
+
+/// Drag left/right to walk, flick up to jump.
+private struct Joystick: View {
+    let onMove: (_ dx: CGFloat, _ up: Bool) -> Void
+    @State private var knob: CGSize = .zero
+    @State private var jumped = false
+    private let r: CGFloat = 62
+    var body: some View {
+        ZStack {
+            Circle().fill(.ultraThinMaterial).frame(width: r * 2, height: r * 2)
+                .overlay(Circle().stroke(LinearGradient(colors: [.purple.opacity(0.6), .pink.opacity(0.6)], startPoint: .top, endPoint: .bottom), lineWidth: 3))
+            Image(systemName: "chevron.left").offset(x: -r + 16).foregroundStyle(.secondary)
+            Image(systemName: "chevron.right").offset(x: r - 16).foregroundStyle(.secondary)
+            Image(systemName: "chevron.up").offset(y: -r + 16).foregroundStyle(.secondary)
+            Circle().fill(LinearGradient(colors: [.purple, .pink], startPoint: .topLeading, endPoint: .bottomTrailing))
+                .frame(width: 56, height: 56).shadow(color: .purple.opacity(0.5), radius: 8)
+                .offset(knob)
+        }
+        .gesture(DragGesture(minimumDistance: 0)
+            .onChanged { v in
+                var t = v.translation
+                let d = sqrt(t.width * t.width + t.height * t.height)
+                if d > r - 20 { t.width *= (r - 20) / d; t.height *= (r - 20) / d }
+                knob = t
+                let up = t.height < -(r * 0.55)
+                onMove(t.width / (r - 20), up && !jumped)
+                if up && !jumped { jumped = true; Haptics.tap() }
+                if !up { jumped = false }
+            }
+            .onEnded { _ in withAnimation(.spring(duration: 0.2)) { knob = .zero }; jumped = false; onMove(0, false) })
+    }
+}
+
+private struct ActionButton: View {
+    let icon: String
+    let label: String
+    let colors: [Color]
+    var size: CGFloat = 70
+    let action: () -> Void
+    @State private var pressed = false
+    var body: some View {
+        VStack(spacing: 1) {
+            Image(systemName: icon).font(.system(size: size * 0.34, weight: .bold))
+            Text(label).font(.system(size: 10, weight: .heavy))
+        }
+        .foregroundStyle(.white)
+        .frame(width: size, height: size)
+        .background(Circle().fill(LinearGradient(colors: colors, startPoint: .topLeading, endPoint: .bottomTrailing)))
+        .overlay(Circle().stroke(.white.opacity(0.6), lineWidth: 2))
+        .shadow(color: colors[0].opacity(0.5), radius: pressed ? 2 : 8, y: pressed ? 1 : 4)
+        .scaleEffect(pressed ? 0.88 : 1)
+        .gesture(DragGesture(minimumDistance: 0)
+            .onChanged { _ in if !pressed { pressed = true; Haptics.tap(); action() } }
+            .onEnded { _ in withAnimation(.spring(duration: 0.15)) { pressed = false } })
+    }
+}
+
+private struct HoldActionButton: View {
+    let icon: String
+    let label: String
+    let colors: [Color]
+    let onChange: (Bool) -> Void
+    @State private var down = false
+    var body: some View {
+        VStack(spacing: 1) { Image(systemName: icon).font(.system(size: 22, weight: .bold)); Text(label).font(.system(size: 10, weight: .heavy)) }
+            .foregroundStyle(.white).frame(width: 66, height: 66)
+            .background(Circle().fill(LinearGradient(colors: colors, startPoint: .topLeading, endPoint: .bottomTrailing)))
+            .overlay(Circle().stroke(.white.opacity(down ? 1 : 0.6), lineWidth: down ? 4 : 2))
+            .scaleEffect(down ? 0.9 : 1)
+            .gesture(DragGesture(minimumDistance: 0)
+                .onChanged { _ in if !down { down = true; Haptics.tap(); onChange(true) } }
+                .onEnded { _ in down = false; onChange(false) })
+    }
+}
+
+/// Glows and pulses when the super power is ready.
+private struct SpecialButton: View {
+    let energy: CGFloat
+    let action: () -> Void
+    @State private var pulse = false
+    private var ready: Bool { energy >= 100 }
+    var body: some View {
+        Button(action: { if ready { Haptics.big(); action() } }) {
+            ZStack {
+                Circle().stroke(Color.white.opacity(0.3), lineWidth: 6)
+                Circle().trim(from: 0, to: min(1, energy / 100)).stroke(ready ? Color.yellow : Color.purple, style: StrokeStyle(lineWidth: 6, lineCap: .round))
+                    .rotationEffect(.degrees(-90))
+                Circle().fill(LinearGradient(colors: ready ? [.purple, .pink, .orange] : [.gray.opacity(0.6), .gray.opacity(0.4)],
+                                             startPoint: .topLeading, endPoint: .bottomTrailing)).padding(6)
+                VStack(spacing: 0) {
+                    Image(systemName: "sparkles").font(.system(size: 24, weight: .bold))
+                    Text(ready ? "SUPER!" : "\(Int(energy))%").font(.system(size: 10, weight: .heavy))
+                }.foregroundStyle(.white)
+            }
+            .frame(width: 74, height: 74)
+            .shadow(color: ready ? .yellow : .clear, radius: pulse ? 16 : 6)
+            .scaleEffect(ready && pulse ? 1.08 : 1)
+        }
+        .buttonStyle(.plain)
+        .onAppear { withAnimation(.easeInOut(duration: 0.6).repeatForever()) { pulse = true } }
     }
 }
 

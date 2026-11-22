@@ -26,6 +26,6 @@ jobs:
           done
           echo "::notice title=types live::$ok"
           [ -n "$miss" ] && echo "::warning title=types missing::$miss" || true
-          for f in "plus" "seen"; do
+          for f in "plus" "seen" "qr"; do
             if awk '/RECORD TYPE Profile /,/\);/' "$RUNNER_TEMP/prod.ckdb" | grep -q "^ *$f "; then echo "::notice title=Profile field::$f ✅"; else echo "::warning title=Profile field::$f ❌ missing"; fi
           done

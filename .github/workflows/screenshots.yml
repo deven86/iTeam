@@ -24,7 +24,7 @@ jobs:
         run: |
           set +e
           xcodebuild build -project iTeam.xcodeproj -scheme iTeam -configuration Debug \
-            -destination 'generic/platform=iOS Simulator' -derivedDataPath dd CODE_SIGNING_ALLOWED=NO > "$RUNNER_TEMP/build.log" 2>&1
+            -destination 'generic/platform=iOS Simulator' -derivedDataPath dd CODE_SIGN_IDENTITY=- CODE_SIGN_STYLE=Manual DEVELOPMENT_TEAM= PROVISIONING_PROFILE_SPECIFIER= CODE_SIGNING_REQUIRED=NO > "$RUNNER_TEMP/build.log" 2>&1
           s=$?; set -e
           if [ $s -ne 0 ]; then grep -E "error:" "$RUNNER_TEMP/build.log" | sort -u | head -25 | while IFS= read -r l; do echo "::error title=compile::$l"; done; exit $s; fi
           echo "::notice title=build::BUILD SUCCEEDED"
@@ -50,7 +50,13 @@ jobs:
             xcrun simctl status_bar "$U" override --time 9:41 --dataNetwork wifi --wifiMode active --wifiBars 3 --cellularMode active --cellularBars 4 --batteryState charged --batteryLevel 100 || true
             xcrun simctl install "$U" "$APP"
             # first launch warms up caches
-            xcrun simctl launch "$U" com.jondhale.iteam -uiScreenshots -screen chats >/dev/null; sleep 60; xcrun simctl terminate "$U" com.jondhale.iteam || true
+            xcrun simctl launch "$U" com.jondhale.iteam -uiScreenshots -screen chats >/dev/null; sleep 60
+            if ! xcrun simctl spawn "$U" launchctl list | grep -q com.jondhale.iteam; then
+              echo "::error title=crash::iTeam is not running after launch"
+              for f in $(ls -t ~/Library/Logs/DiagnosticReports/ | grep -i iteam | head -2); do grep -E "\"exception\"|\"termination\"|asi|reason|iTeam" ~/Library/Logs/DiagnosticReports/"$f" | head -25; done
+              exit 1
+            fi
+            xcrun simctl terminate "$U" com.jondhale.iteam || true
             i=1
             for S in chats chat tasks attendance finance legal survey hub; do
               xcrun simctl launch "$U" com.jondhale.iteam -uiScreenshots -screen $S >/dev/null
@@ -59,6 +65,7 @@ jobs:
               xcrun simctl terminate "$U" com.jondhale.iteam || true
               i=$((i+1))
             done
+            ls ~/Library/Logs/DiagnosticReports/ 2>/dev/null | grep -i iteam | head -3 | while read f; do echo "::warning title=crash::$f"; head -c 6000 ~/Library/Logs/DiagnosticReports/"$f" | grep -E "exception|termination|reason|iTeam " | head -15; done
             xcrun simctl shutdown "$U" || true
           done
           for f in shots/*.png; do echo "$f $(sips -g pixelWidth -g pixelHeight "$f" | awk '/pixel/{print $2}' | tr '\n' 'x')"; done

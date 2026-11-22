@@ -14,7 +14,7 @@ final class CloudService {
     static let shared = CloudService()
     static let containerID = "iCloud.com.jondhale.iteam"
 
-    let container = CKContainer(identifier: CloudService.containerID)
+    lazy var container = CKContainer(identifier: CloudService.containerID)
     var db: CKDatabase { container.publicCloudDatabase }
 
     struct RemoteProfile {

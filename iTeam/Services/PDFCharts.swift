@@ -135,3 +135,18 @@ enum PDFCharts {
         [PDFChart(kind: .line, title: "Mindful minutes per day", labels: byDay.map { $0.0.formatted(.dateTime.day()) }, values: byDay.map(\.1), colors: [0x3B8D99], unit: " min")]
     }
 }
+
+extension PDFCharts {
+    static func finance(_ ls: [FinLine], month: Date) -> [PDFChart] {
+        let cal = Calendar.current
+        let m = ls.filter { $0.status == "paid" && cal.isDate($0.date, equalTo: month, toGranularity: .month) }
+        let byCat = Dictionary(grouping: m.filter { !$0.isIn }, by: \.category).map { ($0.key, $0.value.reduce(0) { $0 + $1.amount }) }.sorted { $0.1 > $1.1 }
+        let starts = (0..<6).reversed().compactMap { cal.date(byAdding: .month, value: -$0, to: cal.dateInterval(of: .month, for: month)?.start ?? month) }
+        let net = starts.map { s in ls.filter { $0.status == "paid" && cal.isDate($0.date, equalTo: s, toGranularity: .month) }.reduce(0) { $0 + $1.signed } }
+        let spend = starts.map { s in ls.filter { $0.status == "paid" && !$0.isIn && cal.isDate($0.date, equalTo: s, toGranularity: .month) }.reduce(0) { $0 + $1.amount } }
+        let labels = starts.map { $0.formatted(.dateTime.month(.abbreviated)) }
+        return [pie("Expenses by category", Array(byCat.prefix(9))),
+                PDFChart(kind: .bar, title: "Expenses per month (₹)", labels: labels, values: spend, colors: Array(repeating: 0xFF3B30, count: 6)),
+                PDFChart(kind: .line, title: "Net (income − expenses) per month", labels: labels, values: net, colors: [0x0BA360])]
+    }
+}

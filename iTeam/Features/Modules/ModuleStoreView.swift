@@ -293,7 +293,24 @@ struct ModulePreviewScreen: View {
         case .meetingDashboard: "Meetings dashboard"
         case .meetingForm: "New meeting"
         case .meetingMinutes: "Minutes of meeting"
+        case .finDashboard:
+            HStack(spacing: 6) { stat("₹82k", "Income"); stat("₹47k", "Expenses"); stat("₹35k", "Net") }
+            row("arrow.down.left.circle.fill", "Fees — Rahul (Tuition)", "+₹3,000")
+            row("arrow.up.right.circle.fill", "Electricity", "−₹2,140")
+            row("calendar", "Office rent due 1 Dec", "To pay")
+        case .finForm:
+            row("indianrupeesign", "Amount: ₹2,140")
+            row("tag", "Category: Electricity")
+            row("creditcard", "Mode: UPI · ref 4471…")
+            row("paperclip", "Receipt photo attached")
+        case .finPro:
+            row("checkmark.seal.fill", "RTGS ₹1,20,000 — approve?", "Decide")
+            row("exclamationmark.triangle.fill", "Cheque 004512 bounced", "Follow up")
+            row("building.columns", "Bank statement: 42 matched")
         case .attDashboard: "Attendance dashboard"
+        case .finDashboard: "Finance dashboard"
+        case .finForm: "Add expense"
+        case .finPro: "Cheques & approvals"
         case .attMember: "Add member"
         case .attKiosk: "Kiosk"
         case .attEmployee: "Employee: punch in"

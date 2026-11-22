@@ -19,6 +19,7 @@ struct ModuleInfo: Identifiable {
         case bizDashboard(String), bizForm(String)
         case eventsDashboard, eventForm, roomsDashboard, roomChat, safetyDashboard, meetingDashboard, meetingForm, meetingMinutes
         case attDashboard, attMember, attKiosk, attEmployee
+        case finDashboard, finForm, finPro
     }
 
     let id: String
@@ -199,6 +200,35 @@ final class ModuleRegistry: ObservableObject {
         previews: [.attDashboard, .attMember, .attKiosk, .attEmployee],
         note: "Only the owner (employer) pays. Admins and employees never pay — employees see only their own attendance.")
 
+    static let finance = ModuleInfo(
+        id: "finance", title: "Finance",
+        tagline: "Income and expenses — personal or per company — with money from every module in one place.",
+        icon: "indianrupeesign.circle.fill", colors: [0x0BA360, 0x3CBA92], availability: .included,
+        productID: nil, fallbackPrice: "Free",
+        problems: ["Money scattered across notebooks, UPI apps and modules", "No idea where the month's money went"],
+        benefits: ["Add income, expenses and refunds with receipt photos in seconds",
+                   "Personal book plus a book for each company you own or manage",
+                   "Fees, rent, khata payments, bills, trip costs and task expenses from other modules appear automatically",
+                   "Monthly income, expenses and net, by category; reminders for what's due",
+                   "PDF report with charts and Excel (CSV) export"],
+        previews: [.finDashboard, .finForm],
+        note: "Core module — free for life.")
+
+    static let financePro = ModuleInfo(
+        id: "finance-pro", title: "Finance Pro",
+        tagline: "Cheques, bounce follow-ups, recurring payments, approvals, bank statements, savings and Tally.",
+        icon: "building.columns.fill", colors: [0x134E5E, 0x71B280], availability: .paid,
+        productID: Store.financeProProductID, fallbackPrice: "₹99 / $0.99 a month",
+        problems: ["Cheques that bounce and nobody follows up", "Staff paying without the owner's OK", "Typing bank statements into Tally"],
+        benefits: ["Cheque tracking: issued, deposited, cleared, bounced — with daily follow-up reminders",
+                   "Recurring payments (rent, salaries, EMIs, subscriptions) that move forward when paid",
+                   "Admins ask for payment approval (cheque, RTGS, UPI); only the owner approves",
+                   "Import a bank statement (CSV) — matching entries are ticked, the rest added in one tap",
+                   "Savings goals with progress",
+                   "Tally XML export of receipts and payments"],
+        previews: [.finPro, .finDashboard],
+        note: "Professional module: only the master account pays; everyone else in the company uses it free.")
+
     static let gymTraining = ModuleInfo(
         id: "gym-training", title: "Gym & Training",
         tagline: "Memberships, trainer sessions and payments — shared with your trainer, clients or family.",
@@ -259,7 +289,7 @@ final class ModuleRegistry: ObservableObject {
         benefits: ["“What did I miss?” summaries", "Suggested tasks from messages", "Runs on-device with Apple Intelligence (iPhone 15 Pro and newer)"],
         previews: [.assistant], note: "In development.")
 
-    static let all: [ModuleInfo] = [businessTasks, businessPro, iLifeCare, travel, events, safety, rooms, bills, kids, khata, tuition, rent, legal, clinic, attendance, gymTraining, mindfulness, teamWorkspace]
+    static let all: [ModuleInfo] = [businessTasks, businessPro, iLifeCare, travel, events, safety, rooms, bills, kids, khata, tuition, rent, legal, clinic, attendance, finance, financePro, gymTraining, mindfulness, teamWorkspace]
 
     @Published private var enabled: [String: Bool]
     /// Modules the user wants in the iPhone bottom bar, in order (Router.TabID raw values).
@@ -300,7 +330,7 @@ final class ModuleRegistry: ObservableObject {
     /// Shown in the app (paid modules show their store page until subscribed).
     /// Free extras are added from the Module Store ("Get"); core and paid ones start on.
     /// Core modules show for everyone; professional modules start hidden and are added from the Module Store.
-    static let optIn: Set<String> = ["business-pro", "gym-training", "mindfulness", "khata", "tuition", "rent", "legal", "clinic"]
+    static let optIn: Set<String> = ["finance-pro", "business-pro", "gym-training", "mindfulness", "khata", "tuition", "rent", "legal", "clinic"]
     func isVisible(_ m: ModuleInfo) -> Bool { enabled[m.id] ?? !Self.optIn.contains(m.id) }
 
     func setOn(_ m: ModuleInfo, _ on: Bool) {

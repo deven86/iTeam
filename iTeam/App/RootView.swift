@@ -49,6 +49,7 @@ struct RootView: View {
             if modules.isOn(info) || (sharedBiz.contains(spec.module) && modules.isVisible(info)) { a.append(spec.tab) }
         }
         if modules.isOn(ModuleRegistry.businessTasks) { a.append(.tasks); a.append(.meetings) }
+        if modules.isOn(ModuleRegistry.finance) { a.append(.finance) }
         if modules.isOn(ModuleRegistry.attendance) || (inAttendance && modules.isVisible(ModuleRegistry.attendance)) { a.append(.attendance) }
         // Paid modules appear once bought (or unlocked for the owner / TestFlight testing) — or when
         // someone else shared a profile with you, because members use shared profiles free.
@@ -148,6 +149,11 @@ struct RootView: View {
         }
         .hidden(!inBar.contains(.meetings))
 
+        Tab("Finance", systemImage: "indianrupeesign.circle.fill", value: Router.TabID.finance) {
+            FinanceHomeView()
+        }
+        .hidden(!inBar.contains(.finance))
+
         Tab("Attendance", systemImage: "person.badge.clock.fill", value: Router.TabID.attendance) {
             AttendanceHomeView()
         }
@@ -188,7 +194,7 @@ struct RootView: View {
             .onChange(of: inBar) { _, bar in
                 router.barTabs = bar
                 // A tab that just left the bar reopens inside the hub instead of vanishing.
-                if [Router.TabID.views, .events, .rooms, .doctor, .safety, .khata, .tuition, .rent, .legal, .clinic, .bills, .kids, .travel, .meetings, .attendance, .tasks, .care, .gym, .mind, .activity].contains(router.tab), !bar.contains(router.tab) {
+                if [Router.TabID.views, .events, .rooms, .doctor, .safety, .khata, .tuition, .rent, .legal, .clinic, .bills, .kids, .travel, .meetings, .attendance, .finance, .tasks, .care, .gym, .mind, .activity].contains(router.tab), !bar.contains(router.tab) {
                     router.tab = .chats
                 }
             }
@@ -255,6 +261,7 @@ struct ModulesHubView: View {
         case .travel: BizHomeView(spec: BizSpecs.travel)
         case .meetings: MeetingsHomeView()
         case .attendance: AttendanceHomeView()
+        case .finance: FinanceHomeView()
         case .tasks: TaskDashboardView()
         case .care: CareHomeView()
         case .gym: GymModuleView()
@@ -339,6 +346,7 @@ struct ModulesHubView: View {
         case .events: ("Events", "party.popper.fill", [0xF953C6, 0xB91D73])
         case .meetings: ("Meetings", "person.3.fill", [0x4568DC, 0xB06AB3])
         case .attendance: ("Attendance", ModuleRegistry.attendance.icon, ModuleRegistry.attendance.colors)
+        case .finance: ("Finance", ModuleRegistry.finance.icon, ModuleRegistry.finance.colors)
         case .khata, .tuition, .rent, .legal, .clinic, .bills, .kids, .travel:
             BizSpecs.all.first { $0.tab == t }.map { ($0.title, $0.icon, $0.colors) } ?? ("", "square", [0, 0])
         case .tasks: ("Tasks", ModuleRegistry.businessTasks.icon, ModuleRegistry.businessTasks.colors)

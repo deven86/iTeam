@@ -14,6 +14,7 @@ enum NotifyRoute {
         Kind(id: "gym", title: "Gym & Training", icon: "dumbbell.fill"),
         Kind(id: "biz", title: "Legal, Khata, Rent, Tuition, Clinic…", icon: "briefcase.fill"),
         Kind(id: "attendance", title: "Attendance", icon: "person.badge.clock.fill"),
+        Kind(id: "finance", title: "Finance (approvals, dues)", icon: "indianrupeesign.circle.fill"),
         Kind(id: "minis", title: "Minis & posts", icon: "play.rectangle.fill"),
         Kind(id: "safety", title: "Check In & safety", icon: "location.circle.fill"),
         Kind(id: "games", title: "Games", icon: "gamecontroller.fill"),
@@ -56,6 +57,7 @@ enum NotifyRoute {
         case .meetingVote(let id, _, _), .meetingAttend(let id): return ("meetings", "iteam://item/meeting/\(id)")
         case .attendance: return ("attendance", "iteam://open/attendance")
         case .game(let p): return ("games", "iteam://item/game/\(p.id)")
+        case .finance: return ("finance", "iteam://open/finance")
         }
     }
 }

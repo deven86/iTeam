@@ -73,6 +73,8 @@ struct Event: Codable {
         case attendance(AttPayload)
         /// A two-player game (X and O) in a chat.
         case game(GamePayload)
+        /// Finance: income, expenses, cheques, approvals (a batch).
+        case finance(FinPayload)
     }
 }
 

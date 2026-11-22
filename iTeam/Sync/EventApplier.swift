@@ -738,6 +738,9 @@ struct EventApplier {
         case .finance(let p):
             return applyFinance(p, e, conv: conv, personal: personal)
 
+        case .album(let p):
+            return applyAlbum(p, e)
+
         case .nowPlaying(let text):
             if e.from != me, let c = engine.contact(e.from), !c.blocked { c.nowPlaying = text; c.nowPlayingAt = e.at }
 

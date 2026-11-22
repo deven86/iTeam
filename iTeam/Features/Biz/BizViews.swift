@@ -406,6 +406,14 @@ struct BizParentView: View {
                     .lookRows()
                 }
             }
+            if spec.module == "travel" || spec.module == "kids" {
+                Section {
+                    NavigationLink { AlbumView(owner: r.id, convID: r.convID, title: "\(r.title) album") } label: {
+                        Label(spec.module == "travel" ? "Trip album" : "Photo album", systemImage: "photo.on.rectangle.angled")
+                    }
+                }
+                .lookRows()
+            }
             if mine { actions(r, balance: bal) }
             else if !r.files.isEmpty { Section("Attachments") { BizFilesList(files: r.files) }.lookRows() }
         }

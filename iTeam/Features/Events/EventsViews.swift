@@ -253,6 +253,9 @@ struct EventDetailView: View {
                 if !ev.notes.isEmpty { Text(ev.notes) }
                 Text("Hosted by \(ev.hostID == engine.me ? "you" : engine.name(of: ev.hostID))\(conv.map { " · in " + $0.title } ?? "")").font(.caption).foregroundStyle(.secondary)
                 if ev.deleted { Text("Cancelled").foregroundStyle(.red) }
+                NavigationLink { AlbumView(owner: ev.id, convID: ev.convID, title: "\(ev.title) album") } label: {
+                    Label("Event album", systemImage: "photo.on.rectangle.angled")
+                }
             }
             if !ev.deleted && ev.hostID != engine.me {
                 Section("Your answer") {

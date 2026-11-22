@@ -58,6 +58,7 @@ enum NotifyRoute {
         case .attendance: return ("attendance", "iteam://open/attendance")
         case .game(let p): return ("games", "iteam://item/game/\(p.id)")
         case .finance: return ("finance", "iteam://open/finance")
+        case .album: return ("events", nil)
         }
     }
 }

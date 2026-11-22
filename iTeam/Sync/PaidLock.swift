@@ -26,6 +26,9 @@ extension SyncEngine {
             let sid = p.items.first?.societyID ?? ""
             let soc = p.items.first { $0.kind == "society" }.flatMap { try? JSONDecoder().decode(SocData.self, from: $0.data) } ?? socRecord(sid)?.society
             moduleID = (soc?.ownerID ?? me) == me ? "society" : nil
+        case .build(let p):
+            let owner = p.items.first?.ownerID ?? me
+            moduleID = owner == me ? "build" : nil
         default: moduleID = nil
         }
         guard let moduleID, let info = ModuleRegistry.all.first(where: { $0.id == moduleID }),

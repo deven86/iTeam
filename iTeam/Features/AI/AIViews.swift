@@ -293,6 +293,21 @@ enum AIContext {
         }
         if !bizLines.isEmpty { out.append("Business items today:\n" + bizLines.prefix(15).joined(separator: "\n")) }
 
+        // Builder & Infra: instalments due, disputes and inspections today / overdue, low stock.
+        let build = ((try? ctx.fetch(FetchDescriptor<BuildRecord>(predicate: #Predicate { !$0.deleted }))) ?? []).filter { $0.ownerID == me }
+        var buildLines: [String] = []
+        for r in build {
+            let date: Date?
+            switch r.kind {
+            case "demand" where r.status == "Due": date = BuildData.date(r.f("due"))
+            case "dispute" where !["Settled", "Closed"].contains(r.status): date = BuildData.date(r.f("next"))
+            case "inspection" where r.status == "Compliance needed": date = BuildData.date(r.f("comply"))
+            default: date = nil
+            }
+            if let date, date < end { buildLines.append("- \(BuildKinds.of(r.kind).label): \(r.title) — \(date < start ? "overdue" : "today")") }
+        }
+        if !buildLines.isEmpty { out.append("Builder & Infra:\n" + buildLines.prefix(12).joined(separator: "\n")) }
+
         // Attendance: my punch today; for owners/admins, today's head count and pending approvals.
         let att = ((try? ctx.fetch(FetchDescriptor<AttRecord>(predicate: #Predicate { !$0.deleted }))) ?? [])
         let todayKey = Att.key(.now)

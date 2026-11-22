@@ -794,6 +794,8 @@ struct EventApplier {
 
         case .society(let p):
             return applySociety(p, e, conv: conv, local: local)
+        case .build(let p):
+            return applyBuild(p, e, conv: conv, local: local)
         case .crmGroup(let p):
             return applyCRMGroup(p, e, conv: conv, local: local)
         case .crmLead(let p):

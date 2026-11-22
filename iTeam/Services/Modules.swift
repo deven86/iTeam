@@ -23,6 +23,7 @@ struct ModuleInfo: Identifiable {
         case surveyDashboard, surveyForm
         case crmDashboard, crmForm
         case socDashboard, socGate
+        case buildDashboard, buildForm, buildStock, buildFSI
     }
 
     let id: String
@@ -285,6 +286,30 @@ final class ModuleRegistry: ObservableObject {
         previews: [.socDashboard, .socGate],
         note: "Professional module: only the society committee subscriber pays. Flat owners, guards and staff use it free.")
 
+    static let build = ModuleInfo(
+        id: "build", title: "Builder & Infra",
+        tagline: "Run a construction or real-estate company: projects, buildings, units, sales, partners, stock with QR stickers, machines, tests, approvals and an easy FSI calculator.",
+        icon: "building.columns.fill", colors: [0xF59E0B, 0xB45309], availability: .paid,
+        productID: Store.buildProductID, fallbackPrice: "₹99 / $0.99 a month",
+        problems: ["Booking forms, agreements and payment follow-ups spread across files and WhatsApp",
+                   "Cement, steel and sand go missing — nobody knows the real stock",
+                   "Machines idle or rented without a log; service and insurance dates missed",
+                   "Approvals, tests and disputes tracked in someone's head",
+                   "Partners and investors unsure of their share"],
+        benefits: ["Company → projects → buildings → wings → floors → units, generated in one tap; residential, commercial, hospital, hotel, school and more",
+                   "Sales with full buyer KYC, agreement, stamp duty, registration, home-loan status and a construction-linked payment schedule",
+                   "Every payment lands in the company's Finance book; buyers see only their own unit and payments",
+                   "Partners & investors (investment and profit share %), landowners, rehab tenants with old and commuted area",
+                   "Architect, RCC consultant, engineers, liaison officer and contractors with appointment details",
+                   "Stock & fixed assets with printable QR stickers — scan with the camera or from a photo",
+                   "Machines: Poclain, JCB, roller, mixer, breaker, cranes and 70+ more, with daily logs, fuel and service reminders",
+                   "Quality tests, government approvals & inspections, disputes (send to Legal Matters), land & survey records",
+                   "Group tasks, group approvals, events, bills, rewards, site reports to Views, CRM enquiries, staff attendance",
+                   "Secure vault for agreements and title documents — only on your devices, opened with Face ID",
+                   "FSI calculator: Maharashtra UDCPR-2020 tables, plus FAR / plot-ratio for any country"],
+        previews: [.buildDashboard, .buildForm, .buildStock, .buildFSI],
+        note: "Professional module: only the company owner pays. Team members, buyers, partners and rehab tenants use it free.")
+
     static let gymTraining = ModuleInfo(
         id: "gym-training", title: "Gym & Training",
         tagline: "Memberships, trainer sessions and payments — shared with your trainer, clients or family.",
@@ -345,7 +370,7 @@ final class ModuleRegistry: ObservableObject {
         benefits: ["“What did I miss?” summaries", "Suggested tasks from messages", "Runs on-device with Apple Intelligence (iPhone 15 Pro and newer)"],
         previews: [.assistant], note: "In development.")
 
-    static let all: [ModuleInfo] = [businessTasks, businessPro, iLifeCare, travel, events, safety, rooms, bills, kids, khata, tuition, rent, legal, clinic, petCare, survey, crm, society, attendance, finance, financePro, gymTraining, mindfulness, teamWorkspace]
+    static let all: [ModuleInfo] = [businessTasks, businessPro, iLifeCare, travel, events, safety, rooms, bills, kids, khata, tuition, rent, legal, clinic, petCare, survey, crm, society, build, attendance, finance, financePro, gymTraining, mindfulness, teamWorkspace]
 
     @Published private var enabled: [String: Bool]
     /// Modules the user wants in the iPhone bottom bar, in order (Router.TabID raw values).
@@ -386,7 +411,7 @@ final class ModuleRegistry: ObservableObject {
     /// Shown in the app (paid modules show their store page until subscribed).
     /// Free extras are added from the Module Store ("Get"); core and paid ones start on.
     /// Core modules show for everyone; professional modules start hidden and are added from the Module Store.
-    static let optIn: Set<String> = ["survey", "crm", "society", "petcare", "finance-pro", "business-pro", "gym-training", "mindfulness", "khata", "tuition", "rent", "legal", "clinic"]
+    static let optIn: Set<String> = ["survey", "crm", "society", "build", "petcare", "finance-pro", "business-pro", "gym-training", "mindfulness", "khata", "tuition", "rent", "legal", "clinic"]
     func isVisible(_ m: ModuleInfo) -> Bool { enabled[m.id] ?? !Self.optIn.contains(m.id) }
 
     func setOn(_ m: ModuleInfo, _ on: Bool) {

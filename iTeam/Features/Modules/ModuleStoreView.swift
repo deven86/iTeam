@@ -301,6 +301,10 @@ struct ModulePreviewScreen: View {
         case .crmForm: "Lead"
         case .socDashboard: "Committee"
         case .socGate: "Gate kiosk"
+        case .buildDashboard: "Projects"
+        case .buildForm: "Booking"
+        case .buildStock: "QR stock"
+        case .buildFSI: "FSI calculator"
         case .finForm: "Add expense"
         case .finPro: "Cheques & approvals"
         case .attMember: "Add member"
@@ -561,6 +565,26 @@ struct ModulePreviewScreen: View {
             row("person.badge.clock.fill", "Delivery for A-101", "Waiting")
             row("doc.text.fill", "Maintenance Nov · 41 of 48 paid")
             row("megaphone.fill", "Water tank cleaning Sunday")
+        case .buildDashboard:
+            HStack(spacing: 6) { stat("168", "Units"); stat("₹4.2Cr", "Collected"); stat("2", "Approvals") }
+            row("building.fill", "Sai Residency · Wing A, B · 7 floors")
+            row("indianrupeesign.circle.fill", "A-101 Rahul · Plinth demand", "Due")
+            row("testtube.2", "Cube test 28 days · 27.4", "Pass")
+        case .buildForm:
+            row("person.text.rectangle", "Buyer: Rahul Shinde · PAN ✓")
+            row("doc.text", "Agreement ₹75,00,000 · Reg. no. 4512/2026")
+            row("building.columns", "SBI loan ₹60L", "Sanctioned")
+            row("calendar", "Construction-linked plan · 11 stages")
+        case .buildStock:
+            row("qrcode", "OPC 53 cement · 612 bags", "Scan")
+            row("arrow.down.circle", "Received 12 t TMT 12 mm")
+            row("truck.box.fill", "Poclain 210 · 6.5 h today", "Working")
+            row("exclamationmark.triangle", "M-sand below re-order level")
+        case .buildFSI:
+            row("ruler", "Plot 2,500 m² · road 12 m")
+            row("square.stack.3d.up", "Basic 1.10 · Premium 0.50 · TDR 0.65")
+            row("plus.square", "Ancillary 60% residential")
+            row("building.2", "Total BUA 9,000 m² (96,875 sq ft)")
         case .socGate:
             row("shippingbox.fill", "Ramesh (Swiggy) → A-101", "Allowed ✓")
             row("car.fill", "Cab MH05 AB 1234 → B-204", "Waiting")

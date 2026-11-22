@@ -58,7 +58,7 @@ jobs:
             fi
             xcrun simctl terminate "$U" com.jondhale.iteam || true
             i=1
-            for S in chats chat tasks attendance finance legal survey hub; do
+            for S in chats tasks attendance finance legal survey; do
               xcrun simctl launch "$U" com.jondhale.iteam -uiScreenshots -screen $S >/dev/null
               sleep 45   # the Intel simulator is slow to finish launching
               xcrun simctl io "$U" screenshot "shots/${N}_0${i}_${S}.png"

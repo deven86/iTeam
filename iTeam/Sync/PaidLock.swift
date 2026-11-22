@@ -33,8 +33,4 @@ extension SyncEngine {
         // Personal use of a module is never charged.
         return info
     }
-
-    private func gymMember(_ id: String) -> GymMember? {
-        try? context.fetch(FetchDescriptor<GymMember>(predicate: #Predicate { $0.id == id })).first
-    }
 }

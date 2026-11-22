@@ -345,6 +345,11 @@ struct RoomChatView: View {
                     Button("Report", systemImage: "exclamationmark.bubble") { Task { await rooms.report(m, reason: "room message") } }
                     Button("Block", systemImage: "hand.raised", role: .destructive) { rooms.block(m.sndr) }
                 }
+                if !mine, let c = m.creator, Admin.shared.isAdmin(SyncEngine.shared.me) {
+                    Button(Admin.shared.isBanned(c) ? "Unban from all Rooms" : "Ban from all Rooms", systemImage: "nosign", role: .destructive) {
+                        Task { await Admin.shared.setBanned(c, !Admin.shared.isBanned(c)); await rooms.refresh(room: room) }
+                    }
+                }
                 if isOwner || mine {
                     Button("Remove for everyone", systemImage: "trash", role: .destructive) { Task { await rooms.remove(m, in: room) } }
                 }

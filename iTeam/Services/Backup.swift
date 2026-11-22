@@ -1,3 +1,4 @@
+import UserNotifications
 import Foundation
 import CloudKit
 import CryptoKit
@@ -18,6 +19,10 @@ final class Backup: ObservableObject {
     @Published var busy = false
     @Published var progress: String?
     @Published var lastError: String?
+    /// The user's own iCloud is full, so backup can't save (chats still send — they use iTeam's space).
+    @Published var iCloudFull: Bool = UserDefaults.standard.bool(forKey: "backup.icloudFull") {
+        didSet { UserDefaults.standard.set(iCloudFull, forKey: "backup.icloudFull") }
+    }
     @Published var lastDate: Date? = UserDefaults.standard.object(forKey: "backup.lastDate") as? Date
     @Published var lastSize: Int64 = Int64(UserDefaults.standard.integer(forKey: "backup.lastSize"))
 
@@ -95,11 +100,25 @@ final class Backup: ObservableObject {
             let (saved, _) = try await db.modifyRecords(saving: [record], deleting: [], savePolicy: .allKeys)
             if case .failure(let e)? = saved[id] { throw e }
             lastDate = .now; lastSize = size
+            iCloudFull = false
             UserDefaults.standard.set(lastDate, forKey: "backup.lastDate")
             UserDefaults.standard.set(Int(size), forKey: "backup.lastSize")
         } catch {
             lastError = Self.describe(error)
+            if (error as? CKError)?.code == .quotaExceeded { iCloudFull = true; Self.notifyFull() }
         }
+    }
+
+    /// One reminder a day while iCloud is full.
+    private static func notifyFull() {
+        let key = "backup.fullNotified"
+        if let last = UserDefaults.standard.object(forKey: key) as? Date, Date.now.timeIntervalSince(last) < 86_400 { return }
+        UserDefaults.standard.set(Date.now, forKey: key)
+        let c = UNMutableNotificationContent()
+        c.title = "iCloud is full — iTeam backup failed"
+        c.body = "Your chats are only on this phone. Free up iCloud space or upgrade iCloud+ so they're backed up. Messages still send normally."
+        c.sound = .default
+        UNUserNotificationCenter.current().add(UNNotificationRequest(identifier: "backup.full", content: c, trigger: nil))
     }
 
     // MARK: - Restore

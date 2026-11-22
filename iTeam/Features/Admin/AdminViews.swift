@@ -18,7 +18,19 @@ final class Admin: ObservableObject {
         var until: Date?
         var active: Bool { until.map { $0 > .now } ?? true }
     }
-    struct Config: Codable { var people: [Person] = [] }
+    /// Grievance Officer (IT Rules 2021, Rule 3(2)): shown to every user.
+    struct Grievance: Codable, Equatable {
+        var name = "Devendra Jondhale"
+        var email = "devenlegal@gmail.com"
+        var phone = ""
+        var address = "Dombivli, Maharashtra, India"
+    }
+    struct Config: Codable {
+        var people: [Person] = []
+        /// iCloud user IDs banned from all public Rooms.
+        var banned: [String]? = nil
+        var grievance: Grievance? = nil
+    }
 
     struct UserRow: Identifiable { let id: String; let name: String; let joined: Date?; let seen: Date? }
     struct Complaint: Identifiable { let id: String; let user: String; let name: String; let category: String; let text: String; let at: Date }
@@ -32,6 +44,17 @@ final class Admin: ObservableObject {
 
     private let configID = CKRecord.ID(recordName: "iteam-config")
     var isSuperOwner: Bool { Owner.storedMatch() && Store.shared.isOwner }
+    func isBanned(_ user: String) -> Bool { (config.banned ?? []).contains(user) }
+    var grievance: Grievance { config.grievance ?? Grievance() }
+
+    /// Owner / co-owner: ban or unban someone from all public Rooms.
+    func setBanned(_ user: String, _ on: Bool) async {
+        var list = Set(config.banned ?? [])
+        if on { list.insert(user) } else { list.remove(user) }
+        config.banned = Array(list)
+        await saveConfig(force: true)
+    }
+
     func isAdmin(_ me: String) -> Bool { isSuperOwner || config.people.contains { $0.id == me && $0.role == "owner" && $0.active } }
 
     /// Loads the owner's access list and gives me everything if I'm on it (until the end date).
@@ -47,8 +70,8 @@ final class Admin: ObservableObject {
         if c.people.contains(where: { $0.id == me && $0.active }) { Store.shared.setOwner(true) }
     }
 
-    func saveConfig() async {
-        guard isSuperOwner else { error = "Only the main owner can change access."; return }
+    func saveConfig(force: Bool = false) async {
+        guard isSuperOwner || force else { error = "Only the main owner can change access."; return }
         let r = (try? await db.record(for: configID)) ?? CKRecord(recordType: "AppConfig", recordID: configID)
         r["data"] = (try? JSONEncoder().encode(config)) as CKRecordValue?
         do { _ = try await db.save(r) } catch { self.error = error.cloudMessage }
@@ -156,7 +179,9 @@ struct AdminPanelView: View {
             }
             .listRowBackground(Color.clear)
             Section {
-                NavigationLink { ComplaintsView(all: true) } label: { Label("Complaints (\(admin.complaints.count))", systemImage: "exclamationmark.bubble.fill") }
+                NavigationLink { ComplaintsView(all: true) } label: { Label("Grievances (\(admin.complaints.count))", systemImage: "exclamationmark.bubble.fill") }
+                NavigationLink { GrievanceOfficerEditor() } label: { Label("Grievance Officer details", systemImage: "person.text.rectangle") }
+                LabeledContent("Banned from Rooms", value: "\((admin.config.banned ?? []).count)")
             }
             Section {
                 ForEach(admin.config.people) { p in
@@ -250,8 +275,15 @@ struct ComplaintsView: View {
         List {
             if !all {
                 Section {
-                    Button("Raise a complaint or problem", systemImage: "exclamationmark.bubble") { raising = true }
-                } footer: { Text("Goes to the iTeam team. Complaints are stored in iCloud's public database (not end-to-end encrypted) so the team can read them.") }
+                    Button("Raise a grievance or problem", systemImage: "exclamationmark.bubble") { raising = true }
+                } footer: { Text("Goes to the iTeam team. Grievances are stored in iCloud's public database (not end-to-end encrypted) so the team can read them. We acknowledge within 24 hours and aim to resolve within 15 days.") }
+                Section("Grievance Officer") {
+                    let g = admin.grievance
+                    LabeledContent("Name", value: g.name)
+                    if !g.email.isEmpty, let url = URL(string: "mailto:\(g.email)") { Link(g.email, destination: url) }
+                    if !g.phone.isEmpty { LabeledContent("Phone", value: g.phone) }
+                    if !g.address.isEmpty { LabeledContent("Address", value: g.address) }
+                }
             }
             if admin.complaints.isEmpty { Text(all ? "No complaints." : "Nothing yet.").foregroundStyle(.secondary) }
             ForEach(admin.complaints) { c in
@@ -266,7 +298,7 @@ struct ComplaintsView: View {
             }
         }
         .lookScreen()
-        .navigationTitle(all ? "All complaints" : "Help & complaints")
+        .navigationTitle(all ? "All grievances" : "Help & grievances")
         .task { await admin.loadComplaints(me: engine.me, all: all); await admin.ensureAlerts(me: engine.me) }
         .refreshable { await admin.loadComplaints(me: engine.me, all: all) }
         .sheet(isPresented: $raising) { NavigationStack { RaiseComplaintView() } }
@@ -352,5 +384,25 @@ struct ComplaintDetail: View {
         }
         .navigationTitle("Complaint")
         .onAppear { if let last = history.last { status = last.status; assignee = last.assignee } }
+    }
+}
+
+
+/// Owner edits the Grievance Officer shown to every user (IT Rules 2021).
+struct GrievanceOfficerEditor: View {
+    @StateObject private var admin = Admin.shared
+    @State private var g = Admin.Grievance()
+    var body: some View {
+        Form {
+            Section {
+                TextField("Name", text: $g.name)
+                TextField("Email", text: $g.email).keyboardType(.emailAddress).textInputAutocapitalization(.never)
+                TextField("Phone (optional)", text: $g.phone).keyboardType(.phonePad)
+                TextField("Address", text: $g.address, axis: .vertical)
+            } footer: { Text("Shown in Settings → Help & grievances. Indian IT Rules require intermediaries to publish a Grievance Officer, acknowledge within 24 hours and resolve within 15 days.") }
+            Button("Save") { admin.config.grievance = g; Task { await admin.saveConfig() } }
+        }
+        .navigationTitle("Grievance Officer")
+        .onAppear { g = admin.grievance }
     }
 }

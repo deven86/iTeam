@@ -245,7 +245,11 @@ extension SyncEngine {
         Task { _ = try? await cloud.db.save(rec) }
     }
 
+    /// Every message is encrypted and posted once per member, so groups are capped to keep sending fast and within iCloud's limits.
+    static let maxGroupSize = 256
+
     func createGroup(title: String, members: [Contact], avatar: Data?) -> Conversation {
+        let members = Array(members.prefix(Self.maxGroupSize - 1))
         let id = "g_" + UUID().uuidString
         let key = E2E.newConversationKey()
         E2E.storeConversationKey(key, conv: id, version: 1)
@@ -265,7 +269,8 @@ extension SyncEngine {
     }
 
     func addMembers(_ conv: Conversation, _ people: [Contact]) {
-        let new = people.filter { !conv.isMember($0.userID) }
+        let room = max(0, Self.maxGroupSize - conv.members.count)
+        let new = Array(people.filter { !conv.isMember($0.userID) }.prefix(room))
         guard !new.isEmpty, let key = E2E.conversationKey(conv: conv.id, version: conv.keyVersion) else { return }
         shareKey(key, conv: conv.id, version: conv.keyVersion, with: new.map(\.userID))
         let members = conv.members + new.map { MemberInfo(id: $0.userID, name: $0.name, role: .member) }

@@ -1,3 +1,4 @@
+import UserNotifications
 import Foundation
 import StoreKit
 
@@ -59,8 +60,38 @@ final class Store: ObservableObject {
     }
 
     /// Subscribed, the owner, or — in TestFlight/sandbox builds only — unlocked for testing.
-    /// Launch offer: every module is free for everyone (the iTeam Plus supporter badge stays optional).
-    static let allFree = true
+    /// Launch offer: every module is free for one year from each user's first use
+    /// (the iTeam Plus supporter badge stays optional). After that, data stays readable and exportable.
+    static var allFree: Bool { Date.now < freeUntil }
+
+    /// First use, kept in iCloud key-value storage so reinstalling doesn't restart the year.
+    static var firstUse: Date {
+        let kv = NSUbiquitousKeyValueStore.default
+        let key = "iteam.firstUse"
+        let local = UserDefaults.standard.object(forKey: key) as? Date
+        let cloud = kv.object(forKey: key) as? Date
+        let first = [local, cloud].compactMap { $0 }.min() ?? Date.now
+        if local != first { UserDefaults.standard.set(first, forKey: key) }
+        if cloud != first { kv.set(first, forKey: key); kv.synchronize() }
+        return first
+    }
+    static var freeUntil: Date { Calendar.current.date(byAdding: .year, value: 1, to: firstUse) ?? firstUse.addingTimeInterval(365 * 86_400) }
+    static var freeDaysLeft: Int { max(0, Calendar.current.dateComponents([.day], from: .now, to: freeUntil).day ?? 0) }
+
+    /// Reminders 30, 7 and 1 day before the free year ends.
+    static func scheduleFreeYearNotices() {
+        let center = UNUserNotificationCenter.current()
+        for days in [30, 7, 1] {
+            let fire = freeUntil.addingTimeInterval(-Double(days) * 86_400 + 10 * 3600)
+            guard fire > .now else { continue }
+            let c = UNMutableNotificationContent()
+            c.title = "Your free year of iTeam modules ends in \(days) day\(days == 1 ? "" : "s")"
+            c.body = "Nothing is deleted: you can always read and export your data. To keep adding and editing in professional modules, subscribe in the Module Store."
+            c.userInfo = ["tab": "hub"]
+            center.add(UNNotificationRequest(identifier: "freeyear.\(days)", content: c,
+                                             trigger: UNCalendarNotificationTrigger(dateMatching: Calendar.current.dateComponents([.year, .month, .day, .hour, .minute], from: fire), repeats: false)))
+        }
+    }
 
     func isUnlocked(_ productID: String) -> Bool {
         (Self.allFree && productID != Self.plusProductID) || isOwner || active.contains(productID) || (isSandbox && testUnlocked.contains(productID))

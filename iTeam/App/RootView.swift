@@ -241,9 +241,16 @@ struct RootView: View {
             .sheet(item: $router.openItem) { item in OpenItemView(item: item) }
             .sheet(isPresented: $router.openModuleStore) { NavigationStack { ModuleStoreView() } }
             .fullScreenCover(isPresented: Binding(get: { !tourDone && engine.isSetUp }, set: { if !$0 { tourDone = true } })) { WelcomeTour() }
-            .task {
+            .alert("\(engine.lockedModule?.title ?? "This module") is read-only", isPresented: Binding(get: { engine.lockedModule != nil }, set: { if !$0 { engine.lockedModule = nil } })) {
+            Button("Open Module Store") { router.openModuleStore = true }
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text("Your free year has ended. Everything you saved is still here to read and export. Subscribe to add or change records. Personal use in Notes to self stays free.")
+        }
+        .task {
                 TapHaptics.shared.install()
                 if ScreenshotMode.on { ScreenshotMode.route(); return }
+                Store.scheduleFreeYearNotices()
                 Task { await Admin.shared.load(me: engine.me) }
                 engine.setForeground(true)
                 await offerRestoreIfFresh()

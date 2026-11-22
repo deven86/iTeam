@@ -126,10 +126,10 @@ struct NewGroupView: View {
                 }
             }
             .lookRows()
-            Section("Members · \(picked.count) selected") {
+            Section("Members · \(picked.count) of \(SyncEngine.maxGroupSize - 1) max") {
                 ForEach(contacts) { c in
                     Button {
-                        if picked.contains(c.userID) { picked.remove(c.userID) } else { picked.insert(c.userID) }
+                        if picked.contains(c.userID) { picked.remove(c.userID) } else if picked.count < SyncEngine.maxGroupSize - 1 { picked.insert(c.userID) }
                     } label: {
                         ContactRow(contact: c, trailing: AnyView(
                             Image(systemName: picked.contains(c.userID) ? "checkmark.circle.fill" : "circle")

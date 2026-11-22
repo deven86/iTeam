@@ -178,7 +178,7 @@ struct AddMembersView: View {
             }
             ForEach(candidates) { c in
                 Button {
-                    if picked.contains(c.userID) { picked.remove(c.userID) } else { picked.insert(c.userID) }
+                    if picked.contains(c.userID) { picked.remove(c.userID) } else if conv.members.count + picked.count < SyncEngine.maxGroupSize { picked.insert(c.userID) }
                 } label: {
                     ContactRow(contact: c, trailing: AnyView(
                         Image(systemName: picked.contains(c.userID) ? "checkmark.circle.fill" : "circle")
@@ -188,7 +188,7 @@ struct AddMembersView: View {
             }
             .lookRows()
             Section {
-                Text("New members see messages from now on, not the earlier history.").font(.caption).foregroundStyle(look.textSecondary)
+                Text("New members see messages from now on, not the earlier history. Groups hold up to \(SyncEngine.maxGroupSize) people (\(conv.members.count + picked.count) now).").font(.caption).foregroundStyle(look.textSecondary)
             }
             .lookRows()
         }

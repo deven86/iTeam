@@ -43,6 +43,8 @@ final class SyncEngine: ObservableObject {
     }
 
     @Published var status: Status = .idle
+    /// Set when a professional module is read-only after the free year (shows the subscribe alert).
+    @Published var lockedModule: ModuleInfo?
     @Published var lastSync: Date? = UserDefaults.standard.object(forKey: "sync.lastSuccess") as? Date
     @Published var pendingUploads = 0
     /// Why background message notifications aren't set up (nil = working).
@@ -233,6 +235,12 @@ final class SyncEngine: ObservableObject {
     /// Sends an event to everyone in a conversation.
     @discardableResult
     func send(_ body: Event.Body, in conv: Conversation, loud: Bool, preview: String? = nil, uploads: [String: String] = [:]) -> Event {
+        // Free year over and not subscribed: keep the data readable, but don't create or change professional records.
+        // Personal use (Notes to self) is never locked.
+        if conv.id != selfConversationID, !conv.isDemo, let locked = paidLock(body) {
+            lockedModule = locked
+            return Event(id: UUID().uuidString, conv: conv.id, from: me, at: .now, body: body)
+        }
         if loud { Haptics.big() }
         if conv.isDemo { return DemoChats.localSend(body, in: conv, engine: self) }
         let route = NotifyRoute.of(body)

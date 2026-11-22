@@ -48,6 +48,8 @@ final class Rooms: ObservableObject {
         let kind: Kind
         let text: String
         let date: Date
+        /// iCloud user who sent it (for the owner's global ban).
+        var creator: String? = nil
     }
 
     struct Thread: Identifiable, Hashable {
@@ -291,8 +293,11 @@ final class Rooms: ObservableObject {
         for (_, r) in page.matchResults {
             guard let rec = try? r.get(), !known.contains(rec.recordID.recordName) else { continue }
             let text = (rec["body"] as? Data).flatMap { String(data: $0, encoding: .utf8) } ?? ""
+            let creator = rec.creatorUserRecordID?.recordName
+            // Globally banned people disappear from every room.
+            if let creator, Admin.shared.isBanned(creator) { continue }
             list.append(Message(id: rec.recordID.recordName, room: room.id, sndr: rec["sndr"] as? String ?? "", rcpt: "all",
-                                kind: Kind(rawValue: rec["kind"] as? Int ?? 0) ?? .text, text: text, date: rec.creationDate ?? .now))
+                                kind: Kind(rawValue: rec["kind"] as? Int ?? 0) ?? .text, text: text, date: rec.creationDate ?? .now, creator: creator))
         }
         // Only the room owner can remove messages.
         let hidden = Set(list.filter { $0.kind == .hide && $0.sndr == room.owner }.map(\.text))
@@ -301,8 +306,11 @@ final class Rooms: ObservableObject {
         await loadMembers(Set(list.map(\.sndr)))
     }
 
+    var iAmBanned: Bool { Admin.shared.isBanned(SyncEngine.shared.me) }
+
     func send(_ text: String, in room: Room, kind: Kind = .text) async {
         guard let me = saved.joined[room.id] else { return }
+        if iAmBanned { error = "You can't post in Rooms. Your account was banned for breaking the Rooms rules. Raise a grievance in Settings if you think this is a mistake."; return }
         let rec = CKRecord(recordType: "RoomMsg")
         rec["room"] = room.id; rec["rcpt"] = "all"; rec["sndr"] = me.id; rec["kind"] = kind.rawValue
         rec["body"] = Data((kind == .text ? Moderation.clean(text) : text).utf8)
@@ -313,6 +321,7 @@ final class Rooms: ObservableObject {
 
     func send(_ text: String, to t: Thread, kind: Kind = .text) async {
         guard let me = saved.joined[t.room] else { return }
+        if iAmBanned { error = "You can't use Rooms — your account was banned."; return }
         await loadMembers([t.other])
         do {
             let key = try threadKey(room: t.room, mine: me.id, theirs: t.other)

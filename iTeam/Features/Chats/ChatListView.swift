@@ -113,7 +113,17 @@ struct ChatListView: View {
                 .listRowBackground(Color.clear)
                 .listRowInsets(EdgeInsets(top: 4, leading: 0, bottom: 4, trailing: 0))
                 syncBanner
-                if backup.needsWarning && conversations.contains(where: { !$0.isDemo }) {
+                if backup.iCloudFull {
+                    NavigationLink { BackupView() } label: {
+                        Label {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("iCloud is full — backup failed").font(.footnote.bold())
+                                Text("Messages still send, but your chats aren't backed up. Free space: Settings → your name → iCloud → Manage Storage, or upgrade iCloud+.").font(.caption2)
+                            }
+                        } icon: { Image(systemName: "icloud.slash.fill") }
+                        .foregroundStyle(look.danger)
+                    }
+                } else if backup.needsWarning && conversations.contains(where: { !$0.isDemo }) {
                     NavigationLink { BackupView() } label: {
                         Label {
                             VStack(alignment: .leading, spacing: 2) {

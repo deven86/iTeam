@@ -196,7 +196,7 @@ struct ModuleDetailView: View {
             Text("*Note: professional module — free for your first year, no payment or card needed. Core modules are free for life.")
                 .font(.caption).foregroundStyle(look.textSecondary)
             if unlocked {
-                Label(Store.allFree ? "Free for everyone — enjoy!" : store.isOwner ? "Free for you as the owner" : "Active on this Apple ID",
+                Label(Store.allFree ? "Free for your first year — \(Store.freeDaysLeft) days left" : store.isOwner ? "Free for you as the owner" : "Active on this Apple ID",
                       systemImage: store.isOwner ? "crown.fill" : "checkmark.seal.fill").foregroundStyle(look.success)
                 Toggle("Show in the app", isOn: Binding(get: { modules.isVisible(module) }, set: { modules.setOn(module, $0) }))
             } else if let id = module.productID {

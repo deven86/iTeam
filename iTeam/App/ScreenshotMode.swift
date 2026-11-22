@@ -37,16 +37,25 @@ enum ScreenshotMode {
         var due = FinData(); due.title = "Office rent — December"; due.repeatRule = "monthly"
         engine.finSave(nil, book: "personal", date: cal.date(byAdding: .day, value: 4, to: .now) ?? .now, amount: 18000, direction: "out", status: "due", category: "Rent", data: due)
         engine.save()
-        let router = Router.shared
-        switch screen {
-        case "chat": router.show(conversation: team.id)
-        case "tasks": router.go(.tasks)
-        case "attendance": router.go(.attendance)
-        case "finance": router.go(.finance)
-        case "legal": router.go(.legal)
-        case "survey": router.go(.survey)
-        case "hub": router.go(.hub)
-        default: router.go(.chats)
+        UserDefaults.standard.set(team.id, forKey: "shot.team")
+    }
+
+    /// Opens the requested screen once the UI is on screen.
+    static func route() {
+        guard on else { return }
+        Task { @MainActor in
+            try? await Task.sleep(for: .seconds(2))
+            let router = Router.shared
+            switch screen {
+            case "chat": if let id = UserDefaults.standard.string(forKey: "shot.team") { router.show(conversation: id) }
+            case "tasks": router.go(.tasks)
+            case "attendance": router.go(.attendance)
+            case "finance": router.go(.finance)
+            case "legal": router.go(.legal)
+            case "survey": router.go(.survey)
+            case "hub": router.go(.hub)
+            default: router.go(.chats)
+            }
         }
     }
 }

@@ -38,6 +38,8 @@ final class Store: ObservableObject {
         testUnlocked = Set(UserDefaults.standard.stringArray(forKey: "store.testUnlocked") ?? [])
         if UserDefaults.standard.bool(forKey: "care.testUnlock") { testUnlocked.insert(Self.careProductID) }
         isOwner = Owner.storedMatch()
+        // App Store screenshots: no StoreKit (it would show an Apple Account sign-in alert on the simulator).
+        if CommandLine.arguments.contains("-uiScreenshots") { return }
         updates = Task { [weak self] in
             for await result in Transaction.updates {
                 if case .verified(let t) = result { await t.finish() }

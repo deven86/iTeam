@@ -220,6 +220,7 @@ struct RootView: View {
             .fullScreenCover(isPresented: Binding(get: { !tourDone && engine.isSetUp }, set: { if !$0 { tourDone = true } })) { WelcomeTour() }
             .task {
                 TapHaptics.shared.install()
+                if ScreenshotMode.on { ScreenshotMode.route(); return }
                 Task { await Admin.shared.load(me: engine.me) }
                 engine.setForeground(true)
                 await offerRestoreIfFresh()

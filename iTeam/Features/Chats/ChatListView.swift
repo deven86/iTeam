@@ -212,7 +212,7 @@ struct ChatListView: View {
                 .foregroundStyle(look.warning)
                 .listRowBackground(Color.clear)
         default:
-            if engine.pendingUploads > 0 {
+            if engine.pendingUploads > 0 && !ScreenshotMode.on {
                 Button { showPending = true } label: {
                     Label("\(engine.pendingUploads) waiting to sync — tap for details", systemImage: "arrow.triangle.2.circlepath")
                         .font(.footnote).foregroundStyle(look.textSecondary)

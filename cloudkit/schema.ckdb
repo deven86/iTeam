@@ -1,5 +1,52 @@
 DEFINE SCHEMA
 
+    RECORD TYPE AppConfig (
+        "___createTime" TIMESTAMP,
+        "___createdBy"  REFERENCE,
+        "___etag"       STRING,
+        "___modTime"    TIMESTAMP,
+        "___modifiedBy" REFERENCE,
+        "___recordID"   REFERENCE QUERYABLE,
+        data BYTES,
+        GRANT WRITE TO "_creator",
+        GRANT CREATE TO "_icloud",
+        GRANT READ TO "_world"
+    );
+
+    RECORD TYPE Complaint (
+        "___createTime" TIMESTAMP QUERYABLE SORTABLE,
+        "___createdBy"  REFERENCE,
+        "___etag"       STRING,
+        "___modTime"    TIMESTAMP,
+        "___modifiedBy" REFERENCE,
+        "___recordID"   REFERENCE QUERYABLE,
+        cat STRING,
+        name STRING,
+        text STRING,
+        user STRING QUERYABLE,
+        GRANT WRITE TO "_creator",
+        GRANT CREATE TO "_icloud",
+        GRANT READ TO "_world"
+    );
+
+    RECORD TYPE ComplaintNote (
+        "___createTime" TIMESTAMP QUERYABLE SORTABLE,
+        "___createdBy"  REFERENCE,
+        "___etag"       STRING,
+        "___modTime"    TIMESTAMP,
+        "___modifiedBy" REFERENCE,
+        "___recordID"   REFERENCE QUERYABLE,
+        assignee STRING QUERYABLE,
+        by STRING,
+        complaint STRING QUERYABLE,
+        note STRING,
+        status STRING,
+        user STRING QUERYABLE,
+        GRANT WRITE TO "_creator",
+        GRANT CREATE TO "_icloud",
+        GRANT READ TO "_world"
+    );
+
     RECORD TYPE Backup (
         "___createTime" TIMESTAMP QUERYABLE SORTABLE,
         "___createdBy"  REFERENCE,

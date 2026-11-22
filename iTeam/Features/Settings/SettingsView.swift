@@ -45,6 +45,10 @@ struct SettingsView: View {
 
                 Section("Notifications") {
                     NavigationLink { NotificationSettingsView() } label: { Label("Notifications", systemImage: "bell.badge.fill") }
+                    NavigationLink { ComplaintsView(all: false) } label: { Label("Help & complaints", systemImage: "exclamationmark.bubble.fill") }
+                    if Admin.shared.isAdmin(engine.me) {
+                        NavigationLink { AdminPanelView() } label: { Label("Admin panel (owner)", systemImage: "crown.fill") }
+                    }
                 }
                 .lookRows()
 

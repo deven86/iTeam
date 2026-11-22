@@ -21,7 +21,7 @@ jobs:
           xcrun cktool export-schema --team-id "$TEAM_ID" --container-id iCloud.com.jondhale.iteam \
             --environment production --output-file "$RUNNER_TEMP/prod.ckdb"
           ok=""; miss=""
-          for t in Profile Envelope Blob ModuleRequest Backup Room RoomMember RoomMsg RoomReport; do
+          for t in Profile Envelope Blob ModuleRequest Backup Room RoomMember RoomMsg RoomReport AppConfig Complaint ComplaintNote; do
             if grep -q "RECORD TYPE $t " "$RUNNER_TEMP/prod.ckdb"; then ok="$ok $t"; else miss="$miss $t"; fi
           done
           echo "::notice title=types live::$ok"

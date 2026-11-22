@@ -782,6 +782,15 @@ struct EventApplier {
         case .survey(let p):
             return applySurvey(p, e, conv: conv, personal: personal)
 
+        case .crmGroup(let p):
+            return applyCRMGroup(p, e, conv: conv, local: local)
+        case .crmLead(let p):
+            return applyCRMLead(p, e, conv: conv, local: local)
+        case .crmActivity(let p):
+            return applyCRMActivity(p, e, conv: conv, local: local)
+        case .crmQuoteAnswer(let aid, let lid, let accept, let reason):
+            return applyCRMQuoteAnswer(activityID: aid, leadID: lid, accept: accept, reason: reason, e, conv: conv, local: local)
+
         case .nowPlaying(let text):
             if e.from != me, let c = engine.contact(e.from), !c.blocked { c.nowPlaying = text; c.nowPlayingAt = e.at }
 

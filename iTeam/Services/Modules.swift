@@ -21,6 +21,7 @@ struct ModuleInfo: Identifiable {
         case attDashboard, attMember, attKiosk, attEmployee
         case finDashboard, finForm, finPro
         case surveyDashboard, surveyForm
+        case crmDashboard, crmForm
     }
 
     let id: String
@@ -252,6 +253,22 @@ final class ModuleRegistry: ObservableObject {
         previews: [.surveyDashboard, .surveyForm],
         note: "Professional module: only the survey creator pays. People who answer never pay.")
 
+    static let crm = ModuleInfo(
+        id: "crm", title: "CRM",
+        tagline: "Leads, follow-ups and quotes for every company you work in — managed together in team groups.",
+        icon: "person.crop.circle.badge.checkmark", colors: [0x2563EB, 0x0EA5E9], availability: .paid,
+        productID: Store.crmProductID, fallbackPrice: "₹99 / $0.99 a month",
+        problems: ["Leads scattered across WhatsApp, diaries and Excel", "Nobody knows who called the client last or what was quoted",
+                   "Follow-ups missed, deals lost"],
+        benefits: ["Unlimited companies — the same companies as Attendance, switch with one tap",
+                   "CRM team groups: a pod of colleagues manages its leads together, every change logged in the chat",
+                   "Pipeline: New → Contacted → Proposal → Negotiation → Won / Lost with deal value and probability",
+                   "Calls, visits, notes and photos on each lead's timeline",
+                   "Send a quote to the client on iTeam — they accept or decline in their chat",
+                   "Follow-up reminders, PDF pipeline report with charts, AI follow-up drafts"],
+        previews: [.crmDashboard, .crmForm],
+        note: "Professional module: only the company owner / CRM subscriber pays. Team members and linked clients use it free.")
+
     static let gymTraining = ModuleInfo(
         id: "gym-training", title: "Gym & Training",
         tagline: "Memberships, trainer sessions and payments — shared with your trainer, clients or family.",
@@ -312,7 +329,7 @@ final class ModuleRegistry: ObservableObject {
         benefits: ["“What did I miss?” summaries", "Suggested tasks from messages", "Runs on-device with Apple Intelligence (iPhone 15 Pro and newer)"],
         previews: [.assistant], note: "In development.")
 
-    static let all: [ModuleInfo] = [businessTasks, businessPro, iLifeCare, travel, events, safety, rooms, bills, kids, khata, tuition, rent, legal, clinic, petCare, survey, attendance, finance, financePro, gymTraining, mindfulness, teamWorkspace]
+    static let all: [ModuleInfo] = [businessTasks, businessPro, iLifeCare, travel, events, safety, rooms, bills, kids, khata, tuition, rent, legal, clinic, petCare, survey, crm, attendance, finance, financePro, gymTraining, mindfulness, teamWorkspace]
 
     @Published private var enabled: [String: Bool]
     /// Modules the user wants in the iPhone bottom bar, in order (Router.TabID raw values).
@@ -353,7 +370,7 @@ final class ModuleRegistry: ObservableObject {
     /// Shown in the app (paid modules show their store page until subscribed).
     /// Free extras are added from the Module Store ("Get"); core and paid ones start on.
     /// Core modules show for everyone; professional modules start hidden and are added from the Module Store.
-    static let optIn: Set<String> = ["survey", "petcare", "finance-pro", "business-pro", "gym-training", "mindfulness", "khata", "tuition", "rent", "legal", "clinic"]
+    static let optIn: Set<String> = ["survey", "crm", "petcare", "finance-pro", "business-pro", "gym-training", "mindfulness", "khata", "tuition", "rent", "legal", "clinic"]
     func isVisible(_ m: ModuleInfo) -> Bool { enabled[m.id] ?? !Self.optIn.contains(m.id) }
 
     func setOn(_ m: ModuleInfo, _ on: Bool) {

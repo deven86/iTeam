@@ -19,6 +19,7 @@ enum NotifyRoute {
         Kind(id: "safety", title: "Check In & safety", icon: "location.circle.fill"),
         Kind(id: "games", title: "Games", icon: "gamecontroller.fill"),
         Kind(id: "surveys", title: "Surveys", icon: "list.clipboard.fill"),
+        Kind(id: "crm", title: "CRM leads & quotes", icon: "person.crop.circle.badge.checkmark"),
         Kind(id: "rooms", title: "Rooms private messages", icon: "bubble.left.and.text.bubble.right.fill"),
         Kind(id: "groups", title: "Groups (added, changes)", icon: "person.2.fill"),
     ]
@@ -50,6 +51,10 @@ enum NotifyRoute {
         case .gymPlan(let p): return ("gym", "iteam://item/gym/\(p.memberID)")
         case .gymSession(let p): return ("gym", "iteam://item/gym/\(p.memberID)")
         case .gymPayment(let p): return ("gym", "iteam://item/gym/\(p.memberID)")
+        case .crmGroup: return ("crm", "iteam://open/crm")
+        case .crmLead(let p): return ("crm", "iteam://item/crm/\(p.id)")
+        case .crmActivity(let p): return ("crm", "iteam://item/crm/\(p.leadID)")
+        case .crmQuoteAnswer(_, let lead, _, _): return ("crm", "iteam://item/crm/\(lead)")
         case .gymPhoto(let p): return ("gym", "iteam://item/gym/\(p.memberID)")
         case .gymTrainerAnswer(let id, _, _): return ("gym", "iteam://item/gym/\(id)")
         case .post, .postReact, .postComment, .postSeen: return ("minis", "iteam://open/views")

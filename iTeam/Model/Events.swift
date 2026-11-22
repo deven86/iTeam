@@ -40,6 +40,11 @@ struct Event: Codable {
         case gymPayment(GymPaymentPayload)
         /// Transformation photo (front / side / back).
         case gymPhoto(GymPhotoPayload)
+        /// CRM: team group, lead, activity (call/visit/note/quote) and a client's answer to a quote.
+        case crmGroup(CRMGroupPayload)
+        case crmLead(CRMLeadPayload)
+        case crmActivity(CRMActivityPayload)
+        case crmQuoteAnswer(activityID: String, leadID: String, accept: Bool, reason: String)
         /// The trainer someone picked answers: accept or decline.
         case gymTrainerAnswer(memberID: String, accept: Bool, note: String)
         case post(PostPayload)

@@ -40,7 +40,7 @@ enum AIProvider: String, CaseIterable, Identifiable {
 
 /// Where AI may be used. Each one is off until the user turns it on.
 enum AIFeature: String, CaseIterable, Identifiable {
-    case myDay, chatSummary, taskReports, followUps, care, gym, groupReports, attendance
+    case myDay, chatSummary, taskReports, followUps, care, gym, groupReports, attendance, crm
     var id: String { rawValue }
     var title: String {
         switch self {
@@ -52,6 +52,7 @@ enum AIFeature: String, CaseIterable, Identifiable {
         case .gym: "Training & spend insights (Gym)"
         case .groupReports: "Group reports I post from my phone"
         case .attendance: "Attendance insights"
+        case .crm: "CRM follow-up drafts & pipeline insights"
         }
     }
     var icon: String {
@@ -64,6 +65,7 @@ enum AIFeature: String, CaseIterable, Identifiable {
         case .gym: "dumbbell.fill"
         case .groupReports: "person.3.fill"
         case .attendance: "person.badge.clock.fill"
+        case .crm: "person.crop.circle.badge.checkmark"
         }
     }
 }

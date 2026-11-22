@@ -297,6 +297,8 @@ struct ModulePreviewScreen: View {
         case .finDashboard: "Finance dashboard"
         case .surveyDashboard: "Survey results"
         case .surveyForm: "Field survey"
+        case .crmDashboard: "Pipeline"
+        case .crmForm: "Lead"
         case .finForm: "Add expense"
         case .finPro: "Cheques & approvals"
         case .attMember: "Add member"
@@ -546,6 +548,18 @@ struct ModulePreviewScreen: View {
             row("building.2", "Building survey · 38 flats", "Open")
             row("map", "Plot survey Gat 112", "12 resp.")
             bar("Leakage seen · 34%", 0.34)
+        case .crmDashboard:
+            HStack(spacing: 6) { stat("14", "Leads"); stat("₹8.9L", "Pipeline"); stat("3", "Due today") }
+            row("building.2", "SAS Enterprises · Dombivli Sales Pod", "▾")
+            row("arrow.left.arrow.right", "Acme Retail · ₹4.5L", "Negotiation")
+            row("doc.text.fill", "Patil Constructions · ₹2.8L", "Proposal")
+            bar("Won this month · 38%", 0.38)
+        case .crmForm:
+            row("person.fill", "Lead: Acme Retail")
+            row("indianrupeesign", "Deal value: ₹4,50,000 · 70%")
+            row("person.3.fill", "Team group: Dombivli Sales Pod")
+            row("calendar", "Follow up: tomorrow 11:00")
+            row("checkmark.seal", "Quote sent · client accepted")
         case .surveyForm:
             row("text.cursor", "Survey / Gat no.: 112/3")
             row("location.fill", "GPS: 19.2183, 73.0868")

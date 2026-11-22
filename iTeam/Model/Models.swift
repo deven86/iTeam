@@ -10,7 +10,7 @@ enum ITeamSchema {
         ActivityItem.self, OutboxItem.self, PendingEnvelope.self, SentRecord.self,
         TaskFile.self, Approval.self, Expense.self, Poll.self,
         CareProfile.self, Medicine.self, DoseLog.self, HealthEvent.self, VaultItem.self,
-        GymMember.self, GymPlan.self, GymSession.self, GymPayment.self, GymPhoto.self,
+        GymMember.self, GymPlan.self, GymSession.self, GymPayment.self, GymPhoto.self, CRMGroup.self, CRMLead.self, CRMActivity.self,
         Post.self, PostReaction.self, PostComment.self, PostSeen.self,
         MeditationLog.self, CustomMeditation.self,
         FoodEntry.self, WaterEntry.self, WorkoutLog.self, ExerciseSet.self, WorkoutPlan.self, PlanExercise.self,

@@ -19,8 +19,9 @@ final class Store: ObservableObject {
     static let financeProProductID = "com.jondhale.iteam.financepro.monthly"
     static let petCareProductID = "com.jondhale.iteam.petcare.monthly"
     static let surveyProductID = "com.jondhale.iteam.survey.monthly"
+    static let crmProductID = "com.jondhale.iteam.crm.monthly"
     static let allProducts = [careProductID, proProductID, gymProductID, mindProductID, plusProductID,
-                              khataProductID, tuitionProductID, rentProductID, legalProductID, clinicProductID, attendanceProductID, financeProProductID, petCareProductID, surveyProductID]
+                              khataProductID, tuitionProductID, rentProductID, legalProductID, clinicProductID, attendanceProductID, financeProProductID, petCareProductID, surveyProductID, crmProductID]
     /// iTeam Plus ✓ supporter badge (the owner has it free).
     var hasPlus: Bool { isOwner || active.contains(Self.plusProductID) }
 

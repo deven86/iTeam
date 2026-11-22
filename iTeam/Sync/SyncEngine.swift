@@ -151,6 +151,8 @@ final class SyncEngine: ObservableObject {
                         pushProblem = error.cloudMessage
                     }
                 }
+                // New messages first, so a big upload (a video) never holds back what others sent me.
+                try await receive()
                 try await flush()
                 try await receive()
                 try await sendReceipts()
@@ -266,6 +268,10 @@ final class SyncEngine: ObservableObject {
     private func flush() async throws {
         let items = try context.fetch(FetchDescriptor<OutboxItem>(sortBy: [SortDescriptor(\.createdAt)]))
         for item in items where item.attempts < 5 {
+            // A chat whose key never arrived (deleted/unknown chat): drop it after a day so it can't sit in the queue forever.
+            if item.lastError == SyncError.noKey.errorDescription, item.createdAt < .now.addingTimeInterval(-86400), conversation(item.convID) == nil {
+                context.delete(item); save(); continue
+            }
             do {
                 try await upload(item)
                 markSent(item)

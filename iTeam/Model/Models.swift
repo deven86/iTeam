@@ -193,6 +193,9 @@ enum MessageStatus: Int {
     var statusRaw: Int
     var taskID: String?
     var isSystem: Bool
+    /// View-once photo/video, and whether I've opened it.
+    var viewOnce: Bool = false
+    var openedOnce: Bool = false
     /// This message is an approval request card.
     var approvalID: String? = nil
     /// This message is a poll card.

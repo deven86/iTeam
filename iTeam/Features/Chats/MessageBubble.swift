@@ -1,5 +1,6 @@
 import SwiftUI
 import UIKit
+import AVKit
 
 struct MessageBubble: View {
     let message: Message
@@ -81,6 +82,8 @@ struct MessageBubble: View {
                 ApprovalCard(approvalID: approvalID)
             } else if let pollID = message.pollID {
                 PollCard(pollID: pollID)
+            } else if message.viewOnce {
+                ViewOnceBubble(message: message)
             } else {
                 let visual = message.attachments.filter { $0.kind == "image" || $0.kind == "video" }
                 if visual.count > 1 {
@@ -215,7 +218,7 @@ struct MessageBubble: View {
             if !message.text.isEmpty {
                 Button("Copy", systemImage: "doc.on.doc") { UIPasteboard.general.string = message.text }
             }
-            if message.approvalID == nil && message.pollID == nil && (!message.text.isEmpty || !message.attachments.isEmpty) {
+            if message.approvalID == nil && message.pollID == nil && !message.viewOnce && (!message.text.isEmpty || !message.attachments.isEmpty) {
                 Button("Forward", systemImage: "arrowshape.turn.up.right") { onForward() }
                 Button("Share…", systemImage: "square.and.arrow.up") { onShare() }
             }
@@ -244,5 +247,67 @@ struct MessageBubble: View {
             a[lower..<upper].underlineStyle = .single
         }
         return a
+    }
+}
+
+
+/// A photo or video that can be opened once; afterwards only "Opened" remains.
+struct ViewOnceBubble: View {
+    let message: Message
+    @EnvironmentObject var engine: SyncEngine
+    @State private var url: URL?
+    @State private var loading = false
+    private var mine: Bool { message.senderID == engine.me }
+    private var isVideo: Bool { message.attachments.first?.kind == "video" }
+
+    var body: some View {
+        Button {
+            guard !mine, !message.openedOnce, let ref = message.attachments.first else { return }
+            loading = true
+            Task { @MainActor in
+                url = try? await Attachments.load(ref)
+                loading = false
+            }
+        } label: {
+            HStack(spacing: 8) {
+                Image(systemName: message.openedOnce || mine ? "eye.slash" : (isVideo ? "video.circle.fill" : "1.circle.fill")).font(.title2)
+                VStack(alignment: .leading, spacing: 1) {
+                    Text(mine ? "View-once \(isVideo ? "video" : "photo")" : message.openedOnce ? "Opened" : "Tap to view once").font(.subheadline.weight(.semibold))
+                    Text(mine ? "They can open it one time" : message.openedOnce ? "It can't be opened again" : (isVideo ? "Video" : "Photo")).font(.caption2).opacity(0.7)
+                }
+                if loading { ProgressView().controlSize(.small) }
+            }
+        }
+        .buttonStyle(.plain)
+        .fullScreenCover(item: Binding(get: { url.map(OnceURL.init) }, set: { if $0 == nil { close() } })) { u in
+            ViewOnceViewer(url: u.url, video: isVideo) { close() }
+        }
+    }
+
+    private func close() {
+        if let url { try? FileManager.default.removeItem(at: url) }
+        url = nil
+        message.openedOnce = true
+        engine.save()
+    }
+}
+
+struct OnceURL: Identifiable { let url: URL; var id: String { url.path } }
+
+struct ViewOnceViewer: View {
+    let url: URL
+    let video: Bool
+    let done: () -> Void
+    var body: some View {
+        ZStack(alignment: .topTrailing) {
+            Color.black.ignoresSafeArea()
+            if video {
+                VideoPlayer(player: AVPlayer(url: url)).ignoresSafeArea()
+            } else if let img = UIImage(contentsOfFile: url.path) {
+                Image(uiImage: img).resizable().scaledToFit()
+            }
+            Button { done() } label: { Image(systemName: "xmark.circle.fill").font(.largeTitle).foregroundStyle(.white) }
+                .padding()
+        }
     }
 }

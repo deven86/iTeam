@@ -65,6 +65,7 @@ struct EventApplier {
             let m = Message(id: p.id, convID: conv.id, senderID: e.from, text: p.text, createdAt: e.at,
                             replyToID: p.replyTo, attachments: p.attachments, status: local ? .queued : .sent)
             m.forwarded = p.fwd ?? false
+            m.viewOnce = p.once ?? false
             if let ttl = p.ttl, ttl > 0 { m.expiresAt = e.at.addingTimeInterval(Double(ttl)) }
             ctx.insert(m)
             // Magic moment: hidden on the recipient's phone until its time.
@@ -597,12 +598,40 @@ struct EventApplier {
             }
             if e.from != me { CheckInAlerts.update(ci, name: engine.name(of: e.from)) }
 
-        case .biz(let p):
+        case .biz(let incoming):
+            var p = incoming
             let rid = p.id
             let existing = try? ctx.fetch(FetchDescriptor<BizRecord>(predicate: #Predicate { $0.id == rid })).first
             let r: BizRecord
             if let existing {
-                guard existing.ownerID == e.from, p.at > existing.updatedAt else { return .ignored }
+                guard p.at > existing.updatedAt else { return .ignored }
+                let kind = BizSpecs.spec(existing.module)?.kind(existing.kind)
+                let pid = existing.parentID
+                let parentOwner = pid.isEmpty ? nil : (try? ctx.fetch(FetchDescriptor<BizRecord>(predicate: #Predicate { $0.id == pid })).first)?.ownerID
+                let isOwner = existing.ownerID == e.from || parentOwner == e.from
+                // A matter/record shared into a group: the whole group works on it as a team (only the creator deletes).
+                let team = conv?.isGroup == true && conv?.isMember(e.from) == true && existing.convID == conv?.id && !p.deleted
+                // The linked client answers: approvals, e-vakalatnama, homework done, a fee moved back to due.
+                let client = !existing.subjectID.isEmpty && existing.subjectID == e.from && !isOwner
+                    && (kind?.clientAnswers == true || existing.status == "Reverting")
+                guard isOwner || team || client else { return .ignored }
+                if client {
+                    var keep = BizPayload(existing)
+                    keep.status = existing.status == "Reverting" ? (p.status == "Due" ? "Due" : "Paid") : p.status
+                    keep.notes = kind?.clientAnswers == true && !p.notes.isEmpty ? p.notes : existing.notes
+                    keep.at = p.at
+                    p = keep
+                }
+                // Paid → Due needs approval: by the linked client, or by a group admin when a team works on it.
+                if existing.status == "Paid" && p.status == "Due" && !client {
+                    let isAdmin = conv?.members.first { $0.id == e.from }.map { $0.role != .member } ?? true
+                    if (!existing.subjectID.isEmpty && existing.subjectID != e.from) || (conv?.isGroup == true && !isAdmin) { p.status = "Reverting" }
+                }
+                // While waiting, only the client (or, with no client, a group admin) can settle it as Due.
+                if existing.status == "Reverting" && !client && p.status == "Due" {
+                    let isAdmin = conv?.members.first { $0.id == e.from }.map { $0.role != .member } ?? true
+                    if !existing.subjectID.isEmpty || (conv?.isGroup == true && !isAdmin) { p.status = "Reverting" }
+                }
                 r = existing
             } else {
                 r = BizRecord(id: p.id)
@@ -616,11 +645,15 @@ struct EventApplier {
             r.module = p.module; r.kind = p.kind; r.parentID = p.parentID; r.subjectID = p.subjectID
             r.title = p.title; r.subtitle = p.subtitle; r.phone = p.phone; r.amount = p.amount
             r.date = p.date; r.due = p.due; r.status = p.status; r.notes = p.notes; r.updatedAt = p.at
+            if let f = p.files { r.files = f }
+            if let x = p.extra { r.extra = x }
             if p.deleted && !wasDeleted { r.deleted = true; r.deletedBy = e.from }
             if let conv, !personal {
                 let who = e.from == me ? "You" : engine.name(of: e.from)
-                system(conv, BizSpecs.logLine(p, who: who, isNew: existing == nil), at: e.at)
-                if e.from != me && p.subjectID == me {
+                let line = p.status == "Reverting" && existing?.status != "Reverting"
+                    ? "↩️ \(who) wants to move “\(p.title)” back to Due — needs approval" : BizSpecs.logLine(p, who: who, isNew: existing == nil)
+                system(conv, line, at: e.at)
+                if e.from != me && (p.subjectID == me || r.ownerID == me || p.status == "Reverting") {
                     ctx.insert(ActivityItem(kind: .taskUpdated, text: BizSpecs.logLine(p, who: who, isNew: existing == nil), convID: conv.id, actorID: e.from, date: e.at))
                 }
             }

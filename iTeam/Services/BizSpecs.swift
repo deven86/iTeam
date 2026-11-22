@@ -26,6 +26,12 @@ struct BizKind {
     var sign: Double = 0
     /// Only counts while in this status (e.g. a fee counts while "Due").
     var countWhen: String? = nil
+    /// The linked client/parent/tenant can add this kind (a question, a complaint).
+    var clientCanAdd = false
+    /// The linked client answers this kind by changing its status (approval, e-vakalatnama, homework done).
+    var clientAnswers = false
+    /// Extra text fields kept in `extra` (label = key).
+    var extras: [String] = []
 }
 
 struct BizSpec {
@@ -72,7 +78,7 @@ enum BizSpecs {
                     statuses: ["Due", "Paid"], doneStatuses: ["Paid"], sign: 1, countWhen: "Due"),
             BizKind(id: "homework", label: "Homework", plural: "Homework", icon: "book.closed",
                     fields: [.init(key: .title, label: "Homework"), .init(key: .due, label: "Due"), .init(key: .status, label: "Status"), .init(key: .notes, label: "Details")],
-                    statuses: ["Assigned", "Done"], doneStatuses: ["Done"]),
+                    statuses: ["Assigned", "Done"], doneStatuses: ["Done"], clientAnswers: true),
             BizKind(id: "progress", label: "Test / progress", plural: "Progress", icon: "chart.line.uptrend.xyaxis",
                     fields: [.init(key: .title, label: "Test / topic"), .init(key: .subtitle, label: "Marks"), .init(key: .date, label: "Date"), .init(key: .notes, label: "Remarks")]),
         ],
@@ -82,17 +88,22 @@ enum BizSpecs {
         module: "rent", tab: .rent, title: "Property & Rent", icon: "house.and.flag.fill", colors: [0x8E2DE2, 0x4A00E0],
         parent: BizKind(id: "tenant", label: "Tenant", plural: "Tenants", icon: "person.crop.circle",
                         fields: [.init(key: .title, label: "Tenant name"), .init(key: .subtitle, label: "Property / flat"), .init(key: .amount, label: "Monthly rent"),
-                                 .init(key: .due, label: "Next rent due"), .init(key: .phone, label: "Phone"), .init(key: .notes, label: "Deposit, agreement…")],
-                        linkable: true),
+                                 .init(key: .due, label: "Next rent due"), .init(key: .date, label: "Agreement start"), .init(key: .phone, label: "Phone"),
+                                 .init(key: .notes, label: "Deposit, agreement…")],
+                        linkable: true, extras: ["Yearly raise %"]),
         children: [
             BizKind(id: "charge", label: "Rent / charge", plural: "Charges", icon: "doc.text",
                     fields: [.init(key: .title, label: "For (e.g. Rent Dec)"), .init(key: .amount, label: "Amount"), .init(key: .due, label: "Due"), .init(key: .status, label: "Status")],
                     statuses: ["Due", "Paid"], doneStatuses: ["Paid"], sign: 1, countWhen: "Due"),
             BizKind(id: "payment", label: "Payment received", plural: "Payments", icon: "arrow.down.circle.fill",
                     fields: [.init(key: .amount, label: "Amount"), .init(key: .date, label: "Date"), .init(key: .subtitle, label: "Mode", options: ["Cash", "UPI", "Bank", "Cheque"]), .init(key: .notes, label: "Note")]),
-            BizKind(id: "issue", label: "Maintenance", plural: "Maintenance", icon: "wrench.and.screwdriver",
-                    fields: [.init(key: .title, label: "Problem"), .init(key: .date, label: "Reported"), .init(key: .status, label: "Status"), .init(key: .notes, label: "Details")],
-                    statuses: ["Open", "In progress", "Fixed"], doneStatuses: ["Fixed"]),
+            BizKind(id: "issue", label: "Maintenance / damage / complaint", plural: "Maintenance, damage & complaints", icon: "wrench.and.screwdriver",
+                    fields: [.init(key: .title, label: "Problem"), .init(key: .subtitle, label: "Type", options: ["Maintenance", "Damage", "Complaint"]),
+                             .init(key: .date, label: "Reported"), .init(key: .status, label: "Status"), .init(key: .notes, label: "Details")],
+                    statuses: ["Open", "In progress", "Fixed"], doneStatuses: ["Fixed"], clientCanAdd: true),
+            BizKind(id: "agreement", label: "Agreement / document", plural: "Agreements & documents", icon: "doc.text.magnifyingglass",
+                    fields: [.init(key: .title, label: "Document"), .init(key: .date, label: "Date"), .init(key: .status, label: "Status"), .init(key: .notes, label: "Notes")],
+                    statuses: ["Waiting for tenant", "Accepted", "Declined"], doneStatuses: ["Accepted"], clientAnswers: true),
         ],
         balanceLabel: "Rent due", clientWord: "tenant")
 
@@ -108,6 +119,15 @@ enum BizSpecs {
                     statuses: ["Upcoming", "Done", "Adjourned"], doneStatuses: ["Done", "Adjourned"]),
             BizKind(id: "update", label: "Client update", plural: "Updates", icon: "text.bubble",
                     fields: [.init(key: .title, label: "Update"), .init(key: .date, label: "Date"), .init(key: .notes, label: "Details")]),
+            BizKind(id: "question", label: "Client question", plural: "Client questions", icon: "questionmark.bubble",
+                    fields: [.init(key: .title, label: "Question"), .init(key: .date, label: "Asked"), .init(key: .status, label: "Status"), .init(key: .notes, label: "Answer")],
+                    statuses: ["Open", "Answered"], doneStatuses: ["Answered"], clientCanAdd: true),
+            BizKind(id: "approval", label: "Client approval", plural: "Approvals from client", icon: "checkmark.seal",
+                    fields: [.init(key: .title, label: "What needs the client's OK"), .init(key: .date, label: "Asked"), .init(key: .status, label: "Status"), .init(key: .notes, label: "Details")],
+                    statuses: ["Waiting for client", "Approved", "Rejected"], doneStatuses: ["Approved", "Rejected"], clientAnswers: true),
+            BizKind(id: "vakalat", label: "e-Vakalatnama", plural: "e-Vakalatnama", icon: "signature",
+                    fields: [.init(key: .title, label: "Court & matter"), .init(key: .date, label: "Requested"), .init(key: .status, label: "Status"), .init(key: .notes, label: "Advocate(s) / terms")],
+                    statuses: ["Waiting for client", "Signed", "Declined"], doneStatuses: ["Signed", "Declined"], clientAnswers: true),
             BizKind(id: "fee", label: "Fee", plural: "Fees", icon: "indianrupeesign.circle",
                     fields: [.init(key: .title, label: "For"), .init(key: .amount, label: "Amount"), .init(key: .due, label: "Due"), .init(key: .status, label: "Status")],
                     statuses: ["Due", "Paid"], doneStatuses: ["Paid"], sign: 1, countWhen: "Due"),

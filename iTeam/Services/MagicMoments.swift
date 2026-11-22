@@ -1,6 +1,8 @@
 import Foundation
 import SwiftData
 import SwiftUI
+import PhotosUI
+import UniformTypeIdentifiers
 import UserNotifications
 
 /// ✨ Magic moment — a message that appears at a chosen time.
@@ -57,10 +59,17 @@ enum MagicMoments {
 /// Composer sheet: pick when the message should appear.
 struct MagicMomentSheet: View {
     let text: String
-    let send: (Date) -> Void
+    let send: (String, [AttachmentRef], [String: String], Date) -> Void
     @Environment(\.dismiss) private var dismiss
     @Environment(\.look) private var look
     @State private var when = Calendar.current.date(byAdding: .hour, value: 1, to: .now) ?? .now
+    @State private var body_ = ""
+    @State private var refs: [AttachmentRef] = []
+    @State private var uploads: [String: String] = [:]
+    @State private var picks: [PhotosPickerItem] = []
+    @State private var busy = false
+    @State private var error: String?
+    @State private var loaded = false
 
     private var quick: [(String, Date)] {
         let cal = Calendar.current
@@ -78,9 +87,28 @@ struct MagicMomentSheet: View {
         NavigationStack {
             Form {
                 Section {
-                    Text(text.isEmpty ? "Your message" : text).lineLimit(4)
+                    TextField("Write your message…", text: $body_, axis: .vertical).lineLimit(3...10)
+                    ForEach(refs) { r in Label(r.name, systemImage: r.kind == "image" ? "photo" : r.kind == "video" ? "video" : "doc") }
+                        .onDelete { refs.remove(atOffsets: $0) }
+                    PhotosPicker(selection: $picks, maxSelectionCount: 10, matching: .any(of: [.images, .videos])) {
+                        Label("Add photos or videos", systemImage: "photo.on.rectangle")
+                    }
+                    Button("Add a file", systemImage: "doc") {
+                        Presenter.file(types: [.item]) { url in
+                            if let p = try? Attachments.prepareFile(url) { refs.append(p.ref); uploads[p.upload.0] = p.upload.1 }
+                        }
+                    }
+                    if Presenter.hasCamera {
+                        Button("Take a photo", systemImage: "camera") {
+                            Presenter.camera { img in
+                                if let d = img.jpegData(compressionQuality: 0.9), let p = try? Attachments.prepareImage(d) { refs.append(p.ref); uploads[p.upload.0] = p.upload.1 }
+                            }
+                        }
+                    }
+                    if busy { ProgressView("Preparing…") }
+                    if let error { Text(error).font(.caption).foregroundStyle(.red) }
                 } header: { Text("✨ Magic moment") } footer: {
-                    Text("It's delivered now, encrypted and hidden, then appears with a notification at the time you pick — even if your phone is off. You can cancel it before then.")
+                    Text("It's delivered now, encrypted and hidden, then appears with a notification at the time you pick — even if your phone is off.")
                 }
                 Section("When") {
                     ForEach(quick, id: \.0) { q in
@@ -95,9 +123,29 @@ struct MagicMomentSheet: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
-                ToolbarItem(placement: .confirmationAction) { Button("Schedule") { send(when); dismiss() }.disabled(when <= .now) }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Schedule") { send(body_, refs, uploads, when); dismiss() }
+                        .disabled(when <= .now || busy || (body_.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && refs.isEmpty))
+                }
+            }
+            .onAppear { if !loaded { loaded = true; body_ = text } }
+            .onChange(of: picks) { _, items in
+                guard !items.isEmpty else { return }
+                busy = true
+                Task { @MainActor in
+                    for item in items {
+                        if item.supportedContentTypes.contains(where: { $0.conforms(to: .movie) }),
+                           let movie = try? await item.loadTransferable(type: MovieFile.self) {
+                            do { let p = try await VideoPrep.prepare(movie.url, maxSeconds: VideoPrep.chatSeconds, rejectLonger: true); refs.append(p.ref); uploads[p.upload.0] = p.upload.1 }
+                            catch { self.error = error.localizedDescription }
+                        } else if let d = try? await item.loadTransferable(type: Data.self), let p = try? Attachments.prepareImage(d) {
+                            refs.append(p.ref); uploads[p.upload.0] = p.upload.1
+                        }
+                    }
+                    picks = []; busy = false
+                }
             }
         }
-        .presentationDetents([.medium, .large])
+        .presentationDetents([.large])
     }
 }

@@ -89,6 +89,8 @@ struct MessagePayload: Codable {
     var at: Date? = nil
     /// Disappearing: seconds to keep.
     var ttl: Int? = nil
+    /// View once: the photo/video can be opened one time.
+    var once: Bool? = nil
 }
 
 struct GroupPayload: Codable {

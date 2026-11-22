@@ -22,6 +22,8 @@ struct ChatView: View {
     @State private var photoItems: [PhotosPickerItem] = []
     @State private var showFiles = false
     @State private var showPhotos = false
+    @State private var showOnce = false
+    @State private var onceItems: [PhotosPickerItem] = []
     @State private var sendError: String?
     @State private var quickLook: URL?
     @State private var showCamera = false
@@ -280,6 +282,11 @@ struct ChatView: View {
             guard !items.isEmpty else { return }
             Task { await sendPhotos(items, conv: conv) }
         }
+        .photosPicker(isPresented: $showOnce, selection: $onceItems, maxSelectionCount: 1, matching: .any(of: [.images, .videos]))
+        .onChange(of: onceItems) { _, items in
+            guard !items.isEmpty else { return }
+            Task { await sendPhotos(items, conv: conv, viewOnce: true); onceItems = [] }
+        }
         .onAppear {
             engine.openConversation = conv.id
             engine.markRead(conv)
@@ -302,8 +309,8 @@ struct ChatView: View {
             }
         }
         .sheet(isPresented: $magicOpen) {
-            MagicMomentSheet(text: text) { when in
-                engine.sendText(text, in: conv, replyTo: replyTo?.id, showAt: when)
+            MagicMomentSheet(text: text) { body, refs, uploads, when in
+                engine.sendText(body, in: conv, replyTo: replyTo?.id, attachments: refs, uploads: uploads, showAt: when)
                 text = ""; replyTo = nil
             }
         }
@@ -401,6 +408,7 @@ struct ChatView: View {
                 Menu {
                     Button("Camera", systemImage: "camera") { showCamera = true }
                     Button("Photos & videos", systemImage: "photo.on.rectangle") { showPhotos = true }
+                    Button("View-once photo or video", systemImage: "1.circle") { showOnce = true }
                     Toggle(isOn: Binding(get: { Attachments.sendOriginal }, set: { Attachments.sendOriginal = $0 })) {
                         Label("Original quality", systemImage: "photo.badge.checkmark")
                     }
@@ -499,7 +507,7 @@ struct ChatView: View {
         text = ""
     }
 
-    private func sendPhotos(_ items: [PhotosPickerItem], conv: Conversation) async {
+    private func sendPhotos(_ items: [PhotosPickerItem], conv: Conversation, viewOnce: Bool = false) async {
         var refs: [AttachmentRef] = []
         var uploads: [String: String] = [:]
         for item in items {
@@ -526,7 +534,8 @@ struct ChatView: View {
         }
         photoItems = []
         guard !refs.isEmpty else { return }
-        engine.sendText(text, in: conv, replyTo: replyTo?.id, attachments: refs, uploads: uploads)
+        engine.sendText(viewOnce ? "" : text, in: conv, replyTo: replyTo?.id, attachments: refs, uploads: uploads, viewOnce: viewOnce)
+        if viewOnce { return }
         text = ""
         replyTo = nil
     }

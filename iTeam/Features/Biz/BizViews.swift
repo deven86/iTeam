@@ -1,4 +1,5 @@
 import SwiftUI
+import PhotosUI
 import SwiftData
 import UserNotifications
 
@@ -6,15 +7,53 @@ import UserNotifications
 
 extension SyncEngine {
     /// Saves a business record: in the linked person's direct chat (they see their own records), or only on my devices.
-    func saveBiz(_ p: BizPayload, convID: String) {
+    func saveBiz(_ p: BizPayload, convID: String, uploads: [String: String] = [:]) {
+        let isNew = (try? context.fetch(FetchDescriptor<BizRecord>(predicate: #Predicate { $0.id == p.id })).first) == nil
         if !convID.isEmpty, let conv = conversation(convID) {
-            let isNew = (try? context.fetch(FetchDescriptor<BizRecord>(predicate: #Predicate { $0.id == p.id })).first) == nil
-            send(.biz(p), in: conv, loud: isNew && !p.deleted, preview: isNew ? BizSpecs.logLine(p, who: myName, isNew: true) : nil)
+            let answer = BizSpecs.spec(p.module)?.kind(p.kind)?.clientAnswers == true
+            send(.biz(p), in: conv, loud: (isNew || answer) && !p.deleted, preview: isNew || answer ? BizSpecs.logLine(p, who: myName, isNew: isNew) : nil, uploads: uploads)
         } else {
-            sendPersonal(.biz(p))
+            send(.biz(p), convID: selfConversationID, recipients: [], keyVersion: 0, loud: false, hint: nil, uploads: uploads)
         }
         save()
+        // Rent: a payment settles the oldest due charges (so "rent due" always matches what's been paid).
+        if isNew && p.module == "rent" && p.kind == "payment" && !p.deleted { settleRent(tenantID: p.parentID, paid: p.amount) }
         BizReminders.reschedule(self)
+    }
+
+    private func settleRent(tenantID: String, paid: Double) {
+        let due = ((try? context.fetch(FetchDescriptor<BizRecord>(predicate: #Predicate { $0.parentID == tenantID && !$0.deleted && $0.kind == "charge" && $0.status == "Due" }))) ?? [])
+            .sorted { ($0.due ?? $0.createdAt) < ($1.due ?? $1.createdAt) }
+        var left = paid
+        for c in due where c.amount <= left + 0.5 {
+            left -= c.amount
+            var q = BizPayload(c); q.status = "Paid"; q.notes = (c.notes.isEmpty ? "" : c.notes + " · ") + "settled by payment"
+            saveBiz(q, convID: c.convID)
+        }
+    }
+
+    /// Rent: creates each month's charge when the due date arrives (with the yearly raise), so pending rent matches the agreement.
+    func autoRentCharges() {
+        let me = self.me
+        let tenants = (try? context.fetch(FetchDescriptor<BizRecord>(predicate: #Predicate { $0.module == "rent" && $0.kind == "tenant" && !$0.deleted && $0.ownerID == me }))) ?? []
+        for t in tenants where t.amount > 0 {
+            guard var due = t.due else { continue }
+            var made = 0
+            while due <= .now && made < 12 {
+                var rent = t.amount
+                if let pct = Double(t.extra["Yearly raise %"] ?? ""), pct > 0, let start = t.date {
+                    let years = Calendar.current.dateComponents([.year], from: start, to: due).year ?? 0
+                    rent = (t.amount * pow(1 + pct / 100, Double(max(years, 0)))).rounded()
+                }
+                var c = BizPayload(BizRecord(id: "r_" + UUID().uuidString))
+                c.module = "rent"; c.kind = "charge"; c.parentID = t.id; c.subjectID = t.subjectID
+                c.title = "Rent " + due.formatted(.dateTime.month(.abbreviated).year()); c.amount = rent; c.due = due; c.status = "Due"
+                saveBiz(c, convID: t.convID)
+                due = Calendar.current.date(byAdding: .month, value: 1, to: due) ?? due.addingTimeInterval(30 * 86400)
+                made += 1
+            }
+            if made > 0 { var p = BizPayload(t); p.due = due; saveBiz(p, convID: t.convID) }
+        }
     }
 
     /// Shares a record and its entries into a chat or group — everyone there sees it (e.g. a trip with the travel group).
@@ -107,6 +146,7 @@ struct BizHomeView: View {
     }
 
     private var mine: [BizRecord] { all.filter { $0.module == spec.module && $0.ownerID == engine.me } }
+    private func autoRun() { if spec.module == "rent" { engine.autoRentCharges() } }
     private var shared: [BizRecord] {
         all.filter { $0.module == spec.module && $0.ownerID != engine.me && $0.parentID.isEmpty && ($0.subjectID == engine.me || ($0.subjectID.isEmpty && !$0.convID.isEmpty)) }
     }
@@ -168,7 +208,8 @@ struct BizHomeView: View {
             }
             .shareSheet($shareItems)
             .sheet(isPresented: $showArchive) { NavigationStack { BizArchiveView(spec: spec) } }
-            .refreshable { await engine.sync() }
+            .refreshable { await engine.sync(); autoRun() }
+            .onAppear { autoRun() }
             .sheet(isPresented: $adding) {
                 NavigationStack { BizEditor(spec: spec, kind: spec.parent ?? spec.children[0], parent: nil, existing: nil) }
             }
@@ -324,6 +365,7 @@ struct BizParentView: View {
     @State private var sharingChat = false
     @State private var shareItems: ShareItems?
     @State private var confirmDelete = false
+    @State private var viewing: BizRecord?
 
     init(spec: BizSpec, recordID: String) {
         self.spec = spec; self.recordID = recordID
@@ -336,29 +378,36 @@ struct BizParentView: View {
     }
 
     private func content(_ r: BizRecord) -> some View {
-        let mine = r.ownerID == engine.me
+        // The creator, or the whole group when the record is shared into a group (a legal team).
+        let team = engine.conversation(r.convID).map { $0.isGroup && $0.isMember(engine.me) } ?? false
+        let mine = r.ownerID == engine.me || team
+        let isClient = r.subjectID == engine.me && r.ownerID != engine.me
         let bal = children.reduce(0) { $0 + BizMath.contribution($1, spec) }
         return List {
             header(r, mine: mine, balance: bal)
             ForEach(spec.children, id: \.id) { k in
                 let list = children.filter { $0.kind == k.id }.sorted { ($0.date ?? $0.due ?? $0.createdAt) > ($1.date ?? $1.due ?? $1.createdAt) }
-                if !list.isEmpty || mine {
+                if !list.isEmpty || mine || (isClient && k.clientCanAdd) {
                     Section {
-                        ForEach(list) { c in
-                            Button { if mine { editing = c } } label: { BizRow(record: c, spec: spec, showParent: false) }
-                                .buttonStyle(.plain)
-                                .swipeActions {
-                                    if mine, let done = k.doneStatuses.first, c.status != done {
-                                        Button(done) { var p = BizPayload(c); p.status = done; engine.saveBiz(p, convID: c.convID) }.tint(.green)
-                                    }
+                        if list.count > 5 {
+                            // Long lists (e.g. case updates) scroll inside a fixed area so they don't take over the screen.
+                            ScrollView {
+                                LazyVStack(alignment: .leading, spacing: 10) {
+                                    ForEach(list) { c in childRow(c, k: k, mine: mine, isClient: isClient); Divider() }
                                 }
+                            }
+                            .frame(height: 320)
+                        } else {
+                            ForEach(list) { c in childRow(c, k: k, mine: mine, isClient: isClient) }
                         }
                         if mine { Button("Add \(k.label.lowercased())", systemImage: "plus") { adding = k } }
+                        else if isClient && k.clientCanAdd { Button(k.id == "question" ? "Ask a question" : "Report \(k.label.lowercased())", systemImage: "plus.bubble") { adding = k } }
                     } header: { Text(k.plural) }
                     .lookRows()
                 }
             }
             if mine { actions(r, balance: bal) }
+            else if !r.files.isEmpty { Section("Attachments") { BizFilesList(files: r.files) }.lookRows() }
         }
         .lookScreen()
         .navigationTitle(r.title)
@@ -368,11 +417,46 @@ struct BizParentView: View {
         .sheet(item: $editing) { c in NavigationStack { BizEditor(spec: spec, kind: spec.kind(c.kind) ?? spec.children[0], parent: r, existing: c) } }
         .sheet(isPresented: $editParent) { NavigationStack { BizEditor(spec: spec, kind: spec.parent ?? spec.children[0], parent: nil, existing: r) } }
         .sheet(isPresented: $linking) { NavigationStack { BizLinkContact(record: r) } }
+        .sheet(item: $viewing) { c in NavigationStack { BizRecordViewer(record: c, spec: spec) } }
         .sheet(isPresented: $sharingChat) { NavigationStack { BizLinkChat(record: r) } }
         .shareSheet($shareItems)
         .confirmationDialog("Delete \(r.title)?", isPresented: $confirmDelete, titleVisibility: .visible) {
             Button("Delete", role: .destructive) { var p = BizPayload(r); p.deleted = true; engine.saveBiz(p, convID: r.convID); dismiss() }
         }
+    }
+
+    @ViewBuilder
+    private func childRow(_ c: BizRecord, k: BizKind, mine: Bool, isClient: Bool) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Button { if mine || c.ownerID == engine.me { editing = c } else { viewing = c } } label: { BizRow(record: c, spec: spec, showParent: false) }
+                .buttonStyle(.plain)
+            if !c.files.isEmpty { Label("\(c.files.count) attachment\(c.files.count == 1 ? "" : "s")", systemImage: "paperclip").font(.caption2).foregroundStyle(.secondary) }
+            if isClient && k.clientAnswers && !k.doneStatuses.contains(c.status) {
+                HStack {
+                    let yes = k.statuses.count > 1 ? k.statuses[1] : "Done"
+                    Button(yes) { answer(c, yes) }.buttonStyle(.glassProminent).controlSize(.small)
+                    if k.statuses.count > 2 { Button(k.statuses[2], role: .destructive) { answer(c, k.statuses[2]) }.buttonStyle(.glass).controlSize(.small) }
+                }
+            }
+            if c.status == "Reverting" && (isClient || (!c.convID.isEmpty && engine.conversation(c.convID)?.members.first { $0.id == engine.me }?.role != .member && c.subjectID.isEmpty)) {
+                HStack {
+                    Text("Move back to Due?").font(.caption)
+                    Button("Approve") { answer(c, "Due") }.buttonStyle(.glassProminent).controlSize(.small)
+                    Button("Keep Paid") { answer(c, "Paid") }.buttonStyle(.glass).controlSize(.small)
+                }
+            }
+        }
+        .swipeActions {
+            if mine, let done = k.doneStatuses.first, c.status != done {
+                Button(done) { var p = BizPayload(c); p.status = done; engine.saveBiz(p, convID: c.convID) }.tint(.green)
+            }
+        }
+    }
+
+    private func answer(_ c: BizRecord, _ status: String) {
+        var p = BizPayload(c); p.status = status; p.at = .now
+        engine.saveBiz(p, convID: c.convID)
+        Haptics.success()
     }
 
     private func header(_ r: BizRecord, mine: Bool, balance: Double) -> some View {
@@ -538,17 +622,64 @@ struct BizEditor: View {
     @State private var due = Date.now.addingTimeInterval(7 * 86400)
     @State private var status = ""
     @State private var notes = ""
+    @State private var files: [AttachmentRef] = []
+    @State private var uploads: [String: String] = [:]
+    @State private var extra: [String: String] = [:]
+    @State private var linkTo = ""
+    @State private var photoPicks: [PhotosPickerItem] = []
+    @Query(filter: #Predicate<Contact> { $0.saved && !$0.blocked }, sort: \Contact.name) private var contacts: [Contact]
 
     var body: some View {
         Form {
-            Section(kind.label) {
-                ForEach(kind.fields, id: \.key.rawValue) { f in field(f) }
-            }
             if existing == nil && parent == nil && kind.linkable {
                 Section {
-                    Text("After saving, open it and tap “Link iTeam contact” so the \(spec.clientWord) sees their own records — they never need to buy the module.")
-                        .font(.caption).foregroundStyle(.secondary)
+                    Picker("Pick an iTeam user", selection: $linkTo) {
+                        Text("Not on iTeam / later").tag("")
+                        ForEach(contacts.filter { !$0.userID.hasPrefix("demo_") }, id: \.userID) { c in Text(c.name).tag(c.userID) }
+                    }
+                } footer: {
+                    Text("A linked \(spec.clientWord) sees only their own records and gets notifications — they never pay for the module.")
                 }
+            }
+            Section(kind.label) {
+                ForEach(kind.fields, id: \.key.rawValue) { f in field(f) }
+                ForEach(kind.extras, id: \.self) { label in
+                    TextField(label, text: Binding(get: { extra[label] ?? "" }, set: { extra[label] = $0 }))
+                        .keyboardType(label.contains("%") ? .decimalPad : .default)
+                }
+                if existing?.status == "Reverting" {
+                    Label("Waiting for approval to move back to Due", systemImage: "hourglass").font(.caption).foregroundStyle(.orange)
+                }
+            }
+            Section("Attachments (receipt, bill, order, draft, agreement, photos)") {
+                ForEach(files) { f in Label(f.name, systemImage: f.kind == "image" ? "photo" : f.kind == "video" ? "video" : "doc") }
+                    .onDelete { files.remove(atOffsets: $0) }
+                PhotosPicker(selection: $photoPicks, maxSelectionCount: 10, matching: .any(of: [.images, .videos])) {
+                    Label("Add photos or videos", systemImage: "photo.on.rectangle")
+                }
+                Button("Add a document (PDF…)", systemImage: "doc.badge.plus") {
+                    Presenter.file(types: [.pdf, .image, .data]) { url in
+                        if let p = try? Attachments.prepareFile(url) { files.append(p.ref); uploads[p.upload.0] = p.upload.1 }
+                    }
+                }
+                if Presenter.hasCamera {
+                    Button("Take a photo", systemImage: "camera") {
+                        Presenter.camera { img in
+                            if let d = img.jpegData(compressionQuality: 0.85), let p = try? Attachments.prepareImage(d) { files.append(p.ref); uploads[p.upload.0] = p.upload.1 }
+                        }
+                    }
+                }
+            }
+        }
+        .onChange(of: photoPicks) { _, items in
+            guard !items.isEmpty else { return }
+            Task { @MainActor in
+                for item in items {
+                    if item.supportedContentTypes.contains(where: { $0.conforms(to: .movie) }), let m = try? await item.loadTransferable(type: MovieFile.self),
+                       let p = try? await VideoPrep.prepare(m.url, maxSeconds: 180) { files.append(p.ref); uploads[p.upload.0] = p.upload.1 }
+                    else if let d = try? await item.loadTransferable(type: Data.self), let p = try? Attachments.prepareImage(d) { files.append(p.ref); uploads[p.upload.0] = p.upload.1 }
+                }
+                photoPicks = []
             }
         }
         .navigationTitle(existing == nil ? "New \(kind.label.lowercased())" : "Edit")
@@ -591,6 +722,7 @@ struct BizEditor: View {
         if let d = r.date { date = d }
         if let d = r.due { due = d }
         if !r.status.isEmpty { status = r.status }
+        files = r.files; extra = r.extra
     }
 
     private func save() {
@@ -606,9 +738,14 @@ struct BizEditor: View {
         p.amount = Double(amount.replacingOccurrences(of: ",", with: "")) ?? 0
         p.date = keys.contains(.date) ? date : nil
         p.due = keys.contains(.due) ? due : nil
-        p.status = keys.contains(.status) ? status : ""
+        p.status = keys.contains(.status) ? (existing?.status == "Reverting" && status == "Reverting" ? "Reverting" : status) : ""
+        p.files = files; p.extra = extra
         p.at = .now
-        engine.saveBiz(p, convID: parent?.convID ?? r?.convID ?? "")
+        engine.saveBiz(p, convID: parent?.convID ?? r?.convID ?? "", uploads: uploads)
+        if existing == nil, !linkTo.isEmpty, let c = engine.contact(linkTo),
+           let rec = try? engine.context.fetch(FetchDescriptor<BizRecord>(predicate: #Predicate { $0.id == p.id })).first {
+            engine.linkBiz(rec, to: c)
+        }
         Haptics.success()
         dismiss()
     }
@@ -662,5 +799,68 @@ enum BizDemo {
             _ = add("bill", title: "Electricity (demo)", amount: 1240, due: day(4), status: "Due", notes: "Consumer no. 0001")
             _ = add("bill", title: "Car insurance (demo)", amount: 9800, due: day(25), status: "Due")
         }
+    }
+}
+
+
+/// Read-only view of a record for the client / team: details, attachments, and the e-Vakalatnama PDF.
+struct BizRecordViewer: View {
+    let record: BizRecord
+    let spec: BizSpec
+    @EnvironmentObject var engine: SyncEngine
+    @State private var shareItems: ShareItems?
+    var body: some View {
+        List {
+            Section {
+                Text(record.title).font(.headline)
+                if !record.subtitle.isEmpty { Text(record.subtitle) }
+                if let d = record.date ?? record.due { LabeledContent("Date", value: d.formatted(date: .abbreviated, time: .shortened)) }
+                if record.amount != 0 { LabeledContent("Amount", value: BizSpecs.money(record.amount)) }
+                if !record.status.isEmpty { LabeledContent("Status", value: record.status) }
+                if !record.notes.isEmpty { Text(record.notes) }
+                Text("Managed by \(engine.name(of: record.ownerID))").font(.caption).foregroundStyle(.secondary)
+            }
+            if !record.files.isEmpty { Section("Attachments") { BizFilesList(files: record.files) } }
+            if record.kind == "vakalat" && record.status == "Signed" {
+                Button("e-Vakalatnama record (PDF)", systemImage: "signature") {
+                    if let u = PDFMaker.make(title: "e-Vakalatnama — client consent", bodyHTML: BizVakalat.html(record, engine: engine), fileName: "e-Vakalatnama",
+                                             module: spec.title, icon: "signature", colors: spec.colors) { shareItems = ShareItems(items: [u]) }
+                }
+            }
+        }
+        .navigationTitle(spec.kind(record.kind)?.label ?? "Record")
+        .navigationBarTitleDisplayMode(.inline)
+        .shareSheet($shareItems)
+    }
+}
+
+/// Tappable attachments (opens the file).
+struct BizFilesList: View {
+    let files: [AttachmentRef]
+    @State private var error: String?
+    var body: some View {
+        ForEach(files) { f in
+            Button {
+                Task { @MainActor in
+                    do { Presenter.preview(try await Attachments.load(f)) } catch { self.error = "Couldn't open — files are kept 45 days." }
+                }
+            } label: { Label(f.name, systemImage: f.kind == "image" ? "photo" : f.kind == "video" ? "video" : "doc") }
+        }
+        if let error { Text(error).font(.caption).foregroundStyle(.red) }
+    }
+}
+
+@MainActor
+enum BizVakalat {
+    static func html(_ r: BizRecord, engine: SyncEngine) -> String {
+        let e = PDFMaker.esc
+        return """
+        <p><b>Court & matter:</b> \(e(r.title))</p>
+        <p><b>Advocate(s) / terms:</b> \(e(r.notes))</p>
+        <p><b>Advocate (iTeam):</b> \(e(engine.name(of: r.ownerID)))</p>
+        <p><b>Client (iTeam):</b> \(e(engine.name(of: r.subjectID)))</p>
+        <p><b>Requested:</b> \((r.date ?? r.createdAt).formatted(date: .long, time: .shortened)) · <b>Signed by the client in iTeam:</b> \(r.updatedAt.formatted(date: .long, time: .shortened))</p>
+        <p class="muted">This is a record of the client's consent given inside iTeam (end-to-end encrypted, signed with the client's iTeam key). It is not an official court e-filing Vakalatnama; file the official form where the court requires it.</p>
+        """
     }
 }

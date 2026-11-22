@@ -28,8 +28,21 @@ import SwiftData
     var updatedAt: Date = Date.now
     var deleted: Bool = false
     var deletedBy: String = ""
+    /// Photos, PDFs, receipts, agreements… attached to this record.
+    var filesData: Data? = nil
+    /// Extra module-specific values (e.g. rent's yearly raise %).
+    var extraData: Data? = nil
 
     init(id: String) { self.id = id }
+
+    var files: [AttachmentRef] {
+        get { filesData.flatMap { try? JSONDecoder().decode([AttachmentRef].self, from: $0) } ?? [] }
+        set { filesData = try? JSONEncoder().encode(newValue) }
+    }
+    var extra: [String: String] {
+        get { extraData.flatMap { try? JSONDecoder().decode([String: String].self, from: $0) } ?? [:] }
+        set { extraData = try? JSONEncoder().encode(newValue) }
+    }
 }
 
 struct BizPayload: Codable {
@@ -48,10 +61,13 @@ struct BizPayload: Codable {
     var notes: String
     var deleted: Bool
     var at: Date
+    var files: [AttachmentRef]? = nil
+    var extra: [String: String]? = nil
 
     init(_ r: BizRecord) {
         id = r.id; module = r.module; kind = r.kind; parentID = r.parentID; subjectID = r.subjectID
         title = r.title; subtitle = r.subtitle; phone = r.phone; amount = r.amount; date = r.date; due = r.due
         status = r.status; notes = r.notes; deleted = r.deleted; at = .now
+        files = r.files; extra = r.extra
     }
 }

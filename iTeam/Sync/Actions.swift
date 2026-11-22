@@ -316,16 +316,16 @@ extension SyncEngine {
     // MARK: - Messages
 
     func sendText(_ text: String, in conv: Conversation, replyTo: String? = nil, attachments: [AttachmentRef] = [],
-                  uploads: [String: String] = [:], forwarded: Bool = false, showAt: Date? = nil) {
+                  uploads: [String: String] = [:], forwarded: Bool = false, showAt: Date? = nil, viewOnce: Bool = false) {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty || !attachments.isEmpty, !conv.left else { return }
         // Replying to someone who messaged me first = accepting them as a contact (so they can be added to groups).
         if !conv.isGroup, let peer = Self.peer(inDirect: conv.id, me: me), let c = contact(peer), !c.saved, !c.blocked { acceptRequest(c) }
         let magic = showAt.flatMap { $0 > .now ? $0 : nil }
         let p = MessagePayload(id: UUID().uuidString, text: trimmed, replyTo: replyTo, attachments: attachments, fwd: forwarded ? true : nil,
-                               at: magic, ttl: conv.timer > 0 ? conv.timer : nil)
+                               at: magic, ttl: conv.timer > 0 ? conv.timer : nil, once: viewOnce && !attachments.isEmpty ? true : nil)
         let kind = attachments.first?.kind
-        let preview = trimmed.isEmpty ? (kind == "image" ? "📷 Photo" : kind == "audio" ? "🎤 Voice note" : kind == "video" ? "🎬 Video" : "📎 File") : trimmed
+        let preview = viewOnce ? "👁 View-once \(kind == "video" ? "video" : "photo")" : trimmed.isEmpty ? (kind == "image" ? "📷 Photo" : kind == "audio" ? "🎤 Voice note" : kind == "video" ? "🎬 Video" : "📎 File") : trimmed
         // A magic moment travels silently; the recipient's phone reveals it (and notifies) at the chosen time.
         send(.message(p), in: conv, loud: magic == nil, preview: magic == nil ? preview : nil, uploads: uploads)
         if !forwarded { conv.draft = "" }

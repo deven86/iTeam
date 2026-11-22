@@ -86,9 +86,9 @@ targets:
           - iCloud.com.jondhale.iteam
         com.apple.developer.icloud-services:
           - CloudKit
-        # Testing phase: TestFlight builds use the Development iCloud environment, where push subscriptions
-        # can be created. Before App Store release: Deploy Schema Changes, then change this to Production.
-        com.apple.developer.icloud-container-environment: Development
+        # Schema deployed to Production (22 Nov 2026): TestFlight and App Store builds use the Production database.
+        # New record types: add to cloudkit/schema.ckdb, run the cloudkit-schema workflow, then Deploy Schema Changes.
+        com.apple.developer.icloud-container-environment: Production
         com.apple.developer.applesignin:
           - Default
         com.apple.developer.healthkit: true

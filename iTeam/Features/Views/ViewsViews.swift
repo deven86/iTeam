@@ -447,6 +447,7 @@ struct StatusViewer: View {
     @State private var player: AVPlayer?
     @State private var reply = ""
     @State private var paused = false
+    @State private var showViewers = false
     @Query private var seen: [PostSeen]
 
     private var current: Post? { items.indices.contains(index) ? items[index] : nil }
@@ -503,7 +504,23 @@ struct StatusViewer: View {
                     if p.author == engine.me {
                         let viewers = seen.filter { $0.postID == p.id }
                         HStack {
-                            Label("Seen by \(viewers.count)", systemImage: "eye")
+                            Button { paused = true; showViewers = true } label: { Label("Seen by \(viewers.count)", systemImage: "eye") }
+                                .sheet(isPresented: $showViewers, onDismiss: { paused = false }) {
+                                    NavigationStack {
+                                        List(viewers.sorted { $0.at > $1.at }, id: \.user) { v in
+                                            HStack {
+                                                AvatarView(name: engine.name(of: v.user), imageData: engine.contact(v.user)?.avatar, size: 34)
+                                                Text(engine.name(of: v.user))
+                                                Spacer()
+                                                Text(v.at.formatted(date: .omitted, time: .shortened)).font(.caption).foregroundStyle(.secondary)
+                                            }
+                                        }
+                                        .overlay { if viewers.isEmpty { ContentUnavailableView("No views yet", systemImage: "eye.slash") } }
+                                        .navigationTitle("Seen by \(viewers.count)")
+                                        .navigationBarTitleDisplayMode(.inline)
+                                    }
+                                    .presentationDetents([.medium, .large])
+                                }
                             Spacer()
                             Button("Delete", systemImage: "trash") { engine.deletePost(p); step(1) }
                         }

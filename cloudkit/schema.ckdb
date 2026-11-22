@@ -145,6 +145,7 @@ DEFINE SCHEMA
         pic BYTES,
         plus INT64,
         pubkey STRING,
+        qr STRING,
         seen TIMESTAMP,
         GRANT WRITE TO "_creator",
         GRANT CREATE TO "_icloud",

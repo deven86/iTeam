@@ -98,6 +98,9 @@ final class Router: ObservableObject {
     /// A module that isn't in the bottom bar, opened as a sheet (from Settings → Modules or a notification).
     @Published var moduleSheet: TabID?
     @Published var openConversation: String?
+    /// An exact item to open on top of everything (from a notification or Activity).
+    @Published var openItem: OpenItem?
+    struct OpenItem: Identifiable, Equatable { let kind: String; let module: String; let id: String }
     @Published var openTask: String?
     @Published var openCare: String?
     @Published var openGym: String?
@@ -115,6 +118,20 @@ final class Router: ObservableObject {
             if arg == "dose" { go(.care); return }
             if arg == "task" { go(.tasks); return }
             if let t = TabID(rawValue: arg) { go(t) }
+            return
+        }
+        // Exact items: iteam://item/<kind>/<id> (or iteam://item/biz/<module>/<id>)
+        if url.scheme == "iteam", url.host == "item" {
+            let parts = Array(url.pathComponents.dropFirst())
+            guard let kind = parts.first, parts.count >= 2 else { return }
+            switch kind {
+            case "care": show(care: parts[1])
+            case "gym": show(gym: parts[1])
+            case "biz":
+                openItem = OpenItem(kind: kind, module: parts[1], id: parts.last ?? "")
+            default:
+                openItem = OpenItem(kind: kind, module: "", id: parts[1])
+            }
             return
         }
         if let invite = SyncEngine.Invite(text: url.absoluteString) {
@@ -224,6 +241,8 @@ final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCent
                     default: Router.shared.show(care: profileID)
                     }
                 }
+            } else if let link = info["link"] as? String, let url = URL(string: link), action == UNNotificationDefaultActionIdentifier {
+                Router.shared.handle(url)
             } else if let kind = info["myday"] as? String {
                 Router.shared.openMyDay = kind
             } else if let tab = info["tab"] as? String, let t = Router.TabID(rawValue: tab) {

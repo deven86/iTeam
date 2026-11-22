@@ -12,6 +12,16 @@ struct EventApplier {
     var me: String { engine.me }
 
     func apply(_ e: Event, local: Bool) -> Result {
+        let before = Set(ctx.insertedModelsArray.compactMap { ($0 as? ActivityItem)?.id })
+        let r = applyEvent(e, local: local)
+        // Activity rows created by this event remember the exact item to open.
+        if let link = NotifyRoute.of(e.body).1 {
+            for case let a as ActivityItem in ctx.insertedModelsArray where !before.contains(a.id) && a.link.isEmpty { a.link = link }
+        }
+        return r
+    }
+
+    private func applyEvent(_ e: Event, local: Bool) -> Result {
         let personal = e.conv.hasPrefix("s_")
         var conv: Conversation? = engine.conversation(e.conv)
 

@@ -14,6 +14,13 @@ final class NotificationService: UNNotificationServiceExtension {
         best = content
         defer { contentHandler(content); handler = nil }
 
+        if let n = CKNotification(fromRemoteNotificationDictionary: request.content.userInfo), n.subscriptionID?.hasPrefix("roomdm-") == true {
+            var i = content.userInfo; i["link"] = "iteam://open/rooms"; content.userInfo = i
+            if AppGroup.mutedKinds.contains("rooms") {
+                content.title = ""; content.body = ""; content.sound = nil; content.badge = nil; content.interruptionLevel = .passive
+            }
+            return
+        }
         guard let note = CKNotification(fromRemoteNotificationDictionary: request.content.userInfo) as? CKQueryNotification,
               let fields = note.recordFields,
               let conv = fields["conv"] as? String else { return }
@@ -50,6 +57,13 @@ final class NotificationService: UNNotificationServiceExtension {
             content.title = hint.n
         }
         content.body = AppGroup.showPreviews ? hint.b : "New message"
+        if let link = hint.l { var i = content.userInfo; i["link"] = link; content.userInfo = i }
+        // Types switched off in Settings → Notifications arrive silently, with nothing to show.
+        if let k = hint.k, AppGroup.mutedKinds.contains(k) {
+            content.title = ""; content.subtitle = ""; content.body = ""
+            content.sound = nil; content.badge = nil
+            content.interruptionLevel = .passive
+        }
     }
 
     override func serviceExtensionTimeWillExpire() {

@@ -43,6 +43,11 @@ struct SettingsView: View {
                 }
                 .lookRows()
 
+                Section("Notifications") {
+                    NavigationLink { NotificationSettingsView() } label: { Label("Notifications", systemImage: "bell.badge.fill") }
+                }
+                .lookRows()
+
                 Section("Look & feel") {
                     NavigationLink { AppearanceView() } label: {
                         Label { HStack { Text("Appearance"); Spacer(); Text(looks.style.title).foregroundStyle(look.textSecondary) } } icon: { Image(systemName: "paintbrush.fill") }

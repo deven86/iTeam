@@ -120,20 +120,42 @@ enum VideoPrep {
 
     /// Trims to `maxSeconds`, then re-encodes to HD 1080p — or, with `original`, copies the video
     /// untouched (full resolution, original metadata) — and returns a ready-to-send attachment.
-    static func prepare(_ source: URL, maxSeconds: Double = VideoPrep.maxSeconds, original: Bool = false) async throws -> Attachments.Prepared {
+    /// Longest video a chat accepts (to keep uploads reasonable).
+    static let chatSeconds: Double = 20 * 60
+
+    enum VideoError: LocalizedError {
+        case tooLong, tooBig
+        var errorDescription: String? {
+            switch self {
+            case .tooLong: "Videos up to 20 minutes can be sent. Trim it in Photos first."
+            case .tooBig: "This video is too big even after shrinking. Trim it in Photos and try again."
+            }
+        }
+    }
+
+    static func prepare(_ source: URL, maxSeconds: Double = VideoPrep.maxSeconds, original: Bool = false, rejectLonger: Bool = false) async throws -> Attachments.Prepared {
         let asset = AVURLAsset(url: source)
         let total = try await asset.load(.duration).seconds
+        if rejectLonger && total > maxSeconds { throw VideoError.tooLong }
         let length = min(total, maxSeconds)
-        let out = FileManager.default.temporaryDirectory.appendingPathComponent("video-\(UUID().uuidString).mp4")
-        let preset = original ? AVAssetExportPresetPassthrough : AVAssetExportPreset1920x1080
-        guard let export = AVAssetExportSession(asset: asset, presetName: preset)
-                ?? AVAssetExportSession(asset: asset, presetName: AVAssetExportPresetHighestQuality) else {
-            throw Attachments.Failure.unreadable
+        // Big videos shrink step by step until they fit the 200 MB limit (original quality only if it already fits).
+        var presets = original ? [AVAssetExportPresetPassthrough] : []
+        presets += [AVAssetExportPreset1920x1080, AVAssetExportPreset1280x720, AVAssetExportPreset960x540, AVAssetExportPreset640x480]
+        var out = FileManager.default.temporaryDirectory.appendingPathComponent("video-\(UUID().uuidString).mp4")
+        var fitted = false
+        for preset in presets {
+            out = FileManager.default.temporaryDirectory.appendingPathComponent("video-\(UUID().uuidString).\(preset == AVAssetExportPresetPassthrough ? "mov" : "mp4")")
+            guard let export = AVAssetExportSession(asset: asset, presetName: preset) else { continue }
+            export.timeRange = CMTimeRange(start: .zero, duration: CMTime(seconds: length, preferredTimescale: 600))
+            export.shouldOptimizeForNetworkUse = true
+            export.metadata = (try? await asset.load(.metadata)) ?? []
+            do { try await export.export(to: out, as: preset == AVAssetExportPresetPassthrough ? .mov : .mp4) } catch { continue }
+            let bytes = (try? FileManager.default.attributesOfItem(atPath: out.path)[.size] as? Int) ?? Int.max
+            if bytes <= Attachments.maxFileBytes - 1_000_000 { fitted = true; break }
+            try? FileManager.default.removeItem(at: out)
         }
-        export.timeRange = CMTimeRange(start: .zero, duration: CMTime(seconds: length, preferredTimescale: 600))
-        export.shouldOptimizeForNetworkUse = true
-        export.metadata = (try? await asset.load(.metadata)) ?? []
-        try await export.export(to: out, as: original ? .mov : .mp4)
+        guard fitted else { throw VideoError.tooBig }
+        let isMov = out.pathExtension == "mov"
         defer { try? FileManager.default.removeItem(at: out) }
 
         let gen = AVAssetImageGenerator(asset: AVURLAsset(url: out))
@@ -147,7 +169,7 @@ enum VideoPrep {
             size = img.size
         }
         let data = try Data(contentsOf: out)
-        var p = try Attachments.prepare(data, name: original ? "Video.mov" : "Video.mp4", mime: original ? "video/quicktime" : "video/mp4", kind: "video")
+        var p = try Attachments.prepare(data, name: isMov ? "Video.mov" : "Video.mp4", mime: isMov ? "video/quicktime" : "video/mp4", kind: "video")
         p.ref.thumb = thumb
         p.ref.width = Double(size.width)
         p.ref.height = Double(size.height)

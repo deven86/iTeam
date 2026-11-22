@@ -489,6 +489,8 @@ enum ActivityKind: String {
     var actorID: String
     var date: Date
     var read: Bool
+    /// Where tapping it goes (the exact task, case, meeting…); "" = the chat.
+    var link: String = ""
 
     init(kind: ActivityKind, text: String, convID: String? = nil, taskID: String? = nil, actorID: String, date: Date = .now) {
         self.id = UUID().uuidString

@@ -139,6 +139,9 @@ final class Rooms: ObservableObject {
         do {
             let page = try await db.records(matching: q, desiredKeys: ["name", "about", "owner", "photo"], resultsLimit: 150)
             discover = page.matchResults.compactMap { _, r in (try? r.get()).map(Self.room) }
+            // iTeam's country rooms are always listed, even before anyone has joined them.
+            let have = Set(discover.map(\.id))
+            discover += Self.countryRooms.filter { !have.contains($0.id) }
             for r in discover where saved.joined[r.id] != nil { saved.rooms[r.id] = r }
             persist()
         } catch { self.error = error.cloudMessage }
@@ -172,7 +175,67 @@ final class Rooms: ObservableObject {
                 alias: alias, gender: gender, photo: photo)
     }
 
+    // MARK: Country rooms (by iTeam)
+
+    static let countries: [(String, String)] = [
+        ("IN", "India"), ("US", "United States"), ("GB", "United Kingdom"), ("CA", "Canada"), ("AU", "Australia"), ("NZ", "New Zealand"),
+        ("AE", "United Arab Emirates"), ("SA", "Saudi Arabia"), ("QA", "Qatar"), ("KW", "Kuwait"), ("OM", "Oman"), ("BH", "Bahrain"),
+        ("SG", "Singapore"), ("MY", "Malaysia"), ("TH", "Thailand"), ("ID", "Indonesia"), ("PH", "Philippines"), ("VN", "Vietnam"),
+        ("JP", "Japan"), ("KR", "South Korea"), ("CN", "China"), ("HK", "Hong Kong"), ("TW", "Taiwan"), ("NP", "Nepal"),
+        ("BD", "Bangladesh"), ("LK", "Sri Lanka"), ("PK", "Pakistan"), ("AF", "Afghanistan"), ("IR", "Iran"), ("TR", "Türkiye"),
+        ("IL", "Israel"), ("EG", "Egypt"), ("ZA", "South Africa"), ("NG", "Nigeria"), ("KE", "Kenya"), ("DE", "Germany"),
+        ("FR", "France"), ("IT", "Italy"), ("ES", "Spain"), ("PT", "Portugal"), ("NL", "Netherlands"), ("BE", "Belgium"),
+        ("CH", "Switzerland"), ("SE", "Sweden"), ("NO", "Norway"), ("IE", "Ireland"), ("PL", "Poland"), ("RU", "Russia"),
+        ("UA", "Ukraine"), ("BR", "Brazil"), ("MX", "Mexico"), ("AR", "Argentina")
+    ]
+
+    static func flag(_ cc: String) -> String {
+        cc.uppercased().unicodeScalars.compactMap { UnicodeScalar(127397 + $0.value) }.map(String.init).joined()
+    }
+
+    static func emojiPhoto(_ emoji: String) -> Data? {
+        let size = CGSize(width: 160, height: 160)
+        let img = UIGraphicsImageRenderer(size: size).image { _ in
+            (emoji as NSString).draw(in: CGRect(x: 10, y: 14, width: 140, height: 140), withAttributes: [.font: UIFont.systemFont(ofSize: 112)])
+        }
+        return img.pngData()
+    }
+
+    static let countryRooms: [Room] = countries.map { cc, name in
+        Room(id: "country-" + cc.lowercased(), name: "\(flag(cc)) \(name)", about: "iTeam's room for \(name) — meet people, stay anonymous until you both reveal.",
+             owner: "", photo: emojiPhoto(flag(cc)), updated: .distantPast)
+    }
+
+    /// Country rooms exist in iCloud only once someone joins; the first joiner creates the record.
+    private func ensureRoomRecord(_ room: Room) async {
+        guard room.id.hasPrefix("country-") else { return }
+        let rec = CKRecord(recordType: "Room", recordID: CKRecord.ID(recordName: room.id))
+        rec["name"] = room.name
+        rec["about"] = room.about
+        rec["owner"] = ""
+        rec["photo"] = room.photo
+        _ = try? await db.save(rec)   // "already exists" is fine
+    }
+
+    /// A push when someone in a room messages one of my room identities privately.
+    func ensureDMAlerts() async {
+        var done = Set(UserDefaults.standard.stringArray(forKey: "rooms.dmSubs") ?? [])
+        for p in saved.joined.values where !done.contains(p.id) {
+            let sub = CKQuerySubscription(recordType: "RoomMsg", predicate: NSPredicate(format: "rcpt == %@", p.id),
+                                          subscriptionID: "roomdm-" + p.id, options: [.firesOnRecordCreation])
+            let info = CKSubscription.NotificationInfo()
+            info.title = "Rooms"
+            info.alertBody = "🔒 New private message as “\(p.alias)” — open Rooms to read it"
+            info.soundName = "default"
+            info.shouldBadge = true
+            sub.notificationInfo = info
+            if (try? await db.save(sub)) != nil { done.insert(p.id) }
+        }
+        UserDefaults.standard.set(Array(done), forKey: "rooms.dmSubs")
+    }
+
     func join(_ room: Room, as persona: Persona) async -> Bool {
+        await ensureRoomRecord(room)
         let key = Curve25519.KeyAgreement.PrivateKey()
         _ = Keychain.set(key.rawRepresentation, account: keyAccount(persona.id), sync: true)
         let rec = CKRecord(recordType: "RoomMember", recordID: CKRecord.ID(recordName: "rm-" + persona.id))
@@ -187,6 +250,7 @@ final class Rooms: ObservableObject {
             saved.rooms[room.id] = room
             saved.members[persona.id] = Self.member(rec)
             persist()
+            Task { await ensureDMAlerts() }
             return true
         } catch { self.error = error.cloudMessage; return false }
     }
@@ -271,6 +335,7 @@ final class Rooms: ObservableObject {
     func refreshInbox() async {
         let mine = saved.joined.values.map(\.id)
         guard !mine.isEmpty else { return }
+        await ensureDMAlerts()
         let q = CKQuery(recordType: "RoomMsg", predicate: NSPredicate(format: "rcpt IN %@ AND creationDate > %@", mine,
                                                                       saved.lastDM.addingTimeInterval(-2) as NSDate))
         q.sortDescriptors = [NSSortDescriptor(key: "creationDate", ascending: true)]

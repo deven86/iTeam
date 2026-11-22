@@ -18,6 +18,7 @@ struct ChatView: View {
     @State private var taskFrom: Message?
     @State private var showInfo = false
     @State private var showGames = false
+    @State private var showRecommend = false
     @State private var photoItems: [PhotosPickerItem] = []
     @State private var showFiles = false
     @State private var showPhotos = false
@@ -118,6 +119,7 @@ struct ChatView: View {
     private func chrome<V: View>(_ v: V, _ conv: Conversation) -> some View {
         v
         .sheet(isPresented: $showGames) { XOGamesView(convID: conv.id) }
+        .sheet(isPresented: $showRecommend) { RecommendContactView(conv: conv) }
         .safeAreaInset(edge: .top, spacing: 0) {
             VStack(spacing: 6) {
                 ChatRequestBanner(conv: conv)
@@ -411,6 +413,8 @@ struct ChatView: View {
                         Button("Meeting", systemImage: "person.3.fill") { showMeeting = true }
                         Button("Request approval", systemImage: "checkmark.seal") { showApproval = true }
                     }
+                    Button("Recommend a contact", systemImage: "person.crop.circle.badge.plus") { showRecommend = true }
+                    Button("Play X and O", systemImage: "gamecontroller") { showGames = true }
                     Button("Check In", systemImage: "location.circle") { showCheckIn = true }
                     Button("Event invite", systemImage: "party.popper") { showEvent = true }
                     Button("✨ Magic moment (send later)", systemImage: "sparkles") { magicOpen = true }
@@ -502,7 +506,7 @@ struct ChatView: View {
             if item.supportedContentTypes.contains(where: { $0.conforms(to: .movie) }) {
                 guard let movie = try? await item.loadTransferable(type: MovieFile.self) else { continue }
                 do {
-                    let p = try await VideoPrep.prepare(movie.url, maxSeconds: .infinity, original: Attachments.sendOriginal)
+                    let p = try await VideoPrep.prepare(movie.url, maxSeconds: VideoPrep.chatSeconds, original: Attachments.sendOriginal, rejectLonger: true)
                     try? FileManager.default.removeItem(at: movie.url)
                     refs.append(p.ref)
                     uploads[p.upload.0] = p.upload.1
@@ -689,6 +693,34 @@ struct ChatTasksStrip: View {
                 }
                 .padding(.horizontal)
             }
+        }
+    }
+}
+
+
+/// Pick a contact to recommend in this chat; they're told who you recommended them to.
+struct RecommendContactView: View {
+    let conv: Conversation
+    @EnvironmentObject var engine: SyncEngine
+    @Environment(\.dismiss) private var dismiss
+    @Query(filter: #Predicate<Contact> { $0.saved && !$0.blocked }, sort: \Contact.name) private var contacts: [Contact]
+    var body: some View {
+        NavigationStack {
+            List(contacts.filter { c in !conv.members.contains { $0.id == c.userID } && !c.userID.hasPrefix("demo_") }) { c in
+                Button {
+                    engine.recommend(c, in: conv)
+                    Haptics.success()
+                    dismiss()
+                } label: {
+                    HStack {
+                        AvatarView(name: c.name, imageData: c.avatar, size: 36)
+                        Text(c.name).foregroundStyle(Color.primary)
+                    }
+                }
+            }
+            .navigationTitle("Recommend a contact")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } } }
         }
     }
 }

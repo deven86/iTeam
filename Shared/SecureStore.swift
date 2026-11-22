@@ -25,6 +25,12 @@ enum AppGroup {
         set { defaults.set(Array(newValue), forKey: mutedKey) }
     }
 
+    /// Notification types the user switched off.
+    static var mutedKinds: Set<String> {
+        get { Set(defaults.stringArray(forKey: "notify.mutedKinds") ?? []) }
+        set { defaults.set(Array(newValue), forKey: "notify.mutedKinds") }
+    }
+
     static var showPreviews: Bool {
         get { defaults.object(forKey: previewsKey) as? Bool ?? true }
         set { defaults.set(newValue, forKey: previewsKey) }
@@ -167,4 +173,7 @@ struct NotificationHint: Codable {
     var t: String?
     /// Short preview text.
     var b: String
+    /// Notification type (Settings → Notifications) and the exact item to open.
+    var k: String? = nil
+    var l: String? = nil
 }

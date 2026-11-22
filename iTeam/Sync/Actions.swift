@@ -12,6 +12,12 @@ extension SyncEngine {
         var userID: String
         var publicKey: String
         var name: String
+        /// The owner's current QR code (changes when they reset it); "" = none.
+        var code: String = ""
+        /// True when it came from a scanned or pasted link (then the code must still be current).
+        var fromLink = false
+        /// Shared by a friend as a recommendation (not the owner's own QR).
+        var recommended = false
 
         var url: URL {
             var c = URLComponents()
@@ -19,7 +25,8 @@ extension SyncEngine {
             c.host = "add"
             c.queryItems = [URLQueryItem(name: "u", value: userID),
                             URLQueryItem(name: "k", value: Invite.toURLSafe(publicKey)),
-                            URLQueryItem(name: "n", value: name)]
+                            URLQueryItem(name: "n", value: name)] + (code.isEmpty ? [] : [URLQueryItem(name: "c", value: code)])
+                + (recommended ? [URLQueryItem(name: "r", value: "1")] : [])
             return c.url ?? URL(string: "iteam://add")!
         }
 
@@ -34,6 +41,9 @@ extension SyncEngine {
             userID = u
             publicKey = Invite.fromURLSafe(k)
             name = v("n") ?? "iTeam user"
+            code = v("c") ?? ""
+            recommended = v("r") == "1"
+            fromLink = !recommended
         }
 
         init(userID: String, publicKey: String, name: String) {
@@ -53,14 +63,34 @@ extension SyncEngine {
         }
     }
 
-    var myInvite: Invite { Invite(userID: me, publicKey: myPublicKey, name: myName) }
+    var myInvite: Invite {
+        var i = Invite(userID: me, publicKey: myPublicKey, name: myName)
+        i.code = UserDefaults.standard.string(forKey: "qr.code") ?? ""
+        return i
+    }
+
+    /// Shares a contact in a chat, and tells that person they were recommended.
+    func recommend(_ c: Contact, in conv: Conversation) {
+        var inv = Invite(userID: c.userID, publicKey: c.publicKey, name: c.name)
+        inv.recommended = true
+        sendText("👤 I recommend \(c.name) — tap to add: \(inv.url.absoluteString)", in: conv)
+        sendText("📣 I recommended you to \(conv.title)", in: directConversation(with: c))
+    }
+
+    /// Makes old copies of my QR code stop working (e.g. after it was shared too widely).
+    func resetMyQRCode() async {
+        let code = String(UUID().uuidString.prefix(8)).lowercased()
+        UserDefaults.standard.set(code, forKey: "qr.code")
+        await cloud.setQRCode(userID: me, code)
+    }
 
     enum ContactError: LocalizedError {
-        case isMe, keyMismatch
+        case isMe, keyMismatch, qrChanged
         var errorDescription: String? {
             switch self {
             case .isMe: "That's your own code."
             case .keyMismatch: "This code doesn't match the person's current iTeam key. Ask them to show their QR code again."
+            case .qrChanged: "This QR code is no longer valid — its owner changed it. Ask them for their new code."
             }
         }
     }
@@ -71,6 +101,7 @@ extension SyncEngine {
         guard invite.userID != me else { throw ContactError.isMe }
         guard let p = try await cloud.fetchProfile(invite.userID) else { throw SyncError.unknownUser }
         guard p.publicKey == invite.publicKey else { throw ContactError.keyMismatch }
+        if invite.fromLink, !p.qrCode.isEmpty, p.qrCode != invite.code, contact(invite.userID)?.saved != true { throw ContactError.qrChanged }
         let c: Contact
         if let existing = contact(invite.userID) {
             c = existing

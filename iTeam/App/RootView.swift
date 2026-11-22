@@ -199,6 +199,7 @@ struct RootView: View {
                 NavigationStack { MyDayView(evening: router.openMyDay == "evening") }
             }
             .sheet(item: $restoreOffer) { f in RestoreOfferView(found: f) }
+            .sheet(item: $router.openItem) { item in OpenItemView(item: item) }
             .task {
                 TapHaptics.shared.install()
                 engine.setForeground(true)
@@ -446,5 +447,21 @@ struct ModuleTilesSection: View {
             }
         }
         .padding(.vertical, 6)
+    }
+}
+
+
+/// Opens the exact item a notification or Activity row points to.
+struct OpenItemView: View {
+    let item: Router.OpenItem
+    var body: some View {
+        switch item.kind {
+        case "biz":
+            if let spec = BizSpecs.spec(item.module) { NavigationStack { BizParentView(spec: spec, recordID: item.id) } }
+            else { ContentUnavailableView("Not found", systemImage: "questionmark") }
+        case "meeting": NavigationStack { MeetingDetailView(meetingID: item.id) }
+        case "game": XOBoardView(gameID: item.id)
+        default: ContentUnavailableView("Not found", systemImage: "questionmark")
+        }
     }
 }

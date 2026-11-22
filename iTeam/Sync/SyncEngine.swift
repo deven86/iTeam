@@ -233,7 +233,8 @@ final class SyncEngine: ObservableObject {
     func send(_ body: Event.Body, in conv: Conversation, loud: Bool, preview: String? = nil, uploads: [String: String] = [:]) -> Event {
         if loud { Haptics.big() }
         if conv.isDemo { return DemoChats.localSend(body, in: conv, engine: self) }
-        let hint = preview.map { NotificationHint(n: myName, t: conv.isGroup ? conv.title : nil, b: String($0.prefix(160))) }
+        let route = NotifyRoute.of(body)
+        let hint = preview.map { NotificationHint(n: myName, t: conv.isGroup ? conv.title : nil, b: String($0.prefix(160)), k: route.0, l: route.1) }
         return send(body, convID: conv.id, recipients: conv.members.map(\.id), keyVersion: conv.keyVersion,
                     loud: loud, hint: hint, uploads: uploads)
     }

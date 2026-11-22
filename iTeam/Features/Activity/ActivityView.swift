@@ -81,7 +81,8 @@ struct ActivityView: View {
     private func open(_ a: ActivityItem) {
         a.read = true
         engine.save()
-        if let t = a.taskID { router.show(task: t) }
+        if !a.link.isEmpty, let url = URL(string: a.link) { router.handle(url) }
+        else if let t = a.taskID { router.show(task: t) }
         else if let c = a.convID { router.show(conversation: c) }
         else if a.kind == .contact { router.go(.chats) }
     }

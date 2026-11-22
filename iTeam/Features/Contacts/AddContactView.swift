@@ -5,6 +5,8 @@ import VisionKit
 /// Contacts are added face to face (scan their QR) or by pasting their invite link.
 /// The key in the code is checked against their iCloud profile, so nobody can slip in a fake key.
 struct AddContactView: View {
+    @State private var confirmReset = false
+    @State private var qrVersion = 0
     var invite: SyncEngine.Invite? = nil
     @EnvironmentObject var engine: SyncEngine
     @Environment(\.dismiss) private var dismiss
@@ -66,6 +68,7 @@ struct AddContactView: View {
     }
 
     private var myCode: some View {
+        let _ = qrVersion
         let inv = engine.myInvite
         return VStack(spacing: 14) {
             if let img = QRCode.image(inv.url.absoluteString) {
@@ -76,6 +79,11 @@ struct AddContactView: View {
             }
             Text(engine.myName).font(.title3.bold())
             Text("Security code \(E2E.fingerprint(engine.myPublicKey))").font(.caption.monospaced()).foregroundStyle(look.textSecondary)
+            Button("Change my QR code", systemImage: "arrow.triangle.2.circlepath") { confirmReset = true }
+                .font(.footnote)
+                .confirmationDialog("Change your QR code?", isPresented: $confirmReset, titleVisibility: .visible) {
+                    Button("Change QR code", role: .destructive) { Task { await engine.resetMyQRCode(); qrVersion += 1 } }
+                } message: { Text("Old copies (screenshots, prints) stop working. People already in your contacts aren't affected.") }
             Text("Let the other person scan this in iTeam → Add contact → Scan.").font(.footnote)
                 .foregroundStyle(look.textSecondary).multilineTextAlignment(.center)
             ShareLink(item: "Add me on iTeam: \(inv.url.absoluteString)") {

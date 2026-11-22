@@ -33,7 +33,7 @@ enum NotifyRoute {
         case .comment(let p): return ("tasks", "iteam://task/\(p.taskID)")
         case .taskPart(let id, _): return ("tasks", "iteam://task/\(id)")
         case .taskFile(let p): return ("tasks", "iteam://task/\(p.taskID)")
-        case .approval(let p): return ("tasks", p.taskID.isEmpty ? nil : "iteam://task/\(p.taskID)")
+        case .approval(let p): return ("tasks", p.taskID.map { "iteam://task/\($0)" })
         case .decision: return ("tasks", nil)
         case .expense(let p): return ("tasks", "iteam://task/\(p.taskID)")
         case .taskAccept(let id, _, _): return ("tasks", "iteam://task/\(id)")

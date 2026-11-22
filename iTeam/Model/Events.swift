@@ -38,6 +38,10 @@ struct Event: Codable {
         case gymPlan(GymPlanPayload)
         case gymSession(GymSessionPayload)
         case gymPayment(GymPaymentPayload)
+        /// Transformation photo (front / side / back).
+        case gymPhoto(GymPhotoPayload)
+        /// The trainer someone picked answers: accept or decline.
+        case gymTrainerAnswer(memberID: String, accept: Bool, note: String)
         case post(PostPayload)
         case postReact(postID: String, emoji: String?)
         case postComment(PostCommentPayload)
@@ -354,6 +358,20 @@ struct GymMemberPayload: Codable {
     var trainer: String
     var fee: Double
     var avatar: Data?
+    var deleted: Bool
+    var at: Date
+    /// Trainer on iTeam; nil = unchanged (older versions), "" = removed.
+    var trainerID: String? = nil
+}
+
+struct GymPhotoPayload: Codable {
+    var id: String
+    var memberID: String
+    var pose: String
+    var date: Date
+    var photo: AttachmentRef
+    var note: String
+    var weight: Double
     var deleted: Bool
     var at: Date
 }

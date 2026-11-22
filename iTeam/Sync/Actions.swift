@@ -649,10 +649,10 @@ extension SyncEngine {
 
     @discardableResult
     func saveGymMember(in conv: Conversation, id: String? = nil, name: String, relation: String, phone: String, goal: String,
-                       trainer: String, fee: Double, avatar: Data?, deleted: Bool = false) -> String {
+                       trainer: String, fee: Double, avatar: Data?, deleted: Bool = false, trainerID: String? = nil) -> String {
         let gid = id ?? "g_" + UUID().uuidString
         let p = GymMemberPayload(id: gid, name: name, relation: relation, phone: phone, goal: goal, trainer: trainer, fee: fee,
-                                 avatar: avatar, deleted: deleted, at: .now)
+                                 avatar: avatar, deleted: deleted, at: .now, trainerID: trainerID)
         send(.gymMember(p), in: conv, loud: id == nil, preview: "🏋️ Gym & Training: \(name)")
         return gid
     }
@@ -678,6 +678,21 @@ extension SyncEngine {
         let p = GymPaymentPayload(id: id ?? UUID().uuidString, memberID: m.id, kind: kind.rawValue, amount: amount, date: date,
                                   method: method, sessions: sessions, notes: notes, receipts: receipts, deleted: deleted, at: .now)
         send(.gymPayment(p), in: conv, loud: id == nil, preview: "🧾 \(m.name): \(Money.format(amount))", uploads: uploads)
+    }
+
+    /// The trainer someone picked accepts or declines.
+    func answerTrainer(_ m: GymMember, accept: Bool, note: String) {
+        guard let conv = conversation(m.convID) else { return }
+        send(.gymTrainerAnswer(memberID: m.id, accept: accept, note: note), in: conv, loud: true,
+             preview: accept ? "✅ \(myName) will train \(m.name)" : "✋ \(myName) declined to train \(m.name)")
+    }
+
+    func saveGymPhoto(_ m: GymMember, id: String? = nil, pose: String, date: Date, photo: AttachmentRef, note: String, weight: Double,
+                      uploads: [String: String] = [:], deleted: Bool = false) {
+        guard let conv = conversation(m.convID) else { return }
+        let p = GymPhotoPayload(id: id ?? UUID().uuidString, memberID: m.id, pose: pose, date: date, photo: photo, note: note,
+                                weight: weight, deleted: deleted, at: .now)
+        send(.gymPhoto(p), in: conv, loud: id == nil && !deleted, preview: "📸 \(m.name): \(pose.lowercased()) progress photo", uploads: uploads)
     }
 
     func careProfile(_ id: String) -> CareProfile? {

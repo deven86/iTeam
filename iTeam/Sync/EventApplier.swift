@@ -414,6 +414,44 @@ struct EventApplier {
             m.name = g.name; m.relation = g.relation; m.phone = g.phone; m.goal = g.goal
             m.trainer = g.trainer; m.feePerSession = g.fee; m.deleted = g.deleted; m.updatedAt = g.at
             if let a = g.avatar { m.avatar = a }
+            if let t = g.trainerID, t != m.trainerID, e.from == m.createdBy {
+                m.trainerID = t
+                m.trainerStatus = t.isEmpty ? "" : "waiting"
+                m.trainerNote = ""
+                if !t.isEmpty {
+                    system(conv, "🏋️ \(engine.name(of: e.from)) asked \(t == me ? "you" : engine.name(of: t)) to be \(g.name)'s trainer — waiting for an answer", at: e.at)
+                    if t == me && !local {
+                        gymAlert("🏋️ \(engine.name(of: e.from)) asked you to be \(g.name)'s trainer. Open Gym & Training to accept or decline.", conv: conv, from: e.from, at: e.at)
+                    }
+                }
+            }
+
+        case .gymTrainerAnswer(let memberID, let accept, let note):
+            guard let conv else { return .needsConversation }
+            guard let m = gymMember(memberID), e.from == m.trainerID, m.trainerStatus != (accept ? "accepted" : "declined") else { return .ignored }
+            m.trainerStatus = accept ? "accepted" : "declined"
+            m.trainerNote = note
+            if accept, m.trainer.isEmpty || m.trainer != engine.name(of: e.from) { m.trainer = engine.name(of: e.from) }
+            let line = accept ? "✅ \(engine.name(of: e.from)) accepted to train \(m.name)" :
+                "✋ \(engine.name(of: e.from)) declined to train \(m.name)\(note.isEmpty ? "" : " — “\(note)”")"
+            system(conv, line, at: e.at)
+            if !local && e.from != me { gymAlert(line, conv: conv, from: e.from, at: e.at) }
+
+        case .gymPhoto(let g):
+            let gid = g.id
+            let existing = try? ctx.fetch(FetchDescriptor<GymPhoto>(predicate: #Predicate { $0.id == gid })).first
+            if let existing, g.at <= existing.updatedAt { return .ignored }
+            if let existing, e.from != existing.by, e.from != gymMember(g.memberID)?.createdBy { return .ignored }
+            let p = existing ?? GymPhoto(id: g.id, memberID: g.memberID)
+            if existing == nil {
+                p.by = e.from
+                ctx.insert(p)
+                if !local && e.from != me, let who = gymMember(g.memberID) {
+                    gymAlert("📸 \(engine.name(of: e.from)) added a \(g.pose.lowercased()) progress photo for \(who.name)", conv: conv, from: e.from, at: e.at)
+                }
+            }
+            p.pose = g.pose; p.date = g.date; p.photo = g.photo; p.note = g.note; p.weight = g.weight
+            p.deleted = g.deleted; p.updatedAt = g.at
 
         case .gymPlan(let g):
             let gid = g.id
@@ -981,6 +1019,8 @@ struct EventApplier {
             if let m = gymMember(g.memberID) { line = "💪 \(who) \(g.deleted ? "removed a session" : "logged a training session") for \(m.name)" }
         case .gymPayment(let g):
             if let m = gymMember(g.memberID) { line = "🧾 \(who) \(g.deleted ? "removed" : "recorded") \(Money.format(g.amount)) for \(m.name)" }
+        case .gymPhoto(let g):
+            if let m = gymMember(g.memberID) { line = "📸 \(who) \(g.deleted ? "removed a" : "added a") \(g.pose.lowercased()) progress photo for \(m.name)" }
         case .gymPlan(let g):
             if let m = gymMember(g.memberID) { line = "🏢 \(who) \(g.deleted ? "removed" : "updated") \(m.name)'s membership at \(g.gymName)" }
         default:

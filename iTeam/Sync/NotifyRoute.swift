@@ -50,6 +50,8 @@ enum NotifyRoute {
         case .gymPlan(let p): return ("gym", "iteam://item/gym/\(p.memberID)")
         case .gymSession(let p): return ("gym", "iteam://item/gym/\(p.memberID)")
         case .gymPayment(let p): return ("gym", "iteam://item/gym/\(p.memberID)")
+        case .gymPhoto(let p): return ("gym", "iteam://item/gym/\(p.memberID)")
+        case .gymTrainerAnswer(let id, _, _): return ("gym", "iteam://item/gym/\(id)")
         case .post, .postReact, .postComment, .postSeen: return ("minis", "iteam://open/views")
         case .checkIn: return ("safety", nil)
         case .biz(let p): return ("biz", "iteam://item/biz/\(p.module)/\(p.parentID.isEmpty ? p.id : p.parentID)")

@@ -21,6 +21,11 @@ import SwiftData
     var createdAt: Date = Date.now
     var updatedAt: Date = Date.distantPast
     var deleted: Bool = false
+    /// Trainer on iTeam (user ID) — they must accept before it's on. "" = none (or only a typed name).
+    var trainerID: String = ""
+    /// "", "waiting", "accepted" or "declined".
+    var trainerStatus: String = ""
+    var trainerNote: String = ""
 
     init(id: String, convID: String, name: String, createdBy: String) {
         self.id = id; self.convID = convID; self.name = name; self.createdBy = createdBy
@@ -64,14 +69,42 @@ import SwiftData
     init(id: String, memberID: String) { self.id = id; self.memberID = memberID }
 }
 
+/// Transformation journey: front / side / back progress photos, shared end-to-end encrypted in the member's chat.
+@Model final class GymPhoto {
+    @Attribute(.unique) var id: String
+    var memberID: String
+    /// "Front", "Side" or "Back".
+    var pose: String = "Front"
+    var date: Date = Date.now
+    var photoData: Data?
+    var note: String = ""
+    var weight: Double = 0
+    var by: String = ""
+    var updatedAt: Date = Date.distantPast
+    var deleted: Bool = false
+
+    init(id: String, memberID: String) { self.id = id; self.memberID = memberID }
+
+    var photo: AttachmentRef? {
+        get { Packed.decode(AttachmentRef.self, photoData) }
+        set { photoData = newValue.map { Packed.encode($0) } }
+    }
+    static let poses = ["Front", "Side", "Back"]
+}
+
 enum GymPaymentKind: String, CaseIterable, Identifiable {
-    case membership, training, supplements, other
+    case membership, training, supplements, protein, gear, shoes, equipment, medical, other
     var id: String { rawValue }
     var title: String {
         switch self {
         case .membership: "Gym membership"
         case .training: "Personal training"
         case .supplements: "Supplements & diet"
+        case .protein: "Protein & creatine"
+        case .gear: "Gear & clothing"
+        case .shoes: "Shoes"
+        case .equipment: "Home equipment"
+        case .medical: "Medical & tests"
         case .other: "Other"
         }
     }
@@ -80,6 +113,11 @@ enum GymPaymentKind: String, CaseIterable, Identifiable {
         case .membership: "building.2.fill"
         case .training: "figure.strengthtraining.traditional"
         case .supplements: "takeoutbag.and.cup.and.straw.fill"
+        case .protein: "pills.fill"
+        case .gear: "tshirt.fill"
+        case .shoes: "shoe.fill"
+        case .equipment: "dumbbell.fill"
+        case .medical: "stethoscope"
         case .other: "indianrupeesign.circle.fill"
         }
     }

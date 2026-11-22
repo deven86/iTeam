@@ -101,8 +101,10 @@ struct GymHomeView: View {
 
     /// Clients first, then everyone else.
     private var groups: [(String, [GymMember])] {
-        let clients = members.filter { $0.relation == "Client" }
-        let others = members.filter { $0.relation != "Client" }
+        let me = engine.me
+        let isClient: (GymMember) -> Bool = { $0.relation == "Client" || ($0.trainerID == me && $0.createdBy != me) }
+        let clients = members.filter(isClient)
+        let others = members.filter { !isClient($0) }
         return [("Clients", clients), ("Me & family", others)].filter { !$0.1.isEmpty }
     }
 
@@ -219,6 +221,18 @@ struct GymMemberView: View {
                 }
                 if let url = URL(string: "tel://\(m.phone.filter { $0.isNumber || $0 == "+" })"), !m.phone.isEmpty {
                     Link(destination: url) { Label("Call \(m.phone)", systemImage: "phone.fill") }
+                }
+            }
+            .lookRows()
+
+            trainerSection(m)
+
+            Section {
+                NavigationLink { GymTransformationView(memberID: m.id) } label: {
+                    Label { VStack(alignment: .leading, spacing: 2) {
+                        Text("Transformation").font(.headline)
+                        Text("Front, side and back progress photos · before / after").font(.caption).foregroundStyle(look.textSecondary)
+                    } } icon: { Image(systemName: "figure.stand").foregroundStyle(look.accent) }
                 }
             }
             .lookRows()
@@ -346,6 +360,38 @@ struct GymMemberView: View {
         }
     }
 
+    @State private var declineNote = ""
+    @State private var askDecline = false
+
+    @ViewBuilder private func trainerSection(_ m: GymMember) -> some View {
+        if !m.trainerID.isEmpty {
+            Section {
+                if m.trainerID == engine.me && m.trainerStatus == "waiting" {
+                    Text("\(engine.name(of: m.createdBy)) asked you to be \(m.name)'s trainer. You'll see their sessions, payments and progress photos in your chat.")
+                        .font(.subheadline)
+                    HStack {
+                        Button { engine.answerTrainer(m, accept: true, note: ""); Haptics.big() } label: { Label("Accept", systemImage: "checkmark") }
+                            .buttonStyle(.glassProminent)
+                        Button(role: .destructive) { askDecline = true } label: { Label("Decline", systemImage: "xmark") }.buttonStyle(.glass)
+                    }
+                } else {
+                    let who = m.trainerID == engine.me ? "You" : engine.name(of: m.trainerID)
+                    switch m.trainerStatus {
+                    case "accepted": Label("\(who) \(m.trainerID == engine.me ? "are" : "is") the trainer ✓", systemImage: "checkmark.seal.fill").foregroundStyle(look.success)
+                    case "declined": Label("\(who) declined\(m.trainerNote.isEmpty ? "" : " — “\(m.trainerNote)”")", systemImage: "xmark.seal").foregroundStyle(look.danger)
+                    default: Label("Waiting for \(who) to accept", systemImage: "hourglass").foregroundStyle(look.warning)
+                    }
+                }
+            } header: { Text("Trainer") }
+            .lookRows()
+            .alert("Decline training \(m.name)?", isPresented: $askDecline) {
+                TextField("Reason (optional)", text: $declineNote)
+                Button("Decline", role: .destructive) { engine.answerTrainer(m, accept: false, note: declineNote) }
+                Button("Cancel", role: .cancel) {}
+            }
+        }
+    }
+
     private func planRow(_ p: GymPlan) -> some View {
         VStack(alignment: .leading, spacing: 6) {
             HStack {
@@ -392,6 +438,19 @@ struct GymMemberEditor: View {
     @State private var fee = ""
     @State private var avatar: Data?
     @State private var photo: PhotosPickerItem?
+    @State private var trainerID = ""
+    @Query(filter: #Predicate<Contact> { $0.saved }, sort: \Contact.name) private var contacts: [Contact]
+
+    /// Who can be picked as trainer: people in the record's chat (existing) or any contact (new — the chat follows).
+    private var trainerChoices: [(id: String, name: String)] {
+        if let m = member, let conv = engine.conversation(m.convID) {
+            return conv.members.filter { $0.id != engine.me }.map { ($0.id, $0.name) }
+        }
+        if !chatID.isEmpty, let conv = engine.conversation(chatID) {
+            return conv.members.filter { $0.id != engine.me }.map { ($0.id, $0.name) }
+        }
+        return contacts.map { ($0.userID, $0.name) }
+    }
 
     var body: some View {
         Form {
@@ -407,9 +466,16 @@ struct GymMemberEditor: View {
                 TextField("Goal (e.g. Fat loss, Strength, Rehab)", text: $goal)
             }
             .lookRows()
-            Section("Personal trainer") {
-                TextField("Trainer's name", text: $trainer)
+            Section {
+                Picker("Trainer on iTeam", selection: $trainerID) {
+                    Text("None / not on iTeam").tag("")
+                    ForEach(trainerChoices, id: \.id) { Text($0.name).tag($0.id) }
+                }
+                if trainerID.isEmpty { TextField("Trainer's name", text: $trainer) }
                 TextField("Fee per session", text: $fee).keyboardType(.decimalPad)
+            } header: { Text("Personal trainer") } footer: {
+                Text(trainerID.isEmpty ? "Pick your trainer from iTeam so they see your sessions, payments and progress photos — they must accept first." :
+                        "They get a request and must accept. Everything about \(name.isEmpty ? "this person" : name) is shared only in your chat with them.")
             }
             .lookRows()
             if member == nil {
@@ -436,9 +502,11 @@ struct GymMemberEditor: View {
                     let conv = member.flatMap { engine.conversation($0.convID) }
                         ?? (chatID.isEmpty ? DemoChats.notesToSelf(engine) : engine.conversation(chatID))
                     guard let conv else { return }
+                    let trainerName = trainerID.isEmpty ? trainer : (trainerChoices.first { $0.id == trainerID }?.name ?? trainer)
                     let id = engine.saveGymMember(in: conv, id: member?.id, name: name.trimmingCharacters(in: .whitespaces),
-                                                  relation: relation, phone: phone, goal: goal, trainer: trainer,
-                                                  fee: Double(fee.replacingOccurrences(of: ",", with: "")) ?? 0, avatar: avatar)
+                                                  relation: relation, phone: phone, goal: goal, trainer: trainerName,
+                                                  fee: Double(fee.replacingOccurrences(of: ",", with: "")) ?? 0, avatar: avatar,
+                                                  trainerID: trainerID == (member?.trainerID ?? "") ? nil : trainerID)
                     Haptics.success()
                     dismiss()
                     onSaved(id)
@@ -449,11 +517,18 @@ struct GymMemberEditor: View {
         }
         .onAppear {
             guard let m = member else { return }
-            name = m.name; relation = m.relation; phone = m.phone; goal = m.goal; trainer = m.trainer; avatar = m.avatar
+            name = m.name; relation = m.relation; phone = m.phone; goal = m.goal; trainer = m.trainer; avatar = m.avatar; trainerID = m.trainerID
             fee = m.feePerSession > 0 ? String(format: "%.0f", m.feePerSession) : ""
         }
         .onChange(of: photo) { _, item in
             Task { if let d = try? await item?.loadTransferable(type: Data.self) { avatar = OnboardingView.avatarData(d) } }
+        }
+        .onChange(of: trainerID) { _, id in
+            // New record + a trainer picked from contacts: share it in your one-to-one chat with them.
+            guard member == nil, chatID.isEmpty, !id.isEmpty, let c = contacts.first(where: { $0.userID == id }) else { return }
+            chatID = engine.directConversation(with: c).id
+            if relation == "Client" { relation = "Self" }
+            if name.isEmpty { name = engine.myName }
         }
     }
 }

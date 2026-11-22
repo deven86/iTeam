@@ -37,6 +37,16 @@ def text(name): return open(f"appstore/{name}.txt").read().strip()
 app = call("GET", f"/apps?filter[bundleId]={BUNDLE}")["data"][0]; aid = app["id"]
 note("app", f"{app['attributes']['name']} ({aid})")
 
+if E.get("STATUS_ONLY") == "yes":
+    for x in call("GET", f"/apps/{aid}/appStoreVersions?filter[platform]=IOS&limit=10")["data"]:
+        note("version", f"{x['attributes']['versionString']}: {x['attributes'].get('appStoreState')}")
+    for st in ("WAITING_FOR_REVIEW", "IN_REVIEW", "UNRESOLVED_ISSUES", "READY_FOR_REVIEW"):
+        for sub in (call("GET", f"/reviewSubmissions?filter[app]={aid}&filter[platform]=IOS&filter[state]={st}") or {}).get("data", []):
+            note("submission", f"{sub['id']}: {st}")
+    b = call("GET", f"/builds?filter[app]={aid}&sort=-uploadedDate&limit=3")["data"]
+    for x in b: note("build", f"{x['attributes']['version']} {x['attributes']['processingState']}")
+    sys.exit(0)
+
 # Content rights: no third-party content
 call("PATCH", f"/apps/{aid}", {"data": {"type": "apps", "id": aid, "attributes": {"contentRightsDeclaration": "DOES_NOT_USE_THIRD_PARTY_CONTENT"}}})
 

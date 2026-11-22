@@ -21,6 +21,9 @@ on:
       withdraw:
         description: "Type yes to pull a waiting submission first (to swap the build)"
         default: "no"
+      status_only:
+        description: "Type yes to only print the current App Store status"
+        default: "no"
 
 permissions:
   contents: read
@@ -55,6 +58,7 @@ jobs:
           SUBMIT: ${{ inputs.submit }}
           BUILD: ${{ inputs.build }}
           WITHDRAW: ${{ inputs.withdraw }}
+          STATUS_ONLY: ${{ inputs.status_only }}
           FIRST: Devendra
           LAST: Jondhale
           APP_NAME: iTeam Chat

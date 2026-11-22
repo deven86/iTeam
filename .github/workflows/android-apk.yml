@@ -1,0 +1,43 @@
+name: Android APK
+# Builds a sideload APK (no Google Play). Download it from the run's "Artifacts" section.
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths: ["android/**", ".github/workflows/android-apk.yml"]
+
+permissions:
+  contents: read
+
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-java@v4
+        with: { distribution: temurin, java-version: "17" }
+      - uses: gradle/actions/setup-gradle@v4
+        with: { gradle-version: "8.11.1" }
+      - name: Signing key
+        env:
+          KS: ${{ secrets.ANDROID_KEYSTORE_B64 }}
+        run: |
+          if [ -n "$KS" ]; then printf '%s' "$KS" | base64 --decode > "$RUNNER_TEMP/iteam.jks"; echo "KEYSTORE_FILE=$RUNNER_TEMP/iteam.jks" >> "$GITHUB_ENV"
+          else echo "::warning::No ANDROID_KEYSTORE_B64 secret: APK is debug-signed, so updates must uninstall the old one first."; fi
+      - name: Build APK
+        env:
+          CK_API_TOKEN: ${{ secrets.CK_API_TOKEN }}
+          KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+        run: |
+          [ -n "$CK_API_TOKEN" ] || echo "::warning::CK_API_TOKEN secret missing — the app will open but can't connect."
+          gradle -p android assembleRelease --no-daemon
+          mkdir -p out && cp android/app/build/outputs/apk/release/*.apk "out/iTeam-${GITHUB_RUN_NUMBER}.apk"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: iTeam-android-apk
+          path: out/*.apk
+          retention-days: 30
+      - name: Remove key
+        if: always()
+        run: rm -f "$RUNNER_TEMP/iteam.jks"

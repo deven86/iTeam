@@ -563,6 +563,18 @@ extension SyncEngine {
     // MARK: - Reset
 
     /// Deletes everything on this device (iCloud copies expire on their own).
+    /// Deletes my iTeam account: public profile, Nearby listing and room memberships in iCloud,
+    /// then everything on this device. Messages already delivered stay on the other person's phone.
+    func deleteAccount() async {
+        let id = me
+        try? await cloud.delete(["P" + id])
+        await Nearby.shared.remove(userID: id)
+        for (roomID, _) in Rooms.shared.joined { if let r = Rooms.shared.room(roomID) { await Rooms.shared.leave(r) } }
+        eraseLocalData()
+        for key in ["me.id", "me.name", "me.avatar"] { UserDefaults.standard.removeObject(forKey: key) }
+        me = ""; myName = ""; myAvatar = nil
+    }
+
     func eraseLocalData() {
         try? context.delete(model: Message.self)
         try? context.delete(model: Conversation.self)

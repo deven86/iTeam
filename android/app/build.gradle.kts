@@ -6,13 +6,14 @@ plugins {
 
 android {
     namespace = "com.jondhale.iteam"
-    compileSdk = 35
+    compileSdk = 36
     defaultConfig {
         applicationId = "com.jondhale.iteam"
         minSdk = 28
-        targetSdk = 35
-        versionCode = (System.getenv("GITHUB_RUN_NUMBER") ?: "1").toInt()
-        versionName = "1.0." + (System.getenv("GITHUB_RUN_NUMBER") ?: "0")
+        targetSdk = 36
+        // One rising number for every build (sideload APK and Play bundle): minutes since 1 Jan 2025.
+        versionCode = (System.getenv("VERSION_CODE") ?: System.getenv("GITHUB_RUN_NUMBER") ?: "1").toInt()
+        versionName = System.getenv("VERSION_NAME") ?: ("1.0." + (System.getenv("GITHUB_RUN_NUMBER") ?: "0"))
         // CloudKit web API token (public by design, like any CloudKit JS page) and environment.
         buildConfigField("String", "CK_TOKEN", "\"" + (System.getenv("CK_API_TOKEN") ?: "") + "\"")
         buildConfigField("String", "CK_ENV", "\"" + (System.getenv("CK_ENV") ?: "production") + "\"")

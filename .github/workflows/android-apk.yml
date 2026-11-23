@@ -47,6 +47,7 @@ jobs:
           KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
         run: |
           [ -n "$CK_API_TOKEN" ] || echo "::warning::CK_API_TOKEN secret missing — the app will open but can't connect."
+          export VERSION_CODE=$(( ($(date +%s) - 1735689600) / 60 ))
           gradle -p android assembleRelease --no-daemon
           mkdir -p out && cp android/app/build/outputs/apk/release/*.apk "out/iTeam-${GITHUB_RUN_NUMBER}.apk"
       - uses: actions/upload-artifact@v4

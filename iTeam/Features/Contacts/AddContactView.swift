@@ -87,7 +87,7 @@ struct AddContactView: View {
                 } message: { Text("Old copies (screenshots, prints) stop working. People already in your contacts aren't affected.") }
             Text("Let the other person scan this in iTeam → Add contact → Scan.").font(.footnote)
                 .foregroundStyle(look.textSecondary).multilineTextAlignment(.center)
-            ShareLink(item: "Add me on iTeam: \(inv.url.absoluteString)") {
+            ShareLink(item: "Add me on iTeam: \(inv.url.absoluteString)\n\nDon't have iTeam yet? Get it here: https://deven86.github.io/iTeam/") {
                 Label("Share my invite link", systemImage: "square.and.arrow.up").frame(maxWidth: .infinity)
             }
             .buttonStyle(.glass).controlSize(.large)

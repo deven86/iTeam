@@ -21,6 +21,7 @@ struct SettingsView: View {
     @State private var cacheSize = 0
     @State private var exportURL: URL?
     @State private var confirmErase = false
+    @State private var confirmDeleteAccount = false
     @State private var showPaywall = false
     @State private var showOwnerVerify = false
     @ObservedObject private var store = Store.shared
@@ -180,6 +181,7 @@ struct SettingsView: View {
                     }
                     Button("Remove demo chats") { DemoChats.remove(engine) }
                     Button("Erase all data on this device", role: .destructive) { confirmErase = true }
+                    Button("Delete my account", role: .destructive) { confirmDeleteAccount = true }
                 } header: {
                     Text("Storage & sync")
                 } footer: {
@@ -202,6 +204,11 @@ struct SettingsView: View {
             .sheet(isPresented: $showOwnerVerify) { OwnerVerifyView() }
             .sheet(isPresented: $editProfile) { NavigationStack { EditProfileView() } }
             .sheet(isPresented: $showPaywall) { CarePaywall() }
+            .confirmationDialog("Delete your iTeam account?", isPresented: $confirmDeleteAccount, titleVisibility: .visible) {
+                Button("Delete account", role: .destructive) { Task { await engine.deleteAccount() } }
+            } message: {
+                Text("Your profile, Nearby listing and room memberships are removed from iCloud, and all iTeam data is erased from this device. Messages you already sent stay on the other person's phone. This can't be undone.")
+            }
             .confirmationDialog("Erase everything on this device?", isPresented: $confirmErase, titleVisibility: .visible) {
                 Button("Erase", role: .destructive) { engine.eraseLocalData() }
             } message: {

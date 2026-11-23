@@ -31,6 +31,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import java.io.ByteArrayOutputStream
+import kotlinx.coroutines.launch
 
 // Settings: my details & photo, privacy, Module Store, appearance (the iPhone's three looks), bottom bar.
 
@@ -89,6 +90,24 @@ fun visibleModules(store: Store): List<String> {
 @Composable
 fun SettingsTab(app: AppState, open: (Page) -> Unit) {
     var invite by remember { mutableStateOf(false) }
+    var deleteAcc by remember { mutableStateOf(false) }
+    val ctx = androidx.compose.ui.platform.LocalContext.current
+    val scope = rememberCoroutineScope()
+    if (deleteAcc) AlertDialog(onDismissRequest = { deleteAcc = false }, title = { Text("Delete your iTeam account?") },
+        text = { Text("Your profile, Nearby listing and room memberships are removed from iCloud, and all iTeam data on this phone is erased (chats, records, wallet, keys). Messages you already sent stay on the other person's phone. This can't be undone.") },
+        confirmButton = { TextButton({
+            deleteAcc = false
+            scope.launch(kotlinx.coroutines.Dispatchers.IO) {
+                runCatching { app.sync.cloudKit.modify(listOf(app.sync.cloudKit.delete("P" + app.store.me))) }
+                runCatching { app.nearby.remove() }
+                runCatching { app.rooms.joinedRooms().forEach { app.rooms.leave(it) } }
+                app.store.wipe()
+                kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
+                    (ctx as? android.app.Activity)?.finishAffinity(); android.os.Process.killProcess(android.os.Process.myPid())
+                }
+            }
+        }) { Text("Delete", color = MaterialTheme.colorScheme.error) } },
+        dismissButton = { TextButton({ deleteAcc = false }) { Text("Cancel") } })
     val store = app.store
     Scaffold(topBar = { TopAppBar(title = { Text("Settings", fontWeight = FontWeight.Bold) }) }) { pad ->
         LazyColumn(Modifier.padding(pad)) {
@@ -106,8 +125,14 @@ fun SettingsTab(app: AppState, open: (Page) -> Unit) {
                 Row1(Icons.Default.Lightbulb, "Request a module") { open(Page.ModuleRequest) }
                 Row1(Icons.Default.Feedback, "Help & grievances") { open(Page.Help) }
                 HorizontalDivider()
+                Row1(Icons.Default.Share, "Invite friends", "One link for iPhone and Android") {
+                    val i = android.content.Intent(android.content.Intent.ACTION_SEND).setType("text/plain").putExtra(android.content.Intent.EXTRA_TEXT,
+                        "Join me on iTeam — chat, tasks and business in one app 🚀\n\nDownload (iPhone & Android): https://deven86.github.io/iTeam/\n\nThen add me: ${app.sync.inviteLink()}")
+                    ctx.startActivity(android.content.Intent.createChooser(i, "Invite friends"))
+                }
                 Row1(Icons.Default.NearMe, "People & businesses nearby") { open(Page.Nearby) }
                 Row1(Icons.Default.GroupAdd, "New group") { open(Page.NewGroup) }
+                Row1(Icons.Default.PersonRemove, "Delete my account") { deleteAcc = true }
                 Text("Messages are end-to-end encrypted with a key that lives only on this phone. They travel through Apple's iCloud — there is no iTeam server.\n\nApp version ${BuildConfig.VERSION_NAME}",
                     Modifier.padding(16.dp), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }

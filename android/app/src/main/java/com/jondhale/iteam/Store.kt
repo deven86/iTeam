@@ -87,7 +87,7 @@ data class Rec(val id: String, var conv: String, var owner: String, var by: Stri
 }
 
 /** Local data: chats in a private file, keys in Android's encrypted storage (Keystore-backed). */
-class Store private constructor(ctx: Context) {
+class Store private constructor(private val ctx: Context) {
     companion object {
         @Volatile private var inst: Store? = null
         fun get(ctx: Context) = inst ?: synchronized(this) { inst ?: Store(ctx.applicationContext).also { inst = it } }
@@ -221,6 +221,13 @@ class Store private constructor(ctx: Context) {
         })
         o.put("biz", recs(biz)); o.put("build", recs(build)); o.put("att", recs(att)); o.put("fin", recs(fin)); o.put("misc", recs(misc))
         val tmp = File(file.path + ".tmp"); tmp.writeText(o.toString()); tmp.renameTo(file)
+    }
+
+    /** Deletes everything iTeam keeps on this phone (data, keys, sign-in). */
+    @Synchronized fun wipe() {
+        cache.clear(); secure.edit().clear().commit()
+        file.delete(); File(file.path + ".tmp").delete()
+        File(ctx.filesDir, "wallet").deleteRecursively()
     }
 
     fun signOut() { cache.remove("ck.web"); secure.edit().remove("ck.web").apply() }

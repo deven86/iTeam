@@ -168,6 +168,15 @@ struct GymPhotoCapture: View {
                     }
                 }
             } footer: { Text("Stand in the same place each time, arms relaxed, full body in frame.") }
+            AIScanSection(spec: ScanSpec(title: "Scan the InBody / body-composition report", what: "an InBody or body-composition analysis printout",
+                                         fields: [.number("weight", "Weight (kg)"), .number("fat", "Body fat %"), .number("muscle", "Skeletal muscle mass (kg)"),
+                                                  .number("bmi", "BMI"), .number("visceral", "Visceral fat level"), .number("bmr", "BMR (kcal)"), .number("score", "InBody score")],
+                                         hint: "Copy the numbers exactly as printed. Do not interpret them.")) { o in
+                if let v = o.number("weight") { weight = String(v) }
+                let parts = [("Fat", o.str("fat"), "%"), ("Muscle", o.str("muscle"), " kg"), ("BMI", o.str("bmi"), ""), ("Visceral", o.str("visceral"), ""),
+                             ("BMR", o.str("bmr"), " kcal"), ("Score", o.str("score"), "")].compactMap { t in t.1.map { "\(t.0) \($0)\(t.2)" } }
+                if !parts.isEmpty { note = "InBody: " + parts.joined(separator: " · ") }
+            }
             Section {
                 TextField("Weight in kg (optional)", text: $weight).keyboardType(.decimalPad)
                 TextField("Note (optional)", text: $note)

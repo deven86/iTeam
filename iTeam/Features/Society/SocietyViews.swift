@@ -510,6 +510,13 @@ struct SocComplaintDetail: View {
                 if !r.complaint.photos.isEmpty { ScrollView(.horizontal) { HStack { ForEach(r.complaint.photos) { AttachmentThumb(ref: $0, size: 80) } } } }
             }
             if !r.complaint.reply.isEmpty { Section("Committee reply") { Text(r.complaint.reply) } }
+            if committee && AISettings.shared.allows(.advisor) {
+                Section {
+                    AISuggest(title: "Possible solutions & reply",
+                              instructions: "You help a housing society committee in India. For this complaint, list practical solutions (who to call, rough cost range, by-law angle if relevant), then draft a short polite reply to the flat owner.",
+                              context: { "Complaint: \(r.complaint.title)\nCategory: \(r.complaint.category)\nDetails: \(r.complaint.detail)\nRaised: \(r.createdAt.formatted(date: .abbreviated, time: .omitted))\nStatus: \(r.status)\nSimilar past complaints: " + recs.filter { $0.kind == "complaint" && $0.id != r.id && $0.complaint.category == r.complaint.category }.prefix(8).map { "\($0.complaint.title) (\($0.status))" }.joined(separator: "; ") })
+                }
+            }
             Section("Status: \(r.status.capitalized)") {
                 if committee {
                     TextField("Reply to the owner", text: $reply, axis: .vertical)
@@ -534,6 +541,14 @@ struct SocComplaintEditor: View {
     @State private var photo: PhotosPickerItem?
     var body: some View {
         Form {
+            AIScanSection(spec: ScanSpec(title: "Scan a written complaint", what: "a written complaint letter to a housing society",
+                                         fields: [.text("title", "What's wrong (short)"), .choice("category", "Category", ["Maintenance", "Plumbing", "Electrical", "Lift", "Security", "Cleaning", "Parking", "Noise", "Other"]),
+                                                  .long("detail", "Details")])) { o in
+                if let v = o.str("title") { d.title = v }
+                if let v = o.str("category") { d.category = v }
+                if let v = o.str("detail") { d.detail = v }
+                for p in o.files { d.photos.append(p.ref); uploads[p.upload.0] = p.upload.1 }
+            }
             TextField("What's wrong?", text: $d.title)
             Picker("Category", selection: $d.category) {
                 ForEach(["Maintenance", "Plumbing", "Electrical", "Lift", "Security", "Cleaning", "Parking", "Noise", "Other"], id: \.self) { Text($0) }
@@ -585,8 +600,18 @@ struct SocNoticesView: View {
         .sheet(isPresented: $add) {
             NavigationStack {
                 Form {
+                    AIScanSection(spec: ScanSpec(title: "Scan a printed notice or agenda", what: "a housing society notice, circular or AGM/meeting agenda",
+                                                 fields: [.text("title", "Title"), .long("body", "Full text of the notice")])) { o in
+                        if let v = o.str("title") { n.title = v }
+                        if let v = o.str("body") { n.body = v }
+                    }
                     TextField("Title", text: $n.title)
                     TextField("Message", text: $n.body, axis: .vertical)
+                    if AISettings.shared.allows(.advisor) {
+                        AISuggest(title: "Draft a meeting agenda / notice",
+                                  instructions: "Draft a formal notice for an Indian co-operative housing society: meeting type, date/time/venue placeholders, numbered agenda (confirm last minutes, accounts, maintenance, repairs, complaints, any other matter with the chair's permission) and the secretary's sign-off. Use the title and message as the topic.",
+                                  context: { "Society: \(society.society.name)\nTitle: \(n.title)\nMessage so far: \(n.body)\nOpen complaints: " + recs.filter { $0.kind == "complaint" && $0.status != "resolved" }.prefix(15).map { $0.complaint.title }.joined(separator: "; ") })
+                    }
                 }
                 .navigationTitle("New notice")
                 .toolbar {

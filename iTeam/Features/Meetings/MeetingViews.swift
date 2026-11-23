@@ -181,11 +181,31 @@ struct MeetingEditor: View {
 
     private var people: [MemberInfo] { conv.members }
 
+    private var scanSpec: ScanSpec {
+        ScanSpec(title: "Scan a meeting notice or agenda", what: "a meeting notice, circular or agenda (company, society, trust or committee)",
+                 fields: [.text("title", "Meeting title"), .date("start", "Date and time"), .text("place", "Venue / link"), .number("minutes", "Duration in minutes (if written)")],
+                 rows: [.text("item", "Agenda point")], rowsLabel: "Agenda points")
+    }
+
+    private func applyScan(_ o: ScanOutput) {
+        if let v = o.str("title") { title = v }
+        if let v = o.date("start") { start = v }
+        if let v = o.str("place") {
+            if v.lowercased().hasPrefix("http") { online = true; link = v } else { place = v }
+        }
+        if let v = o.number("minutes"), v >= 15 { minutesLong = min(480, v) }
+        let points = o.rows.compactMap { $0["item"] }.filter { !$0.isEmpty }
+        if !points.isEmpty { agenda = agenda.filter { !$0.isEmpty } + points }
+        for p in o.files { files.append(p.ref); uploads[p.upload.0] = p.upload.1 }
+    }
+
     var body: some View {
         Form {
+            AIScanSection(spec: scanSpec, onApply: applyScan)
             Section("Meeting") {
                 TextField("Title", text: $title)
                 DatePicker("Starts", selection: $start)
+                HolidayWarning(date: start)
                 Stepper("Duration \(Int(minutesLong)) min", value: $minutesLong, in: 15...480, step: 15)
                 Picker("Where", selection: $online) { Text("In person").tag(false); Text("Online").tag(true) }.pickerStyle(.segmented)
                 if online {

@@ -55,6 +55,7 @@ targets:
         NSHealthShareUsageDescription: iTeam reads your steps, workouts, heart rate, sleep and weight from Apple Health for the Gym & Training module.
         NSHealthUpdateUsageDescription: iTeam saves your workouts, meals, water and weight to Apple Health so all your apps stay in sync.
         NSCalendarsWriteOnlyAccessUsageDescription: iTeam adds events you're invited to into your calendar when you tap "Add to Apple Calendar".
+        NSCalendarsFullAccessUsageDescription: iTeam reads the holidays in your calendar to warn you when a hearing, meeting or event falls on a holiday. Nothing leaves your phone.
         NSAppleMusicUsageDescription: iTeam can show the song you're playing in Apple Music to your contacts, only if you turn it on in Privacy.
         LSApplicationQueriesSchemes:
           - comgooglemaps

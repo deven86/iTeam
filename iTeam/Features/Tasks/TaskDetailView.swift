@@ -230,6 +230,7 @@ struct TaskDetailView: View {
             headerSection(t)
             statusSection(t)
             detailsSection(t)
+            TaskIdeasSection(task: t)
             DocumentsSection(module: "task", recordID: t.id, recordOwner: t.createdBy, convID: t.convID ?? "", title: t.title, canAdd: canEdit(t)).lookRows()
 
             Section("Checklist") {
@@ -424,5 +425,45 @@ struct DueRow: View {
                     engine.updateTask(task, fields: ["dueAt"], change: "changed the due date to \(Fmt.due(d))", loud: true) { $0.dueAt = d }
                 }
         }
+    }
+}
+
+
+// MARK: - ✨ How to do this task, who can help, who did similar work before
+
+struct TaskIdeasSection: View {
+    let task: TaskItem
+    @EnvironmentObject var engine: SyncEngine
+    @ObservedObject private var ai = AISettings.shared
+    @Query(filter: #Predicate<TaskItem> { !$0.deleted && $0.completedAt != nil }, sort: \TaskItem.completedAt, order: .reverse) private var done: [TaskItem]
+
+    private static func words(_ s: String) -> Set<String> {
+        Set(s.lowercased().components(separatedBy: CharacterSet.alphanumerics.inverted).filter { $0.count > 3 })
+    }
+
+    private var similar: [TaskItem] {
+        let w = Self.words(task.title + " " + task.notes)
+        guard !w.isEmpty else { return [] }
+        return done.filter { $0.id != task.id }.map { ($0, Self.words($0.title + " " + $0.notes).intersection(w).count) }
+            .filter { $0.1 > 0 }.sorted { $0.1 > $1.1 }.prefix(8).map { $0.0 }
+    }
+
+    var body: some View {
+        if ai.allows(.advisor) && !task.isDone {
+            Section {
+                AISuggest(title: "How to do this & who can help",
+                          instructions: "Help the person assigned to this task: give clear steps to complete it, what to prepare, and risks. Then, from the similar finished tasks, say who has done similar work before (names given), how they did it (from their notes) and who could help. Only use names in the data.",
+                          context: context)
+            } footer: { Text("Uses this task and up to 8 similar finished tasks from your chats.") }
+        }
+    }
+
+    private func context() -> String {
+        var s = "This task: \(task.title)\nNotes: \(task.notes)\nDue: \(task.dueAt?.formatted(date: .abbreviated, time: .shortened) ?? "none")\nAssigned to: \(task.assignees.map { engine.name(of: $0) }.joined(separator: ", "))\n\nSimilar finished tasks:\n"
+        for t in similar {
+            let who = (t.assignees.isEmpty ? [t.createdBy] : t.assignees).map { engine.name(of: $0) }.joined(separator: ", ")
+            s += "- \(t.title) — done by \(who) on \(t.completedAt?.formatted(date: .abbreviated, time: .omitted) ?? "") — notes: \(String(t.notes.prefix(300)))\n"
+        }
+        return s
     }
 }

@@ -155,6 +155,23 @@ struct BuildDashboard: View {
                 }
                 .lookRows()
             }
+            if isAdmin && AISettings.shared.allows(.advisor) {
+                Section {
+                    AISuggest(title: "Units in high & low demand",
+                              instructions: "From the units, enquiries and sales: which unit types / floors / facings sell fast and which are slow, with numbers. Suggest pricing or offer ideas for slow units.",
+                              context: { BuildShare.projectText(project, recs: recs, engine: engine) }, postTo: conv)
+                    AISuggest(title: "Team effort & critical errors",
+                              instructions: "From the daily logs, progress, tests and inspections: who is reporting regularly and who isn't (counts only — never accuse), critical errors (failed tests, safety issues, delays) and what to fix first.",
+                              context: { BuildShare.projectText(project, recs: recs, engine: engine) })
+                    AISuggest(title: "Government approvals — step by step",
+                              instructions: "You help an Indian builder (Maharashtra if not stated). From the approvals already in the data, list the usual remaining approvals in order (e.g. land title, NA/zone, building permission/commencement certificate, environment, RERA registration, plinth, occupancy/completion, fire NOC, water/electricity) with the documents normally needed. Say clearly that rules differ by city — confirm with the local authority or an architect.",
+                              context: { BuildShare.projectText(project, recs: recs, engine: engine) })
+                    AISuggest(title: "Disputes — possible solutions",
+                              instructions: "For each open dispute in the data, suggest practical ways to settle it (talks, documents to collect, notices, mediation, RERA/consumer/civil forum) and the risk of each. Advice only; suggest consulting the lawyer.",
+                              context: { BuildShare.projectText(project, recs: recs, engine: engine) })
+                } header: { Text("✨ AI suggestions") }
+                .lookRows()
+            }
             if !aboutMe.isEmpty {
                 Section { NavigationLink { BuildClientView(items: aboutMe, recs: [] ) } label: { Label("My homes & shares in others' projects", systemImage: "house.and.flag.fill") } }.lookRows()
             }

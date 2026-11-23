@@ -441,8 +441,22 @@ struct DocumentEditor: View {
     @State private var picks: [PhotosPickerItem] = []
     @State private var busy = false
 
+    private var scanSpec: ScanSpec {
+        ScanSpec(title: "Read the paper to fill title, folder & date", what: module == "legal" ? "an Indian court or legal document" : "a document for the \(module) records",
+                 fields: [.text("title", "Short title with the document type and date (e.g. 'Bail order dt. 12.03.2026')"),
+                          .choice("folder", "Folder", DocFolders.defaults(module)), .date("date", "Date of the document"),
+                          .long("notes", "One-line summary, plus exhibit / page numbers if printed")])
+    }
+
     var body: some View {
         Form {
+            AIScanSection(spec: scanSpec) { o in
+                if let v = o.str("title") { title = v }
+                if let v = o.str("folder"), DocFolders.defaults(module).contains(v) { chosenFolder = v }
+                if let v = o.date("date") { hasDate = true; date = v }
+                if let v = o.str("notes") { notes = notes.isEmpty ? v : notes + "\n" + v }
+                if existing == nil && preset == nil { for p in o.files { files.append(p.ref); uploads[p.upload.0] = p.upload.1 } }
+            }
             Section("Document") {
                 TextField(module == "legal" ? "Title (e.g. Bail order dt. 12.03.2026)" : "Title", text: $title)
                 Picker("Folder", selection: $chosenFolder) {

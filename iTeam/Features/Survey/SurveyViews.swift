@@ -350,6 +350,7 @@ struct SurveyRespondView: View {
     private func form(_ s: SurveyRecord) -> some View {
         let d = s.survey
         return Form {
+            AIScanSection(spec: scanSpec(d)) { o in applyScan(o, d) }
             Section {
                 if !d.about.isEmpty { Text(d.about) }
                 if offline { TextField("Who / what is surveyed (owner, plot, flat…)", text: $resp.respondent) }
@@ -372,6 +373,45 @@ struct SurveyRespondView: View {
                 .disabled(busy || (!d.open && !offline) || d.questions.contains { $0.required && !answered($0) })
             }
         }
+    }
+
+    /// A filled paper form → answers (text, numbers, ratings, choices, dates). Photos and location stay manual.
+    private func scanSpec(_ d: SurveyData) -> ScanSpec {
+        var fs: [ScanField] = [.text("_who", "Who / what is surveyed (name, plot, flat)")]
+        for q in d.questions {
+            switch q.type {
+            case "number", "rating": fs.append(.number(q.id, q.text + (q.type == "rating" ? " (1–5)" : "")))
+            case "yesno": fs.append(.choice(q.id, q.text, ["Yes", "No"]))
+            case "choice": fs.append(.choice(q.id, q.text, q.options))
+            case "multi": fs.append(.text(q.id, q.text + " (any of: " + q.options.joined(separator: ", ") + ")"))
+            case "date": fs.append(.date(q.id, q.text))
+            case "location", "photo", "video": continue
+            default: fs.append(.long(q.id, q.text))
+            }
+        }
+        return ScanSpec(title: "Scan a filled paper form", what: "a filled-in paper survey or questionnaire: \(d.title)", fields: fs,
+                        hint: "Copy each answer as the person wrote or ticked it.")
+    }
+
+    private func applyScan(_ o: ScanOutput, _ d: SurveyData) {
+        if let v = o.str("_who") { resp.respondent = v }
+        for q in d.questions {
+            guard let v = o.str(q.id) else { continue }
+            var a = resp.answers[q.id] ?? SurveyAnswer()
+            switch q.type {
+            case "number": a.number = ScanFill.number(v)
+            case "rating": a.number = ScanFill.number(v).map { min(5, max(1, $0.rounded())) }
+            case "yesno", "choice": a.choices = [v]
+            case "multi": a.choices = q.options.filter { v.lowercased().contains($0.lowercased()) }
+            case "date": a.date = ScanFill.date(v)
+            default: a.text = v
+            }
+            resp.answers[q.id] = a
+        }
+        for p in o.files { uploads[p.upload.0] = p.upload.1 }
+        if let q = d.questions.first(where: { $0.type == "photo" }), !o.files.isEmpty {
+            var a = resp.answers[q.id] ?? SurveyAnswer(); a.files += o.files.map(\.ref); resp.answers[q.id] = a
+        } else { for p in o.files { uploads.removeValue(forKey: p.upload.0) } }
     }
 
     private func answered(_ q: SurveyQuestion) -> Bool {

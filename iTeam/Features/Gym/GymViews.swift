@@ -357,6 +357,14 @@ struct GymMemberView: View {
                 }
                 .lookRows()
             }
+            if AISettings.shared.allows(.advisor) {
+                Section {
+                    AISuggest(title: "Suggest this week's workouts",
+                              instructions: "You assist a gym trainer. From the client's goal, recent sessions (which muscle groups, how often) and notes (including any InBody numbers), suggest the next 5 sessions with exercises, sets × reps, and rest, balancing muscle groups the client has skipped. Mention when to see a doctor if notes show pain or a health condition. Not medical advice.",
+                              context: { ShareText.gym(m, plans: plans, sessions: sessions, payments: payments, engine: engine) + "\nSessions:\n" + sessions.prefix(30).map { "- \($0.date.formatted(date: .abbreviated, time: .omitted)) \($0.workout) \($0.notes)" }.joined(separator: "\n") })
+                }
+                .lookRows()
+            }
             if m.createdBy == engine.me {
                 Section { Button("Remove \(m.name)", role: .destructive) { confirmDelete = true } }.lookRows()
             }
@@ -652,6 +660,14 @@ struct GymSessionEditor: View {
 
     var body: some View {
         Form {
+            AIScanSection(spec: ScanSpec(title: "Scan a workout or diet chart", what: "a gym workout card, diet chart or trainer's plan",
+                                         fields: [.date("date", "Date"), .text("trainer", "Trainer"), .choice("workout", "Workout", workouts.filter { !$0.isEmpty }),
+                                                  .long("notes", "Exercises with sets × reps and weights, or the diet plan")])) { o in
+                if let v = o.date("date") { date = v }
+                if let v = o.str("trainer") { trainer = v }
+                if let v = o.str("workout") { workout = v }
+                if let v = o.str("notes") { notes = notes.isEmpty ? v : notes + "\n" + v }
+            }
             Section {
                 DatePicker("When", selection: $date)
                 TextField("Trainer", text: $trainer)

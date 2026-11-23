@@ -182,6 +182,7 @@ struct BizHomeView: View {
     @State private var editing: BizRecord?
     @State private var shareItems: ShareItems?
     @State private var showArchive = false
+    @State private var tool: String?
 
     /// Whole-module report: every person / item with its balance and entries.
     private var reportHTML: String {
@@ -252,6 +253,13 @@ struct BizHomeView: View {
                 ToolbarItem(placement: .secondaryAction) {
                     Button("Archive (deleted)", systemImage: "archivebox") { showArchive = true }
                 }
+                if ["legal", "clinic", "tuition", "kids"].contains(spec.module) {
+                    ToolbarItem(placement: .secondaryAction) { Button("Holidays", systemImage: "calendar.badge.exclamationmark") { tool = "holidays" } }
+                }
+                if spec.module == "rent" {
+                    ToolbarItem(placement: .secondaryAction) { Button("Commission calculator", systemImage: "percent") { tool = "commission" } }
+                    ToolbarItem(placement: .secondaryAction) { Button("Check listing photo quality", systemImage: "camera.aperture") { tool = "photos" } }
+                }
                 ToolbarItem(placement: .secondaryAction) {
                     Button("Export report (PDF)", systemImage: "doc.richtext") {
                         if let url = PDFMaker.make(title: spec.title, bodyHTML: reportHTML, fileName: spec.title + " report", module: spec.title, icon: spec.icon, colors: spec.colors, charts: PDFCharts.biz(spec, records: mine)) { shareItems = ShareItems(items: [url]) }
@@ -260,6 +268,18 @@ struct BizHomeView: View {
             }
             .shareSheet($shareItems)
             .sheet(isPresented: $showArchive) { NavigationStack { BizArchiveView(spec: spec) } }
+            .sheet(item: Binding(get: { tool.map { ToolBox(id: $0) } }, set: { tool = $0?.id })) { t in
+                NavigationStack {
+                    Group {
+                        switch t.id {
+                        case "holidays": MyHolidaysView()
+                        case "commission": CommissionCalculatorView()
+                        default: PhotoQualityView()
+                        }
+                    }
+                    .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Done") { tool = nil } } }
+                }
+            }
             .refreshable { await engine.sync(); autoRun() }
             .onAppear { autoRun() }
             .sheet(isPresented: $adding) {
@@ -483,6 +503,7 @@ struct BizParentView: View {
                 }
                 .lookRows()
             }
+            BizAISection(spec: spec, record: r, children: children, mine: mine)
             // Case file / documents: every paper filed by folder, title and date (owner, team and linked client).
             DocumentsSection(module: spec.module, recordID: r.id, recordOwner: r.ownerID, convID: r.convID, title: r.title,
                              canAdd: mine || isClient, loose: r.files + children.flatMap(\.files))
@@ -721,6 +742,7 @@ struct BizEditor: View {
 
     var body: some View {
         Form {
+            AIScanSection(spec: scanSpec, onApply: applyScan)
             if existing == nil && parent == nil && kind.linkable {
                 Section {
                     Picker("Pick an iTeam user", selection: $linkTo) {
@@ -798,11 +820,50 @@ struct BizEditor: View {
             else { Picker(f.label, selection: $subtitle) { ForEach(f.options, id: \.self) { Text($0).tag($0) } } }
         case .phone: TextField(f.label, text: $phone).keyboardType(.phonePad)
         case .amount: TextField(f.label + " (₹)", text: $amount).keyboardType(.decimalPad)
-        case .date: DatePicker(f.label, selection: $date, displayedComponents: f.label.lowercased().contains("time") ? [.hourAndMinute] : (kind.statuses.isEmpty ? [.date] : [.date, .hourAndMinute]))
-        case .due: DatePicker(f.label, selection: $due, displayedComponents: [.date])
+        case .date:
+            DatePicker(f.label, selection: $date, displayedComponents: f.label.lowercased().contains("time") ? [.hourAndMinute] : (kind.statuses.isEmpty ? [.date] : [.date, .hourAndMinute]))
+            if checksHolidays { HolidayWarning(date: date) }
+        case .due:
+            DatePicker(f.label, selection: $due, displayedComponents: [.date])
+            if checksHolidays { HolidayWarning(date: due) }
         case .status: Picker(f.label, selection: $status) { ForEach(kind.statuses, id: \.self) { Text($0).tag($0) } }
         case .notes: TextField(f.label, text: $notes, axis: .vertical).lineLimit(2...6)
         }
+    }
+
+    /// Hearings, appointments and classes warn when the day is a holiday or weekend.
+    private var checksHolidays: Bool {
+        ["hearing", "appointment", "event", "timetable", "vet"].contains(kind.id) || (spec.module == "legal" && kind.id == "case")
+    }
+
+    private var scanSpec: ScanSpec {
+        var fs: [ScanField] = kind.fields.map { f in
+            switch f.key {
+            case .title: return .text("title", f.label)
+            case .subtitle: return f.options.isEmpty ? .text("subtitle", f.label) : .choice("subtitle", f.label, f.options)
+            case .phone: return .phone("phone", f.label)
+            case .amount: return .money("amount", f.label)
+            case .date: return .date("date", f.label)
+            case .due: return .date("due", f.label)
+            case .status: return .choice("status", f.label, kind.statuses)
+            case .notes: return .long("notes", f.label)
+            }
+        }
+        fs += kind.extras.map { .text("x:" + $0, $0) }
+        return ScanSpec(title: BizScan.title(spec, kind), what: BizScan.what(spec, kind), fields: fs, hint: BizScan.hint(spec, kind))
+    }
+
+    private func applyScan(_ o: ScanOutput) {
+        if let v = o.str("title") { title = v }
+        if let v = o.str("subtitle") { subtitle = v }
+        if let v = o.str("phone") { phone = v }
+        if let v = o.amountText("amount") { amount = v }
+        if let v = o.date("date") { date = v }
+        if let v = o.date("due") { due = v }
+        if let v = o.str("status"), kind.statuses.contains(v) { status = v }
+        if let v = o.str("notes") { notes = notes.isEmpty ? v : notes + "\n" + v }
+        for x in kind.extras { if let v = o.str("x:" + x) { extra[x] = v } }
+        for p in o.files { files.append(p.ref); uploads[p.upload.0] = p.upload.1 }
     }
 
     private func load() {
@@ -959,3 +1020,154 @@ enum BizVakalat {
         """
     }
 }
+
+
+// MARK: - Scan & fill wording per module
+
+enum BizScan {
+    static func title(_ spec: BizSpec, _ k: BizKind) -> String {
+        switch (spec.module, k.id) {
+        case ("legal", "case"): "Scan a case paper to add the matter"
+        case ("legal", "hearing"): "Scan the order / cause list"
+        case ("legal", "vakalat"): "Scan a vakalatnama"
+        case ("clinic", "patient"), ("clinic", "visit"): "Scan a prescription or report"
+        case ("kids", "vaccine"), ("petcare", "vaccine"): "Scan the vaccination card"
+        case ("travel", "booking"), ("travel", "trip"): "Scan a ticket or booking"
+        case (_, "fee"), (_, "bill"), (_, "charge"), (_, "payment"), (_, "got"), (_, "gave"), (_, "expense"): "Scan a bill or receipt"
+        default: "Scan a paper to fill this"
+        }
+    }
+
+    static func what(_ spec: BizSpec, _ k: BizKind) -> String {
+        switch spec.module {
+        case "legal":
+            switch k.id {
+            case "case": "an Indian court or legal paper: petition, plaint, FIR, notice, order, case status print or cause list"
+            case "hearing": "a court order, roznama, case status print or cause list showing a hearing"
+            case "vakalat": "a vakalatnama (advocate's authority signed by the client)"
+            default: "an Indian legal paper"
+            }
+        case "clinic": k.id == "bill" ? "a medical bill or receipt" : "a doctor's prescription, lab report or patient form"
+        case "kids": k.id == "vaccine" ? "a child's vaccination card" : k.id == "fee" ? "a school fee receipt or circular" : "a school circular, timetable or notice"
+        case "travel": "a flight/train/bus ticket, boarding pass, hotel booking or itinerary"
+        case "petcare": "a vet prescription, pet vaccination card or pet record"
+        case "bills": "a utility bill, insurance or subscription renewal notice"
+        case "rent": "a rent agreement, rent receipt, maintenance bill or property paper"
+        case "tuition": "an admission form, fee receipt or class timetable"
+        default: "a bill, receipt or record"
+        }
+    }
+
+    static func hint(_ spec: BizSpec, _ k: BizKind) -> String {
+        switch (spec.module, k.id) {
+        case ("legal", "case"): "In the notes put: case number, court, parties (petitioner vs respondent), sections/acts, advocate on the other side, next date and stage."
+        case ("legal", "hearing"): "The date is the NEXT hearing date. In the notes put what happened and what the order says."
+        case ("travel", _): "In the notes put PNR / booking number, from → to, times, seat or room, and the operator or hotel."
+        case ("clinic", _): "In the notes put complaints, diagnosis, medicines with strength and timing exactly as written, tests and next visit. Do not add advice."
+        default: "In the notes put anything useful that has no box (reference numbers, account numbers shown only as the last 4 digits)."
+        }
+    }
+}
+
+
+// MARK: - ✨ Suggestions per module (advice only) + live links
+
+struct BizAISection: View {
+    let spec: BizSpec
+    let record: BizRecord
+    let children: [BizRecord]
+    let mine: Bool
+    @EnvironmentObject var engine: SyncEngine
+    @ObservedObject private var ai = AISettings.shared
+
+    private func context() -> String {
+        func line(_ r: BizRecord) -> String {
+            let k = spec.kind(r.kind)
+            var bits = ["[\(k?.label ?? r.kind)] \(r.title)"]
+            if !r.subtitle.isEmpty { bits.append(r.subtitle) }
+            if r.amount != 0 { bits.append(BizSpecs.money(r.amount)) }
+            if let d = r.date { bits.append("date " + d.formatted(date: .abbreviated, time: .shortened)) }
+            if let d = r.due { bits.append("due " + d.formatted(date: .abbreviated, time: .omitted)) }
+            if !r.status.isEmpty { bits.append(r.status) }
+            if !r.notes.isEmpty { bits.append("notes: " + String(r.notes.prefix(600))) }
+            for (k, v) in r.extra where !v.isEmpty { bits.append("\(k): \(v)") }
+            return bits.joined(separator: " · ")
+        }
+        let kids = children.sorted { ($0.date ?? $0.due ?? $0.createdAt) < ($1.date ?? $1.due ?? $1.createdAt) }.suffix(40)
+        return "Today: \(Date.now.formatted(date: .complete, time: .omitted))\n\(spec.title) record:\n" + line(record) + "\n\nEntries:\n" + kids.map(line).joined(separator: "\n")
+    }
+
+    var body: some View {
+        let buttons = items
+        if (ai.allows(.advisor) && !buttons.isEmpty) || !links.isEmpty {
+            if ai.allows(.advisor) && !buttons.isEmpty {
+                Section {
+                    ForEach(buttons, id: \.0) { b in AISuggest(title: b.0, instructions: b.1, context: context) }
+                } header: { Text("✨ AI suggestions") } footer: { Text("Advice only — check before acting. Nothing is changed automatically.") }
+                .lookRows()
+            }
+            if !links.isEmpty {
+                HelpfulLinks(title: linksTitle, links: links, footer: linksFooter).lookRows()
+            }
+        }
+    }
+
+    /// (button title, instructions) per module.
+    private var items: [(String, String)] {
+        switch spec.module {
+        case "legal" where mine:
+            return [("Questions to ask the client", "You assist an Indian advocate. From this matter's details, list the questions the advocate should ask the client next, grouped (facts, documents to collect, witnesses, dates, money). Keep it short."),
+                    ("Next steps for this matter", "You assist an Indian advocate. Suggest the likely next procedural steps and what to prepare before the next date (drafts, documents, applications, limitation to check). Mention any deadline in the data. Say clearly it is a suggestion for the advocate to verify.")]
+        case "clinic" where mine:
+            return [("Visit summary", "Summarise this patient's visits, complaints and treatment over time for the doctor, in short bullets. Do not diagnose."),
+                    ("Alternative brands (same salt) — for the doctor", "For each medicine named in the data, list 2–3 other Indian brands with the SAME salt and strength, for the DOCTOR to consider. Say 'verify in CIMS / your drug reference' at the top. Never change doses or advise the patient directly.")]
+        case "kids":
+            return [("Tips for parents & upcoming vaccines", "From the child's data, list vaccines due soon (from the entries) and 4–6 practical, general health tips for parents of a child this age. Not medical advice — tell them to confirm with their paediatrician.")]
+        case "travel":
+            return [("Plan this trip", "Make a day-by-day plan for this trip using its dates and destination: famous places, local food, how to get around, and the best time to visit each place. Add an approximate budget per person in ₹ (stay, food, transport, tickets) and clearly label it approximate. Keep each day short."),
+                    ("Packing & checklist", "List what to pack and what to book or check before this trip (documents, weather, local rules), as a short checklist.")]
+        case "petcare":
+            return [("Care tips for this pet", "From the pet's data (species, breed, age, weight, vaccines, medicines), give short care tips and what's due soon. Not veterinary advice — tell them to confirm with their vet.")]
+        case "rent" where mine:
+            return [("How to talk to this client", "You help an Indian property agent / landlord. Write 3 short, polite, persuasive messages for this tenant or client based on the data (rent reminder, renewal, a new property pitch). Give tips on handling objections."),
+                    ("Listing description", "Write an attractive property listing (title, 5 bullet highlights, short description) from the property details. Don't invent facts; mark unknowns as [add].")]
+        case "bills", "khata", "tuition":
+            return mine ? [("Summary & what to do next", "Summarise this record: what's due, what's late, and the next 3 actions.")] : []
+        default: return []
+        }
+    }
+
+    private var linksTitle: String {
+        switch spec.module {
+        case "kids": "Official vaccination help"
+        case "petcare": "Near me"
+        case "clinic": "Latest medical research"
+        default: ""
+        }
+    }
+    private var linksFooter: String {
+        switch spec.module {
+        case "kids": "Vaccination drives and centres come from official government sites and Maps — not AI."
+        case "clinic": "Opens trusted journals and guidelines in Safari."
+        default: ""
+        }
+    }
+    private var links: [(String, String, String)] {
+        switch spec.module {
+        case "kids": return [("U-WIN — vaccination records & sessions (Govt of India)", "syringe", "https://uwin.mohfw.gov.in"),
+                             ("Vaccination centres near me", "map", MapsSearch.url("vaccination centre")),
+                             ("Paediatricians near me", "stethoscope", MapsSearch.url("paediatrician")),
+                             ("National immunization schedule (MoHFW)", "list.bullet.clipboard", "https://www.mohfw.gov.in")]
+        case "petcare": return [("Vets near me", "cross.case", MapsSearch.url("veterinary clinic")),
+                                ("Pet shops & groomers near me", "scissors", MapsSearch.url("pet grooming")),
+                                ("Dog parks & pet events near me", "pawprint", MapsSearch.url("dog park"))]
+        case "clinic" where mine: return [("PubMed — newest research", "magnifyingglass", "https://pubmed.ncbi.nlm.nih.gov/?sort=date"),
+                                          ("WHO — news & guidelines", "globe", "https://www.who.int/news"),
+                                          ("ICMR — Indian guidelines", "building.columns", "https://www.icmr.gov.in"),
+                                          ("Cochrane — evidence reviews", "checkmark.seal", "https://www.cochranelibrary.com")]
+        default: return []
+        }
+    }
+}
+
+private struct ToolBox: Identifiable { let id: String }

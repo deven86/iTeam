@@ -40,7 +40,7 @@ enum AIProvider: String, CaseIterable, Identifiable {
 
 /// Where AI may be used. Each one is off until the user turns it on.
 enum AIFeature: String, CaseIterable, Identifiable {
-    case myDay, chatSummary, taskReports, followUps, care, gym, groupReports, attendance, crm, build
+    case myDay, chatSummary, taskReports, followUps, care, gym, groupReports, attendance, crm, build, scan, advisor
     var id: String { rawValue }
     var title: String {
         switch self {
@@ -54,6 +54,8 @@ enum AIFeature: String, CaseIterable, Identifiable {
         case .attendance: "Attendance insights"
         case .crm: "CRM follow-up drafts & pipeline insights"
         case .build: "Builder project summaries & risks"
+        case .scan: "✨ Scan & fill (camera, photo, PDF → form)"
+        case .advisor: "✨ Suggestions & tips in modules"
         }
     }
     var icon: String {
@@ -68,6 +70,8 @@ enum AIFeature: String, CaseIterable, Identifiable {
         case .attendance: "person.badge.clock.fill"
         case .crm: "person.crop.circle.badge.checkmark"
         case .build: "building.columns.fill"
+        case .scan: "doc.viewfinder"
+        case .advisor: "lightbulb.fill"
         }
     }
 }
@@ -90,6 +94,12 @@ final class AISettings: ObservableObject {
         provider = p
         model = d.string(forKey: "ai.model.\(p.rawValue)") ?? ""
         features = Set(d.stringArray(forKey: "ai.features") ?? AIFeature.allCases.map(\.rawValue))
+        // New switches start on for people who already chose their AI features.
+        if !d.bool(forKey: "ai.features.v2") {
+            features.formUnion([AIFeature.scan.rawValue, AIFeature.advisor.rawValue])
+            d.set(Array(features), forKey: "ai.features")
+            d.set(true, forKey: "ai.features.v2")
+        }
         groupAI = Set(d.stringArray(forKey: "ai.groups") ?? [])
     }
 

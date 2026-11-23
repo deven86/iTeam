@@ -119,6 +119,29 @@ final class Reminders {
             }
         }
 
+        // Daily "I'm OK" check-ins (Care): a nudge on the person's phone, an alert on family phones if none came.
+        let okRemind = CareOK.remind, okWatch = CareOK.watch
+        if !okRemind.isEmpty || !okWatch.isEmpty {
+            let cal = Calendar.current
+            for day in [now, tomorrow] {
+                let start = cal.startOfDay(for: day)
+                for (pid, minutes) in okRemind {
+                    guard let p = profiles[pid] else { continue }
+                    let fire = start.addingTimeInterval(Double(minutes) * 60)
+                    guard fire > now, !CareOK.checkedIn(p, on: day, by: me, context: context) else { continue }
+                    plans.append(Plan(id: "dose.ok.me.\(pid).\(Int(start.timeIntervalSince1970))", fire: fire, title: "✅ Daily check-in",
+                                      body: "Tap “I'm OK” in Care so your family knows you're fine.", category: "CAREOK", info: ["conv": p.convID]))
+                }
+                for (pid, minutes) in okWatch {
+                    guard let p = profiles[pid] else { continue }
+                    let fire = start.addingTimeInterval(Double(minutes) * 60)
+                    guard fire > now, !CareOK.checkedIn(p, on: day, by: nil, context: context) else { continue }
+                    plans.append(Plan(id: "dose.ok.watch.\(pid).\(Int(start.timeIntervalSince1970))", fire: fire, title: "⚠️ No check-in from \(p.name) yet",
+                                      body: "\(p.name) hasn't tapped “I'm OK” today. Give them a call.", category: "CAREOK", info: ["conv": p.convID]))
+                }
+            }
+        }
+
         plans.sort { $0.fire < $1.fire }
         let chosen = Array(plans.prefix(limit))
 

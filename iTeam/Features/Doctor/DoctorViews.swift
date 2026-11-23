@@ -152,8 +152,34 @@ struct PrescriptionEditor: View {
     @State private var hasVisit = false
     @State private var visit = Calendar.current.date(byAdding: .day, value: 7, to: .now) ?? .now
 
+    private static let forms = ["Tablet", "Capsule", "Syrup", "Drops", "Injection", "Cream", "Inhaler"]
+    private var scanSpec: ScanSpec {
+        ScanSpec(title: "Scan a written prescription", what: "a doctor's handwritten or printed prescription",
+                 fields: [.text("diagnosis", "Diagnosis / reason"), .long("advice", "Advice"), .date("visit", "Next visit")],
+                 rows: [.text("name", "Medicine (brand & strength)"), .text("dose", "Dose"), .choice("form", "Form", Self.forms),
+                        .text("timing", "When (e.g. 1-0-1)"), .text("duration", "For how long"), .text("instructions", "How to take")],
+                 rowsLabel: "Medicines", hint: "Copy every medicine exactly as written. Never change or add a dose.")
+    }
+
+    private func applyScan(_ o: ScanOutput) {
+        if let v = o.str("diagnosis") { diagnosis = v }
+        if let v = o.str("advice") { advice = advice.isEmpty ? v : advice + "\n" + v }
+        if let v = o.date("visit") { hasVisit = true; visit = v }
+        let scanned: [RxItem] = o.rows.compactMap { r in
+            guard let name = r["name"], !name.isEmpty else { return nil }
+            var it = RxItem(); it.name = name; it.dose = r["dose"] ?? ""
+            if let f = r["form"], Self.forms.contains(f) { it.form = f }
+            let m = RxTiming.minutes(r["timing"] ?? ""); if !m.isEmpty { it.times = m }
+            if let d = RxTiming.days(r["duration"] ?? "") { it.days = d }
+            it.instructions = r["instructions"] ?? ""
+            return it
+        }
+        if !scanned.isEmpty { items = items.filter { !$0.name.isEmpty } + scanned }
+    }
+
     var body: some View {
         Form {
+            AIScanSection(spec: scanSpec, onApply: applyScan)
             Section("Patient") {
                 Text(patientName).font(.headline)
                 TextField("Diagnosis / reason", text: $diagnosis)

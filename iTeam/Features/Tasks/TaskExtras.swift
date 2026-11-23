@@ -197,6 +197,15 @@ struct ExpenseEditor: View {
 
     var body: some View {
         Form {
+            AIScanSection(spec: ScanSpec(title: "Scan the receipt", what: "a receipt, bill or ticket for a work expense",
+                                         fields: [.text("title", "What for"), .money("amount", "Total amount"), .date("date", "Date"),
+                                                  .choice("category", "Category", ExpenseCategory.allCases.map(\.rawValue))])) { o in
+                if let v = o.str("title") { title = v }
+                if let v = o.amountText("amount") { amountText = v }
+                if let v = o.date("date") { date = v }
+                if let v = o.str("category"), let c = ExpenseCategory(rawValue: v) { category = c }
+                for p in o.files { pending.add(p) }
+            }
             Section {
                 TextField("What was it for? (e.g. Court fee, Taxi)", text: $title)
                 TextField("Amount", text: $amountText).keyboardType(.decimalPad).font(.title3.bold())

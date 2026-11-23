@@ -40,6 +40,14 @@ struct CRMHomeView: View {
             .sorted { ($0.nextFollowUp ?? .distantFuture) < ($1.nextFollowUp ?? .distantFuture) }
     }
 
+    /// Open leads with no update for 14+ days (and not already in "Needs attention").
+    private var longPending: [CRMLead] {
+        let cut = Date.now.addingTimeInterval(-14 * 86400)
+        let att = Set(attention.map(\.id))
+        return mine.filter { $0.isOpen && !att.contains($0.id) && max($0.updatedAt, $0.createdAt) < cut }
+            .sorted { max($0.updatedAt, $0.createdAt) < max($1.updatedAt, $1.createdAt) }
+    }
+
     var body: some View {
         NavigationStack(path: $path) {
             List {
@@ -61,6 +69,12 @@ struct CRMHomeView: View {
                         Section("Needs attention") {
                             ForEach(attention) { l in NavigationLink(value: l.id) { CRMLeadRow(lead: l, showFollowUp: true) } }
                         }
+                        .lookRows()
+                    }
+                    if !longPending.isEmpty {
+                        Section {
+                            ForEach(longPending.prefix(10)) { l in NavigationLink(value: l.id) { CRMLeadRow(lead: l) } }
+                        } header: { Text("⏳ Long pending (no update 14+ days)") } footer: { Text("Open leads nobody has touched in two weeks. A quick call often revives them.") }
                         .lookRows()
                     }
                     Section {
@@ -303,6 +317,14 @@ struct CRMLeadDetailView: View {
                 }
                 .lookRows()
             }
+            if canEdit && AISettings.shared.allows(.advisor) {
+                Section {
+                    AISuggest(title: "How to talk & handle issues",
+                              instructions: "Coach the salesperson for this lead: how to open the next call, 3 likely objections or issues with calm answers, and how to move to the next stage. Indian business context, friendly and respectful.",
+                              context: { CRMShare.leadText(l, activities: activities, engine: engine) })
+                }
+                .lookRows()
+            }
             if l.ownerID == engine.me {
                 Section { Button("Delete lead", role: .destructive) { confirmDelete = true } }.lookRows()
             }
@@ -413,6 +435,16 @@ struct CRMLeadEditor: View {
 
     var body: some View {
         Form {
+            AIScanSection(spec: ScanSpec(title: "Scan a visiting card or enquiry form", what: "a business/visiting card, enquiry form or letterhead",
+                                         fields: [.text("name", "Person's name"), .text("company", "Company"), .phone("phone", "Mobile"),
+                                                  .init(key: "email", label: "Email", type: .email), .money("value", "Deal value (if written)"), .long("notes", "Designation, address, website, requirement")])) { o in
+                if let v = o.str("name") { name = v }
+                if let v = o.str("company") { company = v }
+                if let v = o.str("phone") { phone = v }
+                if let v = o.str("email") { email = v }
+                if let v = o.amountText("value") { value = v }
+                if let v = o.str("notes") { notes = notes.isEmpty ? v : notes + "\n" + v }
+            }
             Section {
                 TextField("Lead / client name", text: $name).font(.title3)
                 TextField("Company or project", text: $company)

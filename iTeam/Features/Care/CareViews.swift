@@ -349,6 +349,7 @@ struct CareProfileView: View {
                 }
                 .lookRows()
             }
+            CareOKSection(profile: p).lookRows()
             DocumentsSection(module: "care", recordID: p.id, recordOwner: p.createdBy, convID: p.convID, title: p.name).lookRows()
             if p.createdBy == engine.me {
                 Section {
@@ -530,8 +531,26 @@ struct MedicineEditor: View {
     private let forms = ["Tablet", "Capsule", "Syrup", "Injection", "Drops", "Inhaler", "Ointment", "Other"]
     private let presets: [(String, Int)] = [("Morning 9:00", 540), ("Afternoon 2:00", 840), ("Night 9:00", 1260)]
 
+    private var scanSpec: ScanSpec {
+        ScanSpec(title: "Scan the prescription or medicine strip", what: "a doctor's prescription or a medicine strip/box",
+                 fields: [.text("name", "Medicine name (brand and strength)"), .text("dose", "Dose (e.g. 1 tablet, 5 ml)"),
+                          .choice("form", "Form", forms), .text("timing", "When to take (e.g. 1-0-1, morning & night)"),
+                          .text("instructions", "Instructions (before/after food)"), .text("duration", "For how long (e.g. 5 days)")],
+                 hint: "If there are several medicines, take only the first one. Copy timing exactly as written.")
+    }
+
+    private func applyScan(_ o: ScanOutput) {
+        if let v = o.str("name") { name = v }
+        if let v = o.str("dose") { dose = v }
+        if let v = o.str("form"), forms.contains(v) { form = v }
+        if let v = o.str("instructions") { instructions = v }
+        if let v = o.str("timing") { let m = RxTiming.minutes(v); if !m.isEmpty { times = m.map(RxTiming.date) } }
+        if let v = o.str("duration"), let n = RxTiming.days(v) { hasEnd = true; end = Calendar.current.date(byAdding: .day, value: n, to: start) ?? end }
+    }
+
     var body: some View {
         Form {
+            AIScanSection(spec: scanSpec, onApply: applyScan)
             Section {
                 TextField("Medicine name", text: $name).font(.title3)
                 TextField("Dose (e.g. 500 mg, 1 tablet, 5 ml)", text: $dose)
@@ -629,8 +648,24 @@ struct HealthEventEditor: View {
     @State private var update = ""
     @State private var pending = PendingAttachments()
 
+    private var scanSpec: ScanSpec {
+        ScanSpec(title: "Scan a report or discharge paper", what: "a medical report, lab report, discharge summary or doctor's note",
+                 fields: [.choice("kind", "Type", HealthEventKind.allCases.map(\.title)), .text("title", "What happened / test name"),
+                          .long("details", "Details (doctor, hospital, findings, values)"), .date("date", "Date")],
+                 hint: "Copy lab values with units exactly. Do not interpret or diagnose.")
+    }
+
+    private func applyScan(_ o: ScanOutput) {
+        if let v = o.str("kind"), let k = HealthEventKind.allCases.first(where: { $0.title == v }) { kind = k }
+        if let v = o.str("title") { title = v }
+        if let v = o.str("details") { details = details.isEmpty ? v : details + "\n" + v }
+        if let v = o.date("date") { date = v }
+        for p in o.files { pending.add(p) }
+    }
+
     var body: some View {
         Form {
+            AIScanSection(spec: scanSpec, onApply: applyScan)
             Section {
                 Picker("Type", selection: $kind) {
                     ForEach(HealthEventKind.allCases, id: \.self) { Label($0.title, systemImage: $0.icon).tag($0) }
@@ -801,4 +836,77 @@ enum DemoCare {
         Reminders.shared.reschedule(context: engine.context, me: engine.me)
         return pid
     }
+}
+
+
+// MARK: - Daily "I'm OK" check-in (instead of watching anyone)
+
+@MainActor
+enum CareOK {
+    static let marker = "✅ I'm OK"
+    /// profile → minutes after midnight, on the phone of the person being cared for.
+    static var remind: [String: Int] {
+        get { (UserDefaults.standard.dictionary(forKey: "care.ok.remind") as? [String: Int]) ?? [:] }
+        set { UserDefaults.standard.set(newValue, forKey: "care.ok.remind") }
+    }
+    /// profile → minutes after midnight, on family phones ("alert me if no check-in by").
+    static var watch: [String: Int] {
+        get { (UserDefaults.standard.dictionary(forKey: "care.ok.watch") as? [String: Int]) ?? [:] }
+        set { UserDefaults.standard.set(newValue, forKey: "care.ok.watch") }
+    }
+
+    static func checkedIn(_ p: CareProfile, on day: Date, by who: String?, context: ModelContext) -> Bool {
+        let cid = p.convID, start = Calendar.current.startOfDay(for: day), end = start.addingTimeInterval(86400)
+        let msgs = (try? context.fetch(FetchDescriptor<Message>(predicate: #Predicate { $0.convID == cid && $0.createdAt >= start && $0.createdAt < end && !$0.deleted }))) ?? []
+        return msgs.contains { $0.text.hasPrefix(marker) && (who == nil || $0.senderID == who) }
+    }
+}
+
+struct CareOKSection: View {
+    let profile: CareProfile
+    @EnvironmentObject var engine: SyncEngine
+    @State private var remindOn = false
+    @State private var remindAt = RxTiming.date(600)
+    @State private var watchOn = false
+    @State private var watchAt = RxTiming.date(720)
+    @State private var sent = false
+
+    var body: some View {
+        Section {
+            Button(sent ? "Sent — family notified" : "I'm OK — tell the family", systemImage: "checkmark.seal.fill") {
+                if let c = engine.conversation(profile.convID) {
+                    engine.sendText("\(CareOK.marker) — \(engine.name(of: engine.me)) checked in at \(Date.now.formatted(date: .omitted, time: .shortened))", in: c)
+                    sent = true; Haptics.success(); reschedule()
+                }
+            }
+            .disabled(sent || engine.conversation(profile.convID) == nil)
+            Toggle("Remind me daily to check in", isOn: $remindOn)
+            if remindOn { DatePicker("At", selection: $remindAt, displayedComponents: .hourAndMinute) }
+            Toggle("Alert me if no check-in by", isOn: $watchOn)
+            if watchOn { DatePicker("By", selection: $watchAt, displayedComponents: .hourAndMinute) }
+        } header: { Text("Daily check-in") } footer: {
+            Text("The person taps “I'm OK” once a day. If it hasn't arrived by your time, your phone alerts you. Apple Watch fall detection also calls emergency contacts. Nobody's photos or location are watched.")
+        }
+        .onAppear(perform: load)
+        .onChange(of: remindOn) { _, _ in save() }
+        .onChange(of: remindAt) { _, _ in save() }
+        .onChange(of: watchOn) { _, _ in save() }
+        .onChange(of: watchAt) { _, _ in save() }
+    }
+
+    private func minutes(_ d: Date) -> Int { let c = Calendar.current.dateComponents([.hour, .minute], from: d); return (c.hour ?? 0) * 60 + (c.minute ?? 0) }
+
+    private func load() {
+        if let m = CareOK.remind[profile.id] { remindOn = true; remindAt = RxTiming.date(m) }
+        if let m = CareOK.watch[profile.id] { watchOn = true; watchAt = RxTiming.date(m) }
+        if let ctx = engine.context { sent = CareOK.checkedIn(profile, on: .now, by: engine.me, context: ctx) }
+    }
+
+    private func save() {
+        var r = CareOK.remind; r[profile.id] = remindOn ? minutes(remindAt) : nil; CareOK.remind = r
+        var w = CareOK.watch; w[profile.id] = watchOn ? minutes(watchAt) : nil; CareOK.watch = w
+        reschedule()
+    }
+
+    private func reschedule() { if let ctx = engine.context { Reminders.shared.reschedule(context: ctx, me: engine.me) } }
 }

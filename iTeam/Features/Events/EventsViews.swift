@@ -185,14 +185,38 @@ struct EventEditor: View {
     @State private var hours = 2.0
     @State private var notes = ""
 
+    private var scanSpec: ScanSpec {
+        ScanSpec(title: "Scan an invitation card", what: "an invitation card, poster or event notice",
+                 fields: [.text("title", "Event"), .text("place", "Venue / address"), .date("start", "Date and start time"),
+                          .number("hours", "How many hours (if written)"), .long("notes", "Details (host, dress code, RSVP)")])
+    }
+
     var body: some View {
         Form {
+            AIScanSection(spec: scanSpec) { o in
+                if let v = o.str("title") { title = v }
+                if let v = o.str("place") { place = v }
+                if let v = o.date("start") { start = v }
+                if let v = o.number("hours"), v > 0 { hours = min(48, max(0.5, v)) }
+                if let v = o.str("notes") { notes = notes.isEmpty ? v : notes + "\n" + v }
+            }
             Section("Event") {
                 TextField("What (Birthday, Meeting, Trip…)", text: $title)
                 TextField("Where", text: $place)
+                if !place.trimmingCharacters(in: .whitespaces).isEmpty, let u = URL(string: MapsSearch.url(place)) {
+                    Link(destination: u) { Label("Check this place in Maps", systemImage: "map").font(.caption) }
+                }
                 DatePicker("Starts", selection: $start)
+                HolidayWarning(date: start)
                 Stepper("Lasts \(hours.formatted()) h", value: $hours, in: 0.5...48, step: 0.5)
                 TextField("Details (dress code, what to bring…)", text: $notes, axis: .vertical)
+            }
+            if AISettings.shared.allows(.advisor) && !title.isEmpty {
+                Section {
+                    AISuggest(title: "Anything I've missed?",
+                              instructions: "Look at this event plan and list what's missing or worth checking: invitations, venue booking, food, transport, weather, holiday clashes, things to bring, reminders. Short checklist.",
+                              context: { "Event: \(title)\nWhere: \(place)\nStarts: \(start.formatted(date: .complete, time: .shortened)) for \(hours) h\nHoliday check: \(HolidayCheck.reasons(on: start).joined(separator: ", "))\nDetails: \(notes)\nGuests: everyone in \(conv.title)" })
+                }
             }
             Section { Text("Everyone in “\(conv.title)” is invited and can answer Going, Maybe or Can't.").font(.caption).foregroundStyle(.secondary) }
         }

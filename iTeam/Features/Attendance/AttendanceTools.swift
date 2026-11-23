@@ -140,8 +140,14 @@ struct AttPunchModifier: ViewModifier {
         guard c.needPhoto else { stepGeo(); return }
         guard Presenter.hasCamera else { flow.message = "A selfie is required, but no camera is available."; return }
         Presenter.camera(front: true) { img in
-            flow.photo = img.scaled(maxSide: 320).jpegData(compressionQuality: 0.6)
-            stepGeo()
+            Task { @MainActor in
+                // Camera only (no gallery photos); the phone checks there is exactly one face in the selfie.
+                let n = await PhotoCheck.faces(img)
+                if n == 0 { flow.message = "No face seen in the selfie. Retake it facing the camera, in good light."; return }
+                if n > 1 { flow.message = "More than one face in the selfie. Only you should be in the photo — retake it."; return }
+                flow.photo = img.scaled(maxSide: 320).jpegData(compressionQuality: 0.6)
+                stepGeo()
+            }
         }
     }
 
@@ -451,6 +457,9 @@ struct AttLeaveDetail: View {
                     }
                 }
             }
+            if staff && l.status == "pending" && !l.deleted, let w = AttSandwich.note(d, data: data) {
+                Section { Label(w, systemImage: "exclamationmark.triangle.fill").font(.footnote).foregroundStyle(.orange) } footer: { Text("Only a flag for you — you decide. Many companies count such offs as leave (sandwich rule).") }
+            }
             if staff && l.status == "pending" && !l.deleted {
                 Section("Decision") {
                     Toggle("Paid leave", isOn: $paid)
@@ -506,8 +515,24 @@ struct AttLeaveEditor: View {
         _recs = Query(filter: #Predicate<AttRecord> { $0.companyID == cid && $0.kind == "member" && !$0.deleted })
     }
 
+    private var scanSpec: ScanSpec {
+        ScanSpec(title: "Scan a medical certificate or leave letter", what: "a medical certificate, fitness certificate or leave application letter",
+                 fields: [.date("from", "Leave from"), .date("to", "Leave to"), .choice("type", "Leave type", company.company.leaveTypes),
+                          .long("reason", "Reason (as written; doctor and hospital if any)")],
+                 hint: "If only 'rest for N days from DATE' is written, 'to' is DATE plus N−1 days.")
+    }
+
+    private func applyScan(_ o: ScanOutput) {
+        if let v = o.date("from") { d.from = v; if d.to < v { d.to = v } }
+        if let v = o.date("to"), v >= d.from { d.to = v }
+        if let v = o.str("type"), company.company.leaveTypes.contains(v) { d.type = v }
+        if let v = o.str("reason") { d.reason = d.reason.isEmpty ? v : d.reason + "\n" + v }
+        for p in o.files { d.files.append(p.ref); uploads[p.upload.0] = p.upload.1 }
+    }
+
     var body: some View {
         Form {
+            AIScanSection(spec: scanSpec, onApply: applyScan)
             if member == nil {
                 Picker("Employee", selection: $who) {
                     Text("Choose…").tag("")
@@ -747,6 +772,7 @@ struct AttReportsView: View {
                 }
             }
             .lookRows()
+            AttPunctualitySection(data: data, month: month).lookRows()
             Section {
                 Button("Register (PDF)", systemImage: "doc.richtext") {
                     if let url = PDFMaker.make(title: title, bodyHTML: AttExport.registerHTML(data, month: month, engine: engine), fileName: "Attendance register", module: "Attendance", icon: "person.badge.clock.fill", colors: [0x11998E, 0x38EF7D], charts: PDFCharts.attendance(data, month: month, engine: engine)) { shareItems = ShareItems(items: [url]) }
@@ -1101,5 +1127,68 @@ enum AttDemo {
         engine.sendPersonal(.attendance(AttPayload(items: items, bulk: true)))
         UserDefaults.standard.set(cid, forKey: "att.current")
         Haptics.success()
+    }
+}
+
+
+// MARK: - Leave next to a weekend / holiday (flag only; the manager decides)
+
+enum AttSandwich {
+    static func isOff(_ day: Date, _ data: AttData) -> Bool {
+        data.c.weeklyOff.contains(Calendar.current.component(.weekday, from: day)) ||
+            data.holidays.contains { $0.day == Att.key(day) && $0.status == "approved" }
+    }
+
+    static func note(_ d: AttLeaveData, data: AttData) -> String? {
+        let cal = Calendar.current
+        guard let before = cal.date(byAdding: .day, value: -1, to: cal.startOfDay(for: d.from)),
+              let after = cal.date(byAdding: .day, value: 1, to: cal.startOfDay(for: d.to)) else { return nil }
+        let b = isOff(before, data), a = isOff(after, data)
+        guard b || a else { return nil }
+        let side = b && a ? "both before and after" : b ? "right after a weekly off / holiday" : "right before a weekly off / holiday"
+        return "This leave falls \(side). Check it isn't stretching a long weekend."
+    }
+}
+
+// MARK: - Comes on time / leaves on time (from punches — no AI judgement)
+
+struct AttPunctualitySection: View {
+    let data: AttData
+    let month: Date
+    @EnvironmentObject var engine: SyncEngine
+
+    private struct Row: Identifiable { let id: String; let name: String; let onTime: Int; let leftOnTime: Int; let days: Int }
+
+    private var rows: [Row] {
+        let days = Set(Att.monthDays(month).map(Att.key))
+        return data.active.compactMap { m in
+            let es = data.entries.filter { $0.memberID == m.id && days.contains($0.day) && $0.entry.inAt != nil }
+            guard !es.isEmpty else { return nil }
+            let start = Att.dutyStart(m.member, data.c) + data.c.grace, end = Att.dutyEnd(m.member, data.c)
+            let inOK = es.filter { Att.minutes($0.entry.inAt!) <= start }.count
+            let outs = es.compactMap(\.entry.outAt)
+            let outOK = outs.filter { Att.minutes($0) >= end }.count
+            return Row(id: m.id, name: data.name(m, engine), onTime: inOK * 100 / es.count,
+                       leftOnTime: outs.isEmpty ? 0 : outOK * 100 / outs.count, days: es.count)
+        }
+        .sorted { ($0.onTime + $0.leftOnTime) > ($1.onTime + $1.leftOnTime) }
+    }
+
+    var body: some View {
+        let r = rows
+        if !r.isEmpty {
+            Section {
+                ForEach(r) { x in
+                    HStack {
+                        Text(x.name).frame(maxWidth: .infinity, alignment: .leading)
+                        Text("\(x.onTime)%").frame(width: 50).foregroundStyle(x.onTime >= 90 ? .green : x.onTime >= 70 ? .orange : .red)
+                        Text("\(x.leftOnTime)%").frame(width: 50).foregroundStyle(x.leftOnTime >= 90 ? .green : x.leftOnTime >= 70 ? .orange : .red)
+                    }
+                    .font(.caption)
+                }
+            } header: { Text("Comes on time · Leaves on time") } footer: {
+                Text("From punches this month (duty start + grace, duty end). Facts, not a judgement of anyone's loyalty.")
+            }
+        }
     }
 }

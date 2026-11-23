@@ -49,6 +49,7 @@ struct FinanceHomeView: View {
                 attention(ls)
                 entries(ls.filter(inMonth))
                 categories(paid.filter { !$0.isIn })
+                FinInsights(lines: ls, paid: paid, month: month)
                 if pro {
                     Section("Finance Pro") {
                         Button { proList = "recurring" } label: { Label("Recurring payments (rent, salary, EMIs)", systemImage: "repeat") }
@@ -232,8 +233,33 @@ struct FinEntryEditor: View {
     private var isOwner: Bool { !isCompany || engine.attRecord(book)?.company.ownerID == engine.me }
     private var cats: [String] { dir == "in" || dir == "refundIn" ? Fin.incomeCategories : Fin.expenseCategories }
 
+    private var scanSpec: ScanSpec {
+        ScanSpec(title: "Scan a bill, voucher or cheque", what: "a bill, invoice, payment voucher, receipt or cheque",
+                 fields: [.choice("dir", "Money in or out", ["in", "out"]), .money("amount", "Total amount"), .text("title", "What for"),
+                          .choice("category", "Category", Fin.incomeCategories + Fin.expenseCategories), .text("party", "Paid to / received from"),
+                          .date("date", "Date"), .choice("mode", "Mode", Fin.modes), .text("reference", "Reference / invoice / UTR no."),
+                          .text("chequeNo", "Cheque no."), .text("chequeBank", "Cheque bank"), .text("note", "Note (GST no., items)")],
+                 hint: "A bill or invoice we must pay is 'out'. For a cheque, the payee is the party, mode is Cheque and the cheque number is the 6 digits printed at the bottom left. Never copy full account numbers.")
+    }
+
+    private func applyScan(_ o: ScanOutput) {
+        if let v = o.str("dir"), ["in", "out"].contains(v) { dir = v }
+        if let v = o.amountText("amount") { amountText = v }
+        if let v = o.str("title") { d.title = v }
+        if let v = o.str("category"), cats.contains(v) { category = v }
+        if let v = o.str("party") { d.party = v }
+        if let v = o.date("date") { date = v }
+        if let v = o.str("mode"), Fin.modes.contains(v) { d.mode = v }
+        if let v = o.str("reference") { d.reference = v }
+        if let v = o.str("chequeNo") { d.chequeNo = v.filter(\.isNumber); if d.mode != "Cheque" && !d.chequeNo.isEmpty { d.mode = "Cheque" } }
+        if let v = o.str("chequeBank") { d.chequeBank = v }
+        if let v = o.str("note") { d.note = d.note.isEmpty ? v : d.note + "\n" + v }
+        for p in o.files { d.files.append(p.ref); uploads[p.upload.0] = p.upload.1 }
+    }
+
     var body: some View {
         Form {
+            AIScanSection(spec: scanSpec, onApply: applyScan)
             Section {
                 Picker("Type", selection: $dir) {
                     Text("Income").tag("in"); Text("Expense").tag("out"); Text("Refund in").tag("refundIn"); Text("Refund out").tag("refundOut")
@@ -390,7 +416,8 @@ struct FinBankImportView: View {
                 Button("Choose statement file (CSV)", systemImage: "doc.badge.plus") {
                     Presenter.file(types: [.commaSeparatedText, .plainText, .data]) { url in load(url) }
                 }
-            } footer: { Text("Download the statement as CSV/Excel-CSV from your bank's net-banking. PDF statements can't be read reliably — export CSV instead. Rows that match an entry (same amount within 5 days) are ticked; the rest can be added in one tap.") }
+                AIScanButton(spec: statementSpec) { o in loadScanned(o) }
+            } footer: { Text("CSV from net-banking is the most exact. A PDF or photo of the statement can be read with ✨ Scan — check every row, since bank layouts differ. Rows that match an entry (same amount within 5 days) are ticked; the rest can be added in one tap.") }
             if let error { Text(error).foregroundStyle(.red) }
             ForEach($rows) { $r in
                 HStack {
@@ -424,6 +451,33 @@ struct FinBankImportView: View {
                     dismiss()
                 }
             }
+        }
+    }
+
+    private var statementSpec: ScanSpec {
+        ScanSpec(title: "Scan a PDF or photo statement", what: "a bank account statement (Indian bank)",
+                 rows: [.date("date", "Date"), .text("text", "Description / narration"), .money("amount", "Amount"), .choice("dir", "Credit (in) or debit (out)", ["in", "out"])],
+                 rowsLabel: "Transactions", hint: "One row per transaction. Skip opening/closing balance lines. Withdrawal/Dr = out, Deposit/Cr = in.")
+    }
+
+    private func loadScanned(_ o: ScanOutput) {
+        let parsed: [(date: Date, text: String, amount: Double)] = o.rows.compactMap { r in
+            guard let d = r["date"].flatMap(ScanFill.date), let a = r["amount"].flatMap(ScanFill.number), a != 0 else { return nil }
+            return (d, r["text"] ?? "Bank entry", r["dir"] == "in" ? abs(a) : -abs(a))
+        }
+        if parsed.isEmpty { error = "No transactions found on the scanned statement."; return }
+        error = nil
+        match(parsed)
+    }
+
+    private func match(_ parsed: [(date: Date, text: String, amount: Double)]) {
+        var used = Set<String>()
+        rows = parsed.map { p in
+            let m = existing.first { e in
+                !used.contains(e.id) && abs(e.amount - abs(p.amount)) < 0.01 && e.isIn == (p.amount >= 0) && abs(e.date.timeIntervalSince(p.date)) < 5 * 86400
+            }
+            if let m { used.insert(m.id) }
+            return BankRow(date: p.date, text: p.text, amount: p.amount, match: m)
         }
     }
 
@@ -665,5 +719,40 @@ struct FinProList: View {
         case "approvals": return r.status == "pending" ? "Waiting · asked by \(engine.name(of: r.by))" : "\(r.status == "rejected" ? "Rejected" : "Approved") by \(engine.name(of: r.d.decidedBy))"
         default: return "No. \(r.d.chequeNo) · \(r.d.chequeStatus.isEmpty ? "—" : r.d.chequeStatus.capitalized) · \(r.d.party)"
         }
+    }
+}
+
+
+// MARK: - Top income / big expenses + ✨ AI insights (advice only)
+
+struct FinInsights: View {
+    let lines: [FinLine]
+    let paid: [FinLine]
+    let month: Date
+    @ObservedObject private var ai = AISettings.shared
+
+    var body: some View {
+        let topIn = paid.filter(\.isIn).sorted { $0.amount > $1.amount }.prefix(3)
+        let topOut = paid.filter { !$0.isIn }.sorted { $0.amount > $1.amount }.prefix(3)
+        if !topIn.isEmpty || !topOut.isEmpty {
+            Section {
+                ForEach(Array(topIn)) { l in LabeledContent("⬇︎ " + (l.title.isEmpty ? l.category : l.title), value: Fin.money(l.amount)) }
+                ForEach(Array(topOut)) { l in LabeledContent("⬆︎ " + (l.title.isEmpty ? l.category : l.title), value: Fin.money(l.amount)) }
+                if ai.allows(.advisor) {
+                    AISuggest(title: "Insights & saving goals",
+                              instructions: "You help an Indian household or small business. From these entries: name the top income sources and the biggest expenses and what they were for, compare with the previous months, point out unusual spends, and suggest 2–3 realistic monthly saving goals in ₹. Short bullets.",
+                              context: context)
+                }
+            } header: { Text("Top income & biggest expenses") }
+        }
+    }
+
+    private func context() -> String {
+        let cal = Calendar.current
+        let since = cal.date(byAdding: .month, value: -3, to: month) ?? month
+        let recent = lines.filter { $0.status == "paid" && $0.date >= since }.sorted { $0.date < $1.date }.suffix(150)
+        return "Month in focus: \(month.formatted(.dateTime.month(.wide).year()))\n" + recent.map { l in
+            "\(l.date.formatted(date: .numeric, time: .omitted)) \(l.isIn ? "IN" : "OUT") \(Int(l.amount)) · \(l.category) · \(l.title) \(l.party)"
+        }.joined(separator: "\n")
     }
 }

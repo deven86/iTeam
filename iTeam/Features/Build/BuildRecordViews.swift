@@ -165,8 +165,47 @@ struct BuildEditor: View {
     }
     private var canSave: Bool { !d.title(kind).trimmingCharacters(in: .whitespaces).isEmpty || ["payment", "move", "log", "demand"].contains(kind) }
 
+    private var scanSpec: ScanSpec {
+        let fs: [ScanField] = visible.map { f in
+            let t: ScanType
+            switch f.type {
+            case .text: t = .text
+            case .long: t = .long
+            case .number, .area, .percent: t = .number
+            case .money: t = .money
+            case .date: t = .date
+            case .phone: t = .phone
+            case .email: t = .email
+            case .choice: t = .choice
+            }
+            return ScanField(key: f.key, label: f.label, type: t, options: f.options)
+        }
+        let what: String = switch kind {
+        case "log", "progress": "a daily site report / diary"
+        case "material", "move": "a material bill, challan or delivery note"
+        case "approval": "a government approval, sanction, NOC or certificate"
+        case "test", "inspection": "a test report or inspection report"
+        case "dispute": "a notice, complaint or letter about a dispute"
+        case "vault", "land": "a property or land document (7/12 extract, sale deed, agreement)"
+        default: "a construction business paper (bill, agreement, report, form)"
+        }
+        return ScanSpec(title: "Scan a paper to fill this \(k.label.lowercased())", what: what, fields: fs,
+                        hint: "The paper may be in English, Marathi or Hindi; copy names and numbers exactly, and write other values in English.")
+    }
+
+    private func applyScan(_ o: ScanOutput) {
+        for f in visible {
+            guard let v = o.str(f.key) else { continue }
+            if f.type == .date { if let dt = ScanFill.date(v) { d[f.key] = BuildData.dateString(dt) } }
+            else if f.type == .choice { if f.options.contains(v) { d[f.key] = v } }
+            else { d[f.key] = v }
+        }
+        for p in o.files { pending.add(p) }
+    }
+
     var body: some View {
         Form {
+            AIScanSection(spec: scanSpec, onApply: applyScan)
             ForEach(sections, id: \.self) { sec in
                 Section(sec.isEmpty ? k.label : sec) {
                     ForEach(visible.filter { $0.section == sec }) { f in BuildFieldRow(field: f, d: $d) }

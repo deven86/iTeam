@@ -426,6 +426,8 @@ class Sync(internal val store: Store, private val cloud: CloudKit = CloudKit(sto
             "game" -> if (p != null && p.optString("kind", "xo") == "xo") applyGame(p, from, convID, atSwift, ::line)
             "biz" -> if (p != null) applyBiz(p, from, convID) { t -> line(t, true, notify = from != me) }
             "build" -> if (p != null) applyBuild(p, from, convID) { t -> line(t, true, notify = from != me) }
+            "attendance" -> if (p != null) applyAttendance(p, from, convID, atSwift) { t -> line(t, true, notify = from != me) }
+            "finance" -> if (p != null) applyFinance(p, from, convID) { t -> line(t, true, notify = from != me) }
             "photo" -> if (from != me) store.contacts[from]?.photo = v.optString("_0")
             "about" -> if (from != me) store.contacts[from]?.about = v.optString("_0")
             "post", "postReact", "postComment", "postSeen", "facetime", "nowPlaying" -> {}

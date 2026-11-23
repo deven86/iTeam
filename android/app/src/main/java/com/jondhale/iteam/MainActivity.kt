@@ -182,6 +182,9 @@ sealed class Page {
     data class BuildRec(val id: String) : Page()
     object FSI : Page()
     object ModuleStore : Page()
+    object Attendance : Page()
+    data class AttCompany(val id: String) : Page()
+    object Finance : Page()
     object TasksPage : Page()
     object RoomsPage : Page()
     object Appearance : Page()
@@ -212,6 +215,9 @@ fun Home(app: AppState, status: StatusInfo, openConv: MutableState<String?>, pas
             Page.Profile -> MyDetailsScreen(app, onBack = { pop() })
             Page.TasksPage -> Column { TopBack("Tasks") { pop() }; TasksTab(app, open = { push(it) }) }
             Page.RoomsPage -> Column { TopBack("Rooms") { pop() }; RoomsTab(app, open = { push(it) }) }
+            Page.Attendance -> AttendanceHome(app, onBack = { pop() }, open = { push(it) })
+            is Page.AttCompany -> AttCompanyScreen(app, top.id, onBack = { pop() })
+            Page.Finance -> FinanceHome(app, onBack = { pop() })
             Page.ModuleStore -> ModuleStoreScreen(app, onBack = { pop() }, open = { push(it) })
             Page.Appearance -> AppearanceScreen(app, onBack = { pop() })
             Page.BottomBar -> BottomBarScreen(app, onBack = { pop() })
@@ -247,6 +253,8 @@ fun Home(app: AppState, status: StatusInfo, openConv: MutableState<String?>, pas
                 "rooms" -> RoomsTab(app, open = go)
                 "nearby" -> NearbyScreen(app, onBack = { tab = 0 }, open = go)
                 "build" -> BuilderHome(app, onBack = null, open = go)
+                "attendance" -> AttendanceHome(app, onBack = null, open = go)
+                "finance" -> FinanceHome(app, onBack = null)
                 "modules" -> ModulesHub(app, onBack = null, open = go)
                 "settings" -> SettingsTab(app, open = go)
                 else -> BizModuleScreen(app, id, onBack = null, open = go)

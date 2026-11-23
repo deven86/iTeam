@@ -61,14 +61,17 @@ val tabOptions: List<TabOption> get() = listOf(
     TabOption("tasks", "Tasks", Icons.Default.Checklist),
     TabOption("rooms", "Rooms", Icons.Default.Forum),
     TabOption("build", "Builder", Icons.Default.Apartment),
+    TabOption("attendance", "Attendance", Icons.Default.Fingerprint),
+    TabOption("finance", "Finance", Icons.Default.AccountBalanceWallet),
     TabOption("nearby", "Nearby", Icons.Default.NearMe),
 ) + BizSpecs.all.map { TabOption(it.module, it.title.substringBefore(" &").substringBefore(" Planner").substringBefore(" Desk").substringBefore(" Matters"), moduleIcon(it.module)) }
 
 /** Modules the user added from the Module Store (opt-in, like the iPhone). Shared data always shows its module. */
 fun visibleModules(store: Store): List<String> {
     val added = store.prefList("modules", emptyList())
-    val withData = (store.bizList().filter { !it.deleted }.map { it.module } + if (store.buildList().any { !it.deleted }) listOf("build") else emptyList()).toSet()
-    return (listOf("build") + BizSpecs.all.map { it.module }).filter { it in added || it in withData }
+    val withData = (store.bizList().filter { !it.deleted }.map { it.module } + (if (store.buildList().any { !it.deleted }) listOf("build") else emptyList()) +
+        (if (store.attList().any { !it.deleted }) listOf("attendance") else emptyList()) + (if (store.finList().any { !it.deleted }) listOf("finance") else emptyList())).toSet()
+    return (listOf("attendance", "finance", "build") + BizSpecs.all.map { it.module }).filter { it in added || it in withData }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -255,12 +258,14 @@ fun ModuleStoreScreen(app: AppState, onBack: () -> Unit, open: (Page) -> Unit) {
     Back("Module Store", onBack) {
         Text("Everything is free on Android. Remove only hides a module — your records stay. A module also appears when someone shares something with you in it.",
             style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        StoreRow("Attendance", "Punch in/out, leave, holidays, monthly register for your team", listOf(Color(0xFF11998E), Color(0xFF38EF7D)), Icons.Default.Fingerprint, "attendance" in shown, "attendance" in added, { toggle("attendance") }) { open(Page.Attendance) }
+        StoreRow("Finance", "Income, expenses, dues, approvals — personal and company books", listOf(Color(0xFF2193B0), Color(0xFF6DD5ED)), Icons.Default.AccountBalanceWallet, "finance" in shown, "finance" in added, { toggle("finance") }) { open(Page.Finance) }
         StoreRow("Builder & Infra", "Projects, units, sales, stock, machines, approvals, FSI", listOf(Color(0xFFF7971E), Color(0xFF8E2DE2)), moduleIcon("build"), "build" in shown, "build" in added, { toggle("build") }) { open(Page.Builder) }
         BizSpecs.all.forEach { s ->
             StoreRow(s.title, (listOfNotNull(s.parent?.plural) + s.children.map { it.plural }).joinToString(", "), specColors(s), moduleIcon(s.module),
                 s.module in shown, s.module in added, { toggle(s.module) }) { open(Page.BizModule(s.module)) }
         }
-        Text("Coming next on Android: Attendance, Finance, CRM, Society, Gym, Events, Care, Family Safety.", Modifier.padding(top = 12.dp), style = MaterialTheme.typography.labelMedium)
+        Text("Coming next on Android: CRM, Society, Gym, Events, Care, Family Safety.", Modifier.padding(top = 12.dp), style = MaterialTheme.typography.labelMedium)
     }
 }
 

@@ -18,7 +18,7 @@ fun ev(case: String, payload: JSONObject) = JSONObject().put(case, JSONObject().
 fun evNamed(case: String, values: JSONObject) = JSONObject().put(case, values)
 fun newID() = UUID.randomUUID().toString().uppercase()
 
-class Sync(private val store: Store, private val cloud: CloudKit = CloudKit(store)) {
+class Sync(internal val store: Store, private val cloud: CloudKit = CloudKit(store)) {
     data class Notice(val conv: String, val title: String, val text: String)
 
     val me get() = store.me
@@ -397,6 +397,8 @@ class Sync(private val store: Store, private val cloud: CloudKit = CloudKit(stor
                 }
             }
             "game" -> if (p != null && p.optString("kind", "xo") == "xo") applyGame(p, from, convID, atSwift, ::line)
+            "biz" -> if (p != null) applyBiz(p, from, convID) { t -> line(t, true, notify = from != me) }
+            "build" -> if (p != null) applyBuild(p, from, convID) { t -> line(t, true, notify = from != me) }
             "post", "postReact", "postComment", "postSeen", "photo", "about", "facetime", "nowPlaying" -> {}
             else -> {}
         }

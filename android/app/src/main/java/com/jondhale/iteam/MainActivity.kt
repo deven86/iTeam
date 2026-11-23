@@ -171,6 +171,13 @@ sealed class Page {
     object NewGroup : Page()
     object Nearby : Page()
     object Profile : Page()
+    object Modules : Page()
+    data class BizModule(val module: String) : Page()
+    data class BizParent(val module: String, val id: String) : Page()
+    object Builder : Page()
+    data class BuildProject(val id: String) : Page()
+    data class BuildRec(val id: String) : Page()
+    object FSI : Page()
 }
 
 @Composable
@@ -194,6 +201,13 @@ fun Home(app: AppState, status: StatusInfo, openConv: MutableState<String?>, pas
             Page.NewGroup -> NewGroupScreen(app, onBack = { pop() }, created = { pop(); push(Page.Chat(it)) })
             Page.Nearby -> NearbyScreen(app, onBack = { pop() }, open = { push(it) })
             Page.Profile -> ProfileScreen(app, onBack = { pop() })
+            Page.Modules -> ModulesHub(app, onBack = { pop() }, open = { push(it) })
+            is Page.BizModule -> BizModuleScreen(app, top.module, onBack = { pop() }, open = { push(it) })
+            is Page.BizParent -> BizParentScreen(app, top.module, top.id, onBack = { pop() })
+            Page.Builder -> BuilderHome(app, onBack = { pop() }, open = { push(it) })
+            is Page.BuildProject -> BuildProjectScreen(app, top.id, onBack = { pop() }, open = { push(it) })
+            is Page.BuildRec -> BuildRecScreen(app, top.id, onBack = { pop() }, open = { push(it) })
+            Page.FSI -> FSIScreen(onBack = { pop() })
         }
         return
     }

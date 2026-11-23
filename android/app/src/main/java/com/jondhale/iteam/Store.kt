@@ -74,6 +74,14 @@ data class Game(
     fun mark(u: String) = if (u == x) 'X' else 'O'
 }
 
+/** A business-module or Builder record: the iPhone's payload kept as JSON, plus where it lives and who made it.
+ *  [conv] = "" means only on this phone. */
+data class Rec(val id: String, var conv: String, var owner: String, var by: String, val created: Long, var p: JSONObject, var updated: Double = 0.0, var deletedBy: String = "") {
+    fun s(k: String) = p.optString(k)
+    val deleted get() = p.optBoolean("deleted")
+    fun copyDeep() = copy(p = JSONObject(p.toString()))
+}
+
 /** Local data: chats in a private file, keys in Android's encrypted storage (Keystore-backed). */
 class Store private constructor(ctx: Context) {
     companion object {
@@ -119,6 +127,8 @@ class Store private constructor(ctx: Context) {
     val msgs = mutableListOf<Msg>()
     val tasks = mutableMapOf<String, TaskRec>()
     val games = mutableMapOf<String, Game>()
+    val biz = mutableMapOf<String, Rec>()
+    val build = mutableMapOf<String, Rec>()
     var since: Long = 0
     /** Envelopes whose group key hasn't arrived yet. */
     val pending = mutableListOf<CloudKit.Incoming>()
@@ -159,6 +169,10 @@ class Store private constructor(ctx: Context) {
             pending += CloudKit.Incoming(p.getString("n"), p.getString("f"), p.getString("cr"), p.getString("c"), p.getInt("k"), E2E.unb64(p.getString("b")), p.getLong("at"))
         }
         rooms = o.optJSONObject("rooms") ?: JSONObject()
+        fun recs(key: String, into: MutableMap<String, Rec>) = o.optJSONArray(key)?.forEachObj { r ->
+            into[r.getString("id")] = Rec(r.getString("id"), r.optString("c"), r.optString("o"), r.optString("by"), r.optLong("cr"), r.getJSONObject("p"), r.optDouble("up", 0.0), r.optString("db"))
+        }
+        recs("biz", biz); recs("build", build)
     }
 
     @Synchronized fun save() {
@@ -186,6 +200,10 @@ class Store private constructor(ctx: Context) {
         }))
         o.put("pending", JSONArray(pending.takeLast(500).map { JSONObject().put("n", it.name).put("f", it.from).put("cr", it.creator).put("c", it.conv).put("k", it.kind).put("b", E2E.b64(it.body)).put("at", it.created) }))
         o.put("rooms", rooms)
+        fun recs(m: Map<String, Rec>) = JSONArray(m.values.map { r ->
+            JSONObject().put("id", r.id).put("c", r.conv).put("o", r.owner).put("by", r.by).put("cr", r.created).put("p", r.p).put("up", r.updated).put("db", r.deletedBy)
+        })
+        o.put("biz", recs(biz)); o.put("build", recs(build))
         val tmp = File(file.path + ".tmp"); tmp.writeText(o.toString()); tmp.renameTo(file)
     }
 
@@ -203,6 +221,10 @@ class Store private constructor(ctx: Context) {
     @Synchronized fun task(id: String): TaskRec? = tasks[id]?.let { it.copy(p = JSONObject(it.p.toString()), comments = it.comments.toMutableList()) }
     @Synchronized fun game(id: String): Game? = games[id]?.copy()
     @Synchronized fun contactList(): List<Contact> = contacts.values.map { it.copy() }.sortedBy { it.name.lowercase() }
+    @Synchronized fun bizList(module: String? = null): List<Rec> = biz.values.filter { module == null || it.s("module") == module }.map { it.copyDeep() }
+    @Synchronized fun bizRec(id: String): Rec? = biz[id]?.copyDeep()
+    @Synchronized fun buildList(): List<Rec> = build.values.map { it.copyDeep() }
+    @Synchronized fun buildRec(id: String): Rec? = build[id]?.copyDeep()
     @Synchronized fun unreadTotal(): Int = convs.values.sumOf { it.unread }
 }
 

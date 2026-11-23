@@ -335,7 +335,10 @@ fun MoreTab(app: AppState, open: (Page) -> Unit) {
                 ListItem(modifier = Modifier.clickable { open(Page.Nearby) }, leadingContent = { Icon(Icons.Default.NearMe, null) }, headlineContent = { Text("People & businesses nearby") })
                 ListItem(modifier = Modifier.clickable { open(Page.NewGroup) }, leadingContent = { Icon(Icons.Default.GroupAdd, null) }, headlineContent = { Text("New group") })
                 HorizontalDivider()
-                Text("Business and personal modules (Attendance, Finance, CRM, Builder & Infra, Society, Gym and more) are coming to Android next. Everything is free on Android.",
+                ListItem(modifier = Modifier.clickable { open(Page.Modules) }, leadingContent = { Icon(Icons.Default.Apps, null) },
+                    headlineContent = { Text("Modules", fontWeight = FontWeight.SemiBold) }, supportingContent = { Text("Builder & Infra, Khata, Tuition, Rent, Legal, Clinic, Bills, Kids, Travel, Pet Care") })
+                ListItem(modifier = Modifier.clickable { open(Page.Builder) }, leadingContent = { Icon(Icons.Default.Apartment, null) }, headlineContent = { Text("Builder & Infra") })
+                Text("Everything is free on Android. Attendance, Finance, CRM, Society and Gym are next.",
                     Modifier.padding(16.dp), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }

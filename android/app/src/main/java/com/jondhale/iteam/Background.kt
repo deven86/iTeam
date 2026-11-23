@@ -25,7 +25,7 @@ class PollWorker(ctx: Context, params: WorkerParameters) : CoroutineWorker(ctx, 
         val store = Store.get(applicationContext)
         if (store.me.isEmpty() || store.webToken.isEmpty() || store.identity == null) return Result.success()
         return try {
-            Notify.show(applicationContext, Sync(store).poll()); Result.success()
+            Notify.show(applicationContext, Sync(store).poll()); ITeamWidget.update(applicationContext); Result.success()
         } catch (e: AuthNeeded) { Result.success() } catch (e: Exception) { Result.retry() }
     }
 

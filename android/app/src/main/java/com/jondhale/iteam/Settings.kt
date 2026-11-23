@@ -58,7 +58,11 @@ object LookState {
 /** Tabs that can sit in the bottom bar between Chats and Modules. */
 data class TabOption(val id: String, val title: String, val icon: ImageVector)
 val tabOptions: List<TabOption> get() = listOf(
+    TabOption("views", "mini", Icons.Default.PlayCircle),
     TabOption("tasks", "Tasks", Icons.Default.Checklist),
+    TabOption("events", "Events", Icons.Default.Celebration),
+    TabOption("safety", "Safety", Icons.Default.Sos),
+    TabOption("care", "Care", Icons.Default.MedicalServices),
     TabOption("rooms", "Rooms", Icons.Default.Forum),
     TabOption("build", "Builder", Icons.Default.Apartment),
     TabOption("attendance", "Attendance", Icons.Default.Fingerprint),
@@ -272,7 +276,7 @@ fun ModuleStoreScreen(app: AppState, onBack: () -> Unit, open: (Page) -> Unit) {
             StoreRow(s.title, (listOfNotNull(s.parent?.plural) + s.children.map { it.plural }).joinToString(", "), specColors(s), moduleIcon(s.module),
                 s.module in shown, s.module in added, { toggle(s.module) }) { open(Page.BizModule(s.module)) }
         }
-        Text("Coming next on Android: mini (Views), Events, Care, Family Safety, Fluffy Fight practice, widgets.", Modifier.padding(top = 12.dp), style = MaterialTheme.typography.labelMedium)
+        Text("Free on every phone: chat, Tasks, mini, Events, Family Safety, Care, Rooms and Fluffy Fight practice (Modules tab).", Modifier.padding(top = 12.dp), style = MaterialTheme.typography.labelMedium)
     }
 }
 

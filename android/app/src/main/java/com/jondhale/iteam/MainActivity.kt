@@ -136,7 +136,7 @@ fun App(store: Store, openConv: MutableState<String?>, pastedInvite: MutableStat
             val now = System.currentTimeMillis()
             if (active && (!wasActive || now >= app.nextPoll.longValue)) {
                 val wait = try {
-                    val n = withContext(Dispatchers.IO) { sync.poll() }
+                    val n = withContext(Dispatchers.IO) { sync.poll().also { runCatching { ITeamWidget.update(ctx) } } }
                     Notify.show(ctx, n)
                     if (sync.changed) app.tick++
                     if (now - roomsAt > 30_000) { roomsAt = now; if (withContext(Dispatchers.IO) { runCatching { app.rooms.pollDMs() }.getOrDefault(0) } > 0) app.tick++ }
@@ -186,6 +186,11 @@ sealed class Page {
     data class AttCompany(val id: String) : Page()
     object Finance : Page()
     object CRM : Page()
+    object Views : Page()
+    object Events : Page()
+    object Safety : Page()
+    object Care : Page()
+    object Fight : Page()
     data class Lead(val id: String) : Page()
     object Societies : Page()
     data class Society(val id: String) : Page()
@@ -224,6 +229,11 @@ fun Home(app: AppState, status: StatusInfo, openConv: MutableState<String?>, pas
             Page.Attendance -> AttendanceHome(app, onBack = { pop() }, open = { push(it) })
             is Page.AttCompany -> AttCompanyScreen(app, top.id, onBack = { pop() })
             Page.Finance -> FinanceHome(app, onBack = { pop() })
+            Page.Views -> ViewsScreen(app, onBack = { pop() })
+            Page.Events -> EventsScreen(app, onBack = { pop() })
+            Page.Safety -> SafetyScreen(app, onBack = { pop() })
+            Page.Care -> CareScreen(app, onBack = { pop() })
+            Page.Fight -> FightPractice(onBack = { pop() })
             Page.CRM -> CRMHome(app, onBack = { pop() }, open = { push(it) })
             is Page.Lead -> LeadScreen(app, top.id, onBack = { pop() })
             Page.Societies -> SocietyHome(app, onBack = { pop() }, open = { push(it) })
@@ -268,6 +278,10 @@ fun Home(app: AppState, status: StatusInfo, openConv: MutableState<String?>, pas
                 "attendance" -> AttendanceHome(app, onBack = null, open = go)
                 "finance" -> FinanceHome(app, onBack = null)
                 "crm" -> CRMHome(app, onBack = null, open = go)
+                "views" -> ViewsScreen(app, onBack = null)
+                "events" -> EventsScreen(app, onBack = null)
+                "safety" -> SafetyScreen(app, onBack = null)
+                "care" -> CareScreen(app, onBack = null)
                 "society" -> SocietyHome(app, onBack = null, open = go)
                 "gym" -> GymHome(app, onBack = null, open = go)
                 "modules" -> ModulesHub(app, onBack = null, open = go)

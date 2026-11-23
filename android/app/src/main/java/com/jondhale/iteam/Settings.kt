@@ -98,7 +98,10 @@ fun SettingsTab(app: AppState, open: (Page) -> Unit) {
                 Row1(Icons.Default.Storefront, "Module Store", "Add or remove modules — all free on Android") { open(Page.ModuleStore) }
                 Row1(Icons.Default.Palette, "Appearance", "${LookState.look.name} · ${modeName(LookState.mode)}") { open(Page.Appearance) }
                 Row1(Icons.Default.ViewWeek, "Bottom bar", store.prefList("pinned", listOf("tasks", "rooms")).joinToString(" · ") { id -> tabOptions.firstOrNull { it.id == id }?.title ?: id }) { open(Page.BottomBar) }
-                Row1(Icons.Default.Lock, "Privacy", "Photo, About, read receipts") { open(Page.Privacy) }
+                Row1(Icons.Default.ChatBubble, "Chat bubble colour") { open(Page.BubbleColor) }
+                Row1(Icons.Default.Lock, "Privacy & lock", "Fingerprint lock, photo, About, read receipts") { open(Page.Privacy) }
+                Row1(Icons.Default.Lightbulb, "Request a module") { open(Page.ModuleRequest) }
+                Row1(Icons.Default.Feedback, "Help & grievances") { open(Page.Help) }
                 HorizontalDivider()
                 Row1(Icons.Default.NearMe, "People & businesses nearby") { open(Page.Nearby) }
                 Row1(Icons.Default.GroupAdd, "New group") { open(Page.NewGroup) }
@@ -207,6 +210,8 @@ fun PrivacyScreen(app: AppState, onBack: () -> Unit) {
         }
         Toggle("Show my About to contacts", null, aboutContacts) { aboutContacts = it; s.setPref("aboutContacts", it); app.run(scope) { app.sync.sendAbout() } }
         Toggle("Read receipts", "Off = others don't see blue ticks from you", receipts) { receipts = it; s.setPref("readReceipts", it) }
+        var lock by remember { mutableStateOf(s.prefBool("appLock", false)) }
+        Toggle("Lock with fingerprint / face / PIN", "Asks when you open iTeam after 30 seconds away", lock) { lock = it; s.setPref("appLock", it) }
     }
 }
 

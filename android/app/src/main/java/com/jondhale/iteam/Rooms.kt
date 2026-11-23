@@ -73,6 +73,19 @@ class Rooms(private val store: Store, private val cloud: CloudKit) {
         }
     }
 
+    /** Changes my room name in this room; my threads and messages stay. */
+    fun rename(room: String, alias: String) {
+        val p = persona(room) ?: return
+        val a = alias.trim().take(30)
+        if (a.isEmpty() || a == p.optString("alias")) return
+        cloud.modify(listOf(cloud.create("RoomMember", "rm-${p.getString("id")}", JSONObject().put("alias", cloud.v(a)), "forceUpdate")))
+        synchronized(store) {
+            p.put("alias", a)
+            obj("members").optJSONObject(p.getString("id"))?.put("alias", a)
+            store.save()
+        }
+    }
+
     fun leave(room: Room) {
         val p = persona(room.id) ?: return
         runCatching { cloud.modify(listOf(cloud.delete("rm-" + p.getString("id")))) }

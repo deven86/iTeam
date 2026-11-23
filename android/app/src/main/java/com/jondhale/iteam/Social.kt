@@ -58,7 +58,15 @@ fun RoomsTab(app: AppState, open: (Page) -> Unit) {
                         leadingContent = { Avatar(m?.alias ?: "?", 40) },
                         headlineContent = { Text("${m?.alias ?: "Someone"} ${Rooms.symbol(m?.gender ?: "")}") },
                         supportingContent = { Text(app.rooms.joinedRooms().firstOrNull { it.id == room }?.name ?: "") },
-                        trailingContent = { if (n > 0) Badge(containerColor = Teal) { Text("$n") } })
+                        trailingContent = { Row(verticalAlignment = Alignment.CenterVertically) {
+                            val mineR = app.rooms.iRevealed(room, other); val theirsR = app.rooms.theirReveal(room, other) != null
+                            when {
+                                mineR && theirsR -> Text("Connected", color = Color(0xFF2E7D32), style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold)
+                                theirsR -> Text("👁 They revealed", color = Color(0xFFE65100), style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold)
+                                mineR -> Text("You revealed", style = MaterialTheme.typography.labelSmall)
+                            }
+                            if (n > 0) { Spacer(Modifier.width(6.dp)); Badge(containerColor = Teal) { Text("$n") } }
+                        } })
                 }
             }
             if (mine.isNotEmpty()) {
@@ -92,6 +100,14 @@ fun RoomScreen(app: AppState, room: Rooms.Room, onBack: () -> Unit, open: (Page)
     var menu by remember { mutableStateOf(false) }
     val persona = remember(app.tick) { app.rooms.persona(room.id) }
     val list = rememberLazyListState()
+    var askName by remember { mutableStateOf(true) }
+    var newAlias by remember { mutableStateOf(persona?.optString("alias") ?: "") }
+    if (askName && persona != null) AlertDialog(onDismissRequest = { askName = false }, title = { Text("Enter ${room.name} as") },
+        text = { Column {
+            OutlinedTextField(newAlias, { newAlias = it.take(30) }, label = { Text("Room name") }, singleLine = true)
+            Text("This is the name others in the room see. Change it any time from the ⋮ menu.", style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(top = 6.dp))
+        } },
+        confirmButton = { TextButton({ val a = newAlias; askName = false; app.run(scope) { app.rooms.rename(room.id, a) } }, enabled = newAlias.isNotBlank()) { Text("Continue") } })
     LaunchedEffect(persona) {
         while (true) {
             msgs = withContext(Dispatchers.IO) { runCatching { app.rooms.roomChat(room) }.getOrDefault(msgs) }
@@ -104,6 +120,7 @@ fun RoomScreen(app: AppState, room: Rooms.Room, onBack: () -> Unit, open: (Page)
             if (persona != null) Box {
                 IconButton({ menu = true }) { Icon(Icons.Default.MoreVert, null) }
                 DropdownMenu(menu, { menu = false }) {
+                    persona?.let { p -> DropdownMenuItem({ Text("Change my room name (now ${p.optString("alias")})") }, { menu = false; newAlias = p.optString("alias"); askName = true }) }
                     DropdownMenuItem({ Text("Leave room") }, { menu = false; app.run(scope) { app.rooms.leave(room) }; onBack() })
                 }
             }
@@ -179,9 +196,10 @@ fun RoomDMScreen(app: AppState, room: String, other: String, onBack: () -> Unit)
                                 Text("You both revealed — add each other as real contacts.", fontWeight = FontWeight.Bold)
                                 Button({ app.run(scope) { app.sync.addContact(theirs); app.toast = "Added to your contacts" } }, Modifier.padding(top = 6.dp)) { Text("Add contact") }
                             }
-                            revealed -> Text("You revealed. They'll see your contact only if they reveal too.")
+                            revealed -> Text("You revealed. Waiting for them to reveal too — they'll see who you are only then.")
                             else -> {
-                                Text(if (theirs != null) "They want to swap real contacts." else "Want to swap real contacts?", fontWeight = FontWeight.Bold)
+                                if (theirs != null) Text("👁 ${app.rooms.member(other)?.alias ?: "They"} has revealed", fontWeight = FontWeight.Bold, color = Color(0xFFE65100))
+                                Text(if (theirs != null) "Reveal yours to connect on iTeam — until then they still don't know who you are." else "Want to swap real contacts?", fontWeight = if (theirs != null) FontWeight.Normal else FontWeight.Bold)
                                 OutlinedButton({ app.run(scope) { app.rooms.reveal(room, other, app.sync.inviteLink()) } }, Modifier.padding(top = 6.dp)) { Text("Reveal") }
                             }
                         }

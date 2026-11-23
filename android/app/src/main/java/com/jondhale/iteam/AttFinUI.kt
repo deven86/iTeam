@@ -192,6 +192,14 @@ fun AttCompanyScreen(app: AppState, id: String, onBack: () -> Unit) {
     Scaffold(topBar = {
         TopAppBar(title = { Text(c.optString("name")) }, navigationIcon = { IconButton(onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back") } },
             actions = {
+                PdfButton("Attendance", "${c.optString("name")} — ${java.text.SimpleDateFormat("MMMM yyyy", java.util.Locale.ENGLISH).format(java.util.Date())}") {
+                    val days = (1..java.util.Calendar.getInstance().get(java.util.Calendar.DAY_OF_MONTH)).map { d -> java.util.Calendar.getInstance().apply { set(java.util.Calendar.DAY_OF_MONTH, d); set(java.util.Calendar.HOUR_OF_DAY, 12) }.timeInMillis }
+                    val ents = all.filter { it.ak == "entry" && !it.deleted }
+                    listOf("## Monthly register (P present · L late · H half · A absent · PL/UL leave · HO holiday · WO off)") + members.map { m ->
+                        val codes = days.map { d -> AttData.code(attStatus(m, c, d, ents.firstOrNull { it.s("memberID") == m.id && it.s("day") == AttData.key(d) }, leaves, hol)) }
+                        "${m.memberName}: " + codes.joinToString(" ") + "  — present ${codes.count { it in listOf("P", "G", "L") }}, absent ${codes.count { it == "A" }}"
+                    }
+                }
                 IconButton({ holiday = true }) { Icon(Icons.Default.Celebration, "Holiday") }
             })
     }, floatingActionButton = { ExtendedFloatingActionButton(onClick = { adding = true }, icon = { Icon(Icons.Default.PersonAdd, null) }, text = { Text("Add person") }) }) { pad ->
@@ -310,7 +318,8 @@ fun FinanceHome(app: AppState, onBack: (() -> Unit)?) {
     val comp = if (book == "personal") null else app.sync.attCompany(book)
     val isOwner = comp == null || comp.optString("ownerID") == app.store.me
     val moduleLines = remember(app.tick) { moduleMoney(app) }
-    Scaffold(topBar = { TopAppBar(title = { Text("Finance") }, navigationIcon = { onBack?.let { b -> IconButton(b) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back") } } }) },
+    Scaffold(topBar = { TopAppBar(title = { Text("Finance") }, navigationIcon = { onBack?.let { b -> IconButton(b) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back") } } },
+        actions = { PdfButton("Finance", books.firstOrNull { it.first == book }?.second ?: "Finance") { ReportText.finance(app, book) } }) },
         floatingActionButton = { Row {
             ExtendedFloatingActionButton(onClick = { adding = true }, icon = { Icon(Icons.Default.ArrowDownward, null) }, text = { Text("Income") }, containerColor = Color(0xFFD7F5DD))
             Spacer(Modifier.width(8.dp))

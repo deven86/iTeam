@@ -135,7 +135,8 @@ fun BizModuleScreen(app: AppState, module: String, onBack: (() -> Unit)?, open: 
     var adding by remember { mutableStateOf<BizKind?>(null) }
     var editing by remember { mutableStateOf<Rec?>(null) }
 
-    Scaffold(topBar = { TopAppBar(title = { Text(spec.title) }, navigationIcon = { onBack?.let { b -> IconButton(b) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back") } } }) },
+    Scaffold(topBar = { TopAppBar(title = { Text(spec.title) }, navigationIcon = { onBack?.let { b -> IconButton(b) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back") } } },
+        actions = { PdfButton(spec.title, "${spec.title} report") { ReportText.biz(app, spec) } }) },
         floatingActionButton = {
             ExtendedFloatingActionButton(onClick = { adding = spec.parent ?: spec.flat }, icon = { Icon(Icons.Default.Add, null) },
                 text = { Text("New ${(spec.parent ?: spec.flat)?.label?.lowercase() ?: "entry"}") })

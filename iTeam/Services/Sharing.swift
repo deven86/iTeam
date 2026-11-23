@@ -269,7 +269,7 @@ struct ShareMenu: View {
     let text: () -> String
     var html: (() -> String)? = nil
     var label: String = "Share"
-    var module: String = ""
+    var module: String = "iTeam"
     var icon: String = "doc.richtext"
     var colors: [UInt32] = [0xF0567A, 0x7B3FE4]
     var charts: (() -> [PDFChart])? = nil

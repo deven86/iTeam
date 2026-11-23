@@ -107,6 +107,9 @@ struct ThreadRow: View {
                 Text("in \(rooms.room(thread.room)?.name ?? "a room")").font(.caption).foregroundStyle(.secondary)
             }
             Spacer()
+            if rooms.revealedInvite(thread) != nil { Label("Connected", systemImage: "person.2.fill").font(.caption2.bold()).foregroundStyle(.green) }
+            else if rooms.theyRevealed(thread) { Label("They revealed", systemImage: "eye.fill").font(.caption2.bold()).foregroundStyle(.orange) }
+            else if rooms.iRevealed(thread) { Label("You revealed", systemImage: "eye").font(.caption2).foregroundStyle(.secondary) }
             if rooms.unread(thread) > 0 { CountBadge(count: rooms.unread(thread)) }
         }
     }
@@ -270,6 +273,8 @@ struct RoomChatView: View {
     @State private var text = ""
     @State private var dm: Rooms.Thread?
     @State private var confirmLeave = false
+    @State private var askName = true
+    @State private var newAlias = ""
     private let tick = Timer.publish(every: 4, on: .main, in: .common).autoconnect()
 
     private var me: String { rooms.joined[room.id]?.id ?? "" }
@@ -309,6 +314,7 @@ struct RoomChatView: View {
             ToolbarItem(placement: .topBarTrailing) {
                 Menu {
                     if let p = rooms.joined[room.id] { Text("You are \(p.alias) \(Rooms.symbol(p.gender))") }
+                    Button("Change my room name", systemImage: "pencil") { newAlias = rooms.joined[room.id]?.alias ?? ""; askName = true }
                     ShareLink(item: "Join my room \"\(room.name)\" on iTeam → Rooms") { Label("Invite people", systemImage: "square.and.arrow.up") }
                     Button("Leave room", systemImage: "rectangle.portrait.and.arrow.right", role: .destructive) { confirmLeave = true }
                 } label: { Image(systemName: "ellipsis.circle") }
@@ -320,6 +326,13 @@ struct RoomChatView: View {
         .confirmationDialog("Leave \(room.name)?", isPresented: $confirmLeave, titleVisibility: .visible) {
             Button("Leave", role: .destructive) { Task { await rooms.leave(room); dismiss() } }
         }
+        // Every time you enter: keep your room name or change it.
+        .onAppear { newAlias = rooms.joined[room.id]?.alias ?? "" }
+        .alert("Enter \(room.name) as", isPresented: Binding(get: { askName && rooms.joined[room.id] != nil }, set: { askName = $0 })) {
+            TextField("Room name", text: $newAlias)
+            Button("Continue") { let a = newAlias; Task { _ = await rooms.rename(room, alias: a) } }
+            Button("Cancel", role: .cancel) {}
+        } message: { Text("This is the name others in the room see. Change it any time.") }
     }
 
     private func bubble(_ m: Rooms.Message) -> some View {
@@ -436,8 +449,12 @@ struct RoomDMView: View {
                 .buttonStyle(.glassProminent)
             } else if rooms.iRevealed(thread) {
                 Label("You revealed. Waiting for \(other?.alias ?? "them") to reveal too.", systemImage: "hourglass").font(.callout)
+            } else if rooms.theyRevealed(thread) {
+                Label("\(other?.alias ?? "They") has revealed", systemImage: "eye.fill").font(.headline).foregroundStyle(.orange)
+                Text("Reveal yours to connect on iTeam — until then they still don't know who you are.")
+                    .font(.callout).multilineTextAlignment(.center).foregroundStyle(.secondary)
             } else {
-                Text(rooms.theyRevealed(thread) ? "\(other?.alias ?? "They") revealed. Reveal yours to connect on iTeam." : "Only your room name, gender and picture are visible.")
+                Text("Only your room name, gender and picture are visible.")
                     .font(.callout).multilineTextAlignment(.center).foregroundStyle(.secondary)
                 Button("Reveal myself", systemImage: "eye") { confirmReveal = true }.buttonStyle(.bordered)
             }

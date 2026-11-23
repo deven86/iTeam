@@ -257,6 +257,25 @@ final class Rooms: ObservableObject {
         } catch { self.error = error.cloudMessage; return false }
     }
 
+    /// Changes my room name in one room (only my RoomMember record changes — threads and messages stay).
+    func rename(_ room: Room, alias: String) async -> Bool {
+        guard var p = saved.joined[room.id] else { return false }
+        let clean = Moderation.clean(alias.trimmingCharacters(in: .whitespacesAndNewlines))
+        guard !clean.isEmpty, clean != p.alias else { return clean == p.alias }
+        do {
+            let id = CKRecord.ID(recordName: "rm-" + p.id)
+            let rec = (try? await db.record(for: id)) ?? CKRecord(recordType: "RoomMember", recordID: id)
+            rec["alias"] = clean
+            if rec["room"] == nil { rec["room"] = room.id; rec["gender"] = p.gender; rec["photo"] = p.photo }
+            _ = try await db.save(rec)
+            p.alias = clean
+            saved.joined[room.id] = p
+            saved.members[p.id] = Self.member(rec)
+            persist()
+            return true
+        } catch { self.error = error.cloudMessage; return false }
+    }
+
     func leave(_ room: Room) async {
         guard let p = saved.joined[room.id] else { return }
         _ = try? await db.deleteRecord(withID: CKRecord.ID(recordName: "rm-" + p.id))

@@ -35,7 +35,26 @@ import java.util.Locale
 val Brand: Color get() = LookState.primary
 val Teal: Color get() = LookState.secondary
 
-class MainActivity : ComponentActivity() {
+class MainActivity : androidx.fragment.app.FragmentActivity() {
+    /** Fingerprint / face / PIN lock (Settings → Privacy). */
+    private var locked = mutableStateOf(false)
+    private var stoppedAt = 0L
+    private fun lockOn() = Store.get(this).prefBool("appLock", false)
+    private fun unlock() {
+        val prompt = androidx.biometric.BiometricPrompt(this, androidx.core.content.ContextCompat.getMainExecutor(this),
+            object : androidx.biometric.BiometricPrompt.AuthenticationCallback() {
+                override fun onAuthenticationSucceeded(result: androidx.biometric.BiometricPrompt.AuthenticationResult) { locked.value = false }
+            })
+        val info = androidx.biometric.BiometricPrompt.PromptInfo.Builder().setTitle("Unlock iTeam")
+            .setAllowedAuthenticators(androidx.biometric.BiometricManager.Authenticators.BIOMETRIC_WEAK or androidx.biometric.BiometricManager.Authenticators.DEVICE_CREDENTIAL).build()
+        runCatching { prompt.authenticate(info) }.onFailure { locked.value = false }
+    }
+    override fun onStop() { super.onStop(); stoppedAt = System.currentTimeMillis() }
+    override fun onStart() {
+        super.onStart()
+        if (lockOn() && (stoppedAt == 0L || System.currentTimeMillis() - stoppedAt > 30_000)) { locked.value = true; unlock() }
+    }
+
     private var openConv = mutableStateOf<String?>(null)
     private var pastedInvite = mutableStateOf<String?>(null)
     private var signInTick = mutableIntStateOf(0)
@@ -49,7 +68,11 @@ class MainActivity : ComponentActivity() {
         setContent {
             val dark = when (LookState.mode) { "dark" -> true; "light" -> false; else -> isSystemInDarkTheme() }
             MaterialTheme(colorScheme = LookState.scheme(dark)) {
-                Surface(Modifier.fillMaxSize()) { App(Store.get(this), openConv, pastedInvite, signInTick) }
+                Surface(Modifier.fillMaxSize()) {
+                    if (locked.value) Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.Center, horizontalAlignment = Alignment.CenterHorizontally) {
+                        Logo(); Spacer(Modifier.height(16.dp)); Button({ unlock() }) { Text("Unlock") }
+                    } else App(Store.get(this), openConv, pastedInvite, signInTick)
+                }
             }
         }
     }
@@ -201,6 +224,9 @@ sealed class Page {
     object Appearance : Page()
     object BottomBar : Page()
     object Privacy : Page()
+    object BubbleColor : Page()
+    object Help : Page()
+    object ModuleRequest : Page()
 }
 
 @Composable
@@ -244,6 +270,9 @@ fun Home(app: AppState, status: StatusInfo, openConv: MutableState<String?>, pas
             Page.Appearance -> AppearanceScreen(app, onBack = { pop() })
             Page.BottomBar -> BottomBarScreen(app, onBack = { pop() })
             Page.Privacy -> PrivacyScreen(app, onBack = { pop() })
+            Page.BubbleColor -> BubbleColorScreen(app, onBack = { pop() })
+            Page.Help -> HelpScreen(app, onBack = { pop() })
+            Page.ModuleRequest -> ModuleRequestScreen(app, onBack = { pop() })
             Page.Modules -> ModulesHub(app, onBack = { pop() }, open = { push(it) })
             is Page.BizModule -> BizModuleScreen(app, top.module, onBack = { pop() }, open = { push(it) })
             is Page.BizParent -> BizParentScreen(app, top.module, top.id, onBack = { pop() })

@@ -610,7 +610,7 @@ struct MindHistoryView: View {
                         Spacer()
                         if l.moodBefore > 0 && l.moodAfter > 0 { Text("\(["😣","😕","😐","🙂","😌"][l.moodBefore-1])→\(["😣","😕","😐","🙂","😌"][l.moodAfter-1])") }
                         Text("\(Int(l.minutes.rounded())) min").font(.subheadline.bold())
-                        ShareMenu(title: l.title, text: { "\(l.title) — \(Int(l.minutes.rounded())) mindful minutes on \(l.date.formatted(date: .abbreviated, time: .shortened))" })
+                        ShareMenu(title: l.title, text: { "\(l.title) — \(Int(l.minutes.rounded())) mindful minutes on \(l.date.formatted(date: .abbreviated, time: .shortened))" }, module: "Mindfulness", icon: "brain.head.profile")
                             .labelStyle(.iconOnly).font(.caption)
                     }
                     .glassCard(cornerRadius: 16, padding: 12)

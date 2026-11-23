@@ -44,6 +44,7 @@ import androidx.core.content.ContextCompat
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.delay
 import java.io.File
 
 val reactionsRow = listOf("👍", "❤️", "😂", "😮", "😢", "🙏")
@@ -215,10 +216,8 @@ fun ChatScreen(app: AppState, convID: String, onBack: () -> Unit, open: (Page) -
         })
     openGame?.let { GameDialog(app, it) { openGame = null } }
     viewer?.let { f ->
-        Dialog({ viewer = null }) {
-            val bmp = remember(f) { BitmapFactory.decodeFile(f.absolutePath) }
-            if (bmp != null) Image(bmp.asImageBitmap(), null, Modifier.fillMaxWidth().clickable { viewer = null }, contentScale = ContentScale.Fit)
-        }
+        val images = remember(msgs) { msgs.filter { !it.deleted }.flatMap { m -> m.atts.filter { it.kind == "image" } } }
+        PhotoSwiper(app, images, images.indexOfFirst { it.id == f.name }.coerceAtLeast(0)) { viewer = null }
     }
 }
 
@@ -239,10 +238,10 @@ fun Bubble(app: AppState, m: Msg, conv: Conv, all: List<Msg>, onLong: () -> Unit
     Column(Modifier.fillMaxWidth().padding(vertical = 3.dp), horizontalAlignment = if (mine) Alignment.End else Alignment.Start) {
         Column(Modifier.widthIn(max = 300.dp)
             .clip(RoundedCornerShape(18.dp))
-            .background(if (mine) Brush.linearGradient(listOf(Brand, Teal)) else Brush.linearGradient(listOf(MaterialTheme.colorScheme.surfaceVariant, MaterialTheme.colorScheme.surfaceVariant)))
+            .background(bubbleBrush(app, mine))
             .combinedClickable(onClick = {}, onLongClick = onLong)
             .padding(horizontal = 12.dp, vertical = 8.dp)) {
-            val fg = if (mine) Color.White else MaterialTheme.colorScheme.onSurface
+            val fg = bubbleText(app, mine)
             if (conv.isGroup && !mine) Text(app.store.name(m.from), style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold, color = Teal)
             m.replyTo?.let { rid ->
                 all.firstOrNull { it.id == rid }?.let { r ->
@@ -339,6 +338,16 @@ fun statusTitle(s: String) = when (s) { "inProgress" -> "In progress"; "done" ->
 
 @Composable
 fun GameDialog(app: AppState, id: String, onClose: () -> Unit) {
+    // While the board is open, check for the other player's move every 2 seconds (same as iPhone).
+    LaunchedEffect(id) {
+        while (true) {
+            delay(2000)
+            val st = app.store.game(id)?.status
+            if (st == "won" || st == "draw" || st == "resigned" || st == "declined") break
+            runCatching { withContext(Dispatchers.IO) { app.sync.poll() } }
+            app.changed()
+        }
+    }
     val g = remember(app.tick, id) { app.store.game(id) } ?: return
     val me = app.store.me
     val scope = rememberCoroutineScope()
@@ -375,3 +384,48 @@ fun GameDialog(app: AppState, id: String, onClose: () -> Unit) {
             }
         })
 }
+
+
+/** Full-screen photos: swipe left/right through every photo in the chat, like the iPhone. */
+@OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
+@Composable
+fun PhotoSwiper(app: AppState, images: List<Att>, start: Int, onClose: () -> Unit) {
+    val ctx = LocalContext.current
+    val pager = androidx.compose.foundation.pager.rememberPagerState(initialPage = start) { images.size.coerceAtLeast(1) }
+    Dialog(onClose, properties = androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = false)) {
+        Box(Modifier.fillMaxSize().background(Color.Black)) {
+            androidx.compose.foundation.pager.HorizontalPager(pager, Modifier.fillMaxSize()) { i ->
+                val a = images.getOrNull(i)
+                var bmp by remember(a?.id) { mutableStateOf<android.graphics.Bitmap?>(null) }
+                LaunchedEffect(a?.id) { if (a != null) bmp = withContext(Dispatchers.IO) { runCatching { BitmapFactory.decodeFile(Media.load(ctx, app.sync.cloudKit, a).absolutePath) }.getOrNull() } }
+                Box(Modifier.fillMaxSize().clickable { onClose() }, contentAlignment = Alignment.Center) {
+                    bmp?.let { Image(it.asImageBitmap(), null, Modifier.fillMaxWidth(), contentScale = ContentScale.Fit) } ?: CircularProgressIndicator(color = Color.White)
+                }
+            }
+            if (images.size > 1) Text("${pager.currentPage + 1} / ${images.size}", Modifier.align(Alignment.TopCenter).padding(24.dp), color = Color.White)
+        }
+    }
+}
+
+/** Chat bubble colours from Settings (the iPhone's palette); default = the look's gradient. */
+@Composable
+fun bubbleBrush(app: AppState, mine: Boolean): Brush {
+    val c = app.store.pref(if (mine) "bubbleOut" else "bubbleIn").toLongOrNull()
+    return when {
+        c != null -> Brush.linearGradient(listOf(Color(c), Color(c)))
+        mine -> Brush.linearGradient(listOf(Brand, Teal))
+        else -> Brush.linearGradient(listOf(MaterialTheme.colorScheme.surfaceVariant, MaterialTheme.colorScheme.surfaceVariant))
+    }
+}
+
+@Composable
+fun bubbleText(app: AppState, mine: Boolean): Color {
+    val c = app.store.pref(if (mine) "bubbleOut" else "bubbleIn").toLongOrNull()
+    return when {
+        c != null -> if (isLightColor(c)) Color.Black else Color.White
+        mine -> Color.White
+        else -> MaterialTheme.colorScheme.onSurface
+    }
+}
+
+fun isLightColor(c: Long): Boolean { val r = (c shr 16) and 0xFF; val g = (c shr 8) and 0xFF; val b = c and 0xFF; return (0.299 * r + 0.587 * g + 0.114 * b) > 160 }

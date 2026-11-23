@@ -193,7 +193,7 @@ struct AIResultView: View {
             ToolbarItem(placement: .cancellationAction) { Button("Done") { dismiss() } }
             if !text.isEmpty {
                 ToolbarItem(placement: .primaryAction) {
-                    ShareMenu(title: title, text: { text }).labelStyle(.iconOnly)
+                    ShareMenu(title: title, text: { text }, module: "AI · My Day", icon: "sparkles").labelStyle(.iconOnly)
                 }
                 if let postTo, AISettings.shared.groupAI.contains(postTo.id) {
                     ToolbarItem(placement: .bottomBar) {

@@ -167,6 +167,7 @@ fun BuildProjectScreen(app: AppState, id: String, onBack: () -> Unit, open: (Pag
         TopAppBar(title = { Text(p.btitle, maxLines = 1, overflow = TextOverflow.Ellipsis) }, navigationIcon = { onBack?.let { b -> IconButton(b) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back") } } },
             actions = {
                 p.d.optString("convID").takeIf { it.isNotEmpty() && app.store.conv(it) != null }?.let { c -> IconButton({ open(Page.Chat(c)) }) { Icon(Icons.Default.Chat, "Project chat") } }
+                PdfButton("Builder & Infra", p.btitle) { ReportText.build(app, p.id) }
                 if (admin) IconButton({ editing = true }) { Icon(Icons.Default.Edit, "Edit") }
             })
     }) { pad ->

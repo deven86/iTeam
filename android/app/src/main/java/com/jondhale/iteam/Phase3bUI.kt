@@ -29,8 +29,9 @@ private fun miscList(app: AppState, t: String) = app.store.miscList(t)
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun Screen(title: String, onBack: (() -> Unit)?, fab: (@Composable () -> Unit)? = null, content: androidx.compose.foundation.lazy.LazyListScope.() -> Unit) {
-    Scaffold(topBar = { TopAppBar(title = { Text(title) }, navigationIcon = { onBack?.let { b -> IconButton(b) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back") } } }) },
+private fun Screen(title: String, onBack: (() -> Unit)?, fab: (@Composable () -> Unit)? = null, pdf: (() -> List<String>)? = null, content: androidx.compose.foundation.lazy.LazyListScope.() -> Unit) {
+    Scaffold(topBar = { TopAppBar(title = { Text(title) }, navigationIcon = { onBack?.let { b -> IconButton(b) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back") } } },
+        actions = { pdf?.let { PdfButton(title, "$title report", it) } }) },
         floatingActionButton = { fab?.invoke() }) { pad -> LazyColumn(Modifier.padding(pad), content = content) }
 }
 
@@ -65,7 +66,7 @@ fun CRMHome(app: AppState, onBack: (() -> Unit)?, open: (Page) -> Unit) {
     var adding by remember { mutableStateOf(false) }
     var newGroup by remember { mutableStateOf(false) }
     val open0 = mine.filter { it.s("stage") !in listOf("won", "lost") }
-    Screen("CRM", onBack, { Fab("New lead") { adding = true } }) {
+    Screen("CRM", onBack, { Fab("New lead") { adding = true } }, pdf = { crmStages.flatMap { st -> listOf("## ${st.replaceFirstChar { it.uppercase() }}") + mine.filter { it.s("stage") == st }.map { "• ${it.s("name")} ${it.s("company")} · ${money(it.p.optDouble("dealValue"))} · ${it.s("phone")}" } } }) {
         item {
             StatTiles("${open0.size}" to "Open leads", money(open0.sumOf { it.p.optDouble("dealValue") }) to "Pipeline value",
                 money(mine.filter { it.s("stage") == "won" }.sumOf { it.p.optDouble("dealValue") }) to "Won")
@@ -239,7 +240,8 @@ fun SocietyScreen(app: AppState, id: String, onBack: () -> Unit) {
     var dialog by remember { mutableStateOf("") }
     val scope = rememberCoroutineScope()
     fun flat(u: String) = units.firstOrNull { it.id == u }?.unitLabel ?: ""
-    Screen(soc.d.optString("name"), onBack) {
+    Screen(soc.d.optString("name"), onBack, pdf = { listOf("## Bills") + bills.map { "• Flat ${flat(it.s("unitID"))} · ${it.d.optString("title")} · ${money(it.d.optDouble("amount"))} · ${it.status}" } +
+        listOf("## Complaints") + complaints.map { "• Flat ${flat(it.s("unitID"))} · ${it.d.optString("title")} · ${it.status}" } }) {
         item {
             StatTiles(money(bills.filter { it.status != "paid" }.sumOf { it.d.optDouble("amount") }) to "Dues", "${complaints.count { it.status != "resolved" && it.status != "closed" }}" to "Open complaints", "${visitors.size}" to "At the gate")
             Row(Modifier.horizontalScroll(rememberScrollState()).padding(horizontal = 12.dp)) {
@@ -342,7 +344,8 @@ fun GymMemberScreen(app: AppState, id: String, onBack: () -> Unit) {
     val plans = remember(app.tick) { miscList(app, "gymplan").filter { it.s("memberID") == id && !it.deleted } }
     var dialog by remember { mutableStateOf("") }
     val scope = rememberCoroutineScope()
-    Screen(m.s("name"), onBack) {
+    Screen(m.s("name"), onBack, pdf = { listOf("## Sessions (${sessions.size})") + sessions.map { "• ${dateText(SwiftDate.toMillis(it.p.optDouble("date")))} ${it.s("workout")}" } +
+        listOf("## Payments") + pays.map { "• ${dateText(SwiftDate.toMillis(it.p.optDouble("date")))} · ${money(it.amount)} · ${it.s("kind")}" } }) {
         item {
             StatTiles("${sessions.size}" to "Sessions", money(pays.sumOf { it.amount }) to "Paid", money(sessions.size * m.p.optDouble("fee", 0.0) - pays.filter { it.s("kind") == "training" }.sumOf { it.amount }).let { it to "Training balance" })
             Text(listOf(m.s("goal"), m.s("trainer").let { if (it.isEmpty()) "" else "Trainer $it${if (m.s("trainerStatus") == "waiting") " (waiting)" else ""}" }, "Managed by ${app.store.name(m.owner)}").filter { it.isNotEmpty() }.joinToString(" · "),

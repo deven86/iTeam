@@ -220,12 +220,14 @@ struct BuildEditor: View {
         var data = d
         data.files += pending.refs
         let isNewSale = kind == "sale" && existing == nil
-        let id = engine.bSave(kind: kind, existing: existing, company: company, project: project, parent: existing?.parentID ?? parent,
-                              status: status, data: data, uploads: pending.uploads)
-        if isNewSale, let unit = engine.bRecord(parent), ["Available", "Hold", ""].contains(unit.status) { engine.bSetStatus(unit, "Booked") }
+        let e = engine, k = kind, ex = existing, co = company, pr = project, pa = existing?.parentID ?? parent, st = status, up = pending.uploads, done = onSaved
         Haptics.tap()
-        onSaved?(id)
         dismiss()
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
+            let id = e.bSave(kind: k, existing: ex, company: co, project: pr, parent: pa, status: st, data: data, uploads: up)
+            if isNewSale, let unit = e.bRecord(pa), ["Available", "Hold", ""].contains(unit.status) { e.bSetStatus(unit, "Booked") }
+            done?(id)
+        }
     }
 }
 
@@ -292,6 +294,7 @@ struct BuildDetail: View {
     @State private var confirmDelete = false
     @State private var post: String?
     @State private var plan = false
+    @State private var generate = false
 
     init(r: BuildRecord) {
         self.r = r
@@ -337,6 +340,7 @@ struct BuildDetail: View {
             NavigationStack { NewPostView(status: false, kind: .achievement, prefill: t.id) }
         }
         .sheet(isPresented: $plan) { NavigationStack { BuildPlanSheet(sale: r) } }
+        .sheet(isPresented: $generate) { NavigationStack { BuildGenerateUnits(building: r) } }
         .confirmationDialog("Delete \(k.label.lowercased())?", isPresented: $confirmDelete, titleVisibility: .visible) {
             Button("Delete", role: .destructive) { engine.bDelete(r); dismiss() }
         } message: { Text("It stays visible to the team as deleted. Money entries linked in Finance are removed too.") }
@@ -393,7 +397,7 @@ struct BuildDetail: View {
 
     @ViewBuilder private var kindSections: some View {
         switch r.kind {
-        case "building": BuildUnitsGrid(building: r, units: kids.filter { $0.kind == "unit" }, canAdmin: isAdmin)
+        case "building": BuildUnitsGrid(building: r, units: kids.filter { $0.kind == "unit" }, canAdmin: isAdmin) { generate = true }
         case "unit": unitSection
         case "sale": saleSections
         case "party": paymentsSection(title: BuildKinds.money.contains(r.f("role")) ? "Capital & payouts" : "Payments")
@@ -554,7 +558,11 @@ struct BuildPlanSheet: View {
         .toolbar {
             ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
             ToolbarItem(placement: .confirmationAction) {
-                Button("Create") { engine.bAddPlan(sale, stages: stages); Haptics.big(); dismiss() }.bold().disabled(stages.isEmpty)
+                Button("Create") {
+                    let s = sale, e = engine, st = stages
+                    Haptics.big(); dismiss()
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.45) { e.bAddPlan(s, stages: st) }
+                }.bold().disabled(stages.isEmpty)
             }
         }
     }
@@ -566,8 +574,8 @@ struct BuildUnitsGrid: View {
     let building: BuildRecord
     let units: [BuildRecord]
     let canAdmin: Bool
+    var onGenerate: (() -> Void)? = nil
     @State private var wing = ""
-    @State private var generate = false
 
     private var wings: [String] {
         let w = Set(units.map { $0.f("wing") })
@@ -603,12 +611,11 @@ struct BuildUnitsGrid: View {
                     }
                 }
             }
-            if canAdmin { Button("Generate units for wings & floors", systemImage: "square.grid.3x3.fill") { generate = true } }
+            if canAdmin, let onGenerate { Button("Generate units for wings & floors", systemImage: "square.grid.3x3.fill") { onGenerate() } }
         } header: { Text("Units (\(units.count))") } footer: {
             let sold = units.filter { ["Booked", "Agreement done", "Registered", "Possession given"].contains($0.status) }.count
             Text("Green available · blue booked/sold · \(sold) of \(units.count) sold")
         }
-        .sheet(isPresented: $generate) { NavigationStack { BuildGenerateUnits(building: building) } }
     }
 }
 
@@ -644,8 +651,13 @@ struct BuildGenerateUnits: View {
             ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
             ToolbarItem(placement: .confirmationAction) {
                 Button("Create") {
-                    engine.bGenerateUnits(building, perFloor: perFloor, type: type, carpet: carpet, price: price, fromFloor: from, toFloor: to)
-                    Haptics.big(); dismiss()
+                    let b = building, e = engine, p = perFloor, t = type, c = carpet, pr = price, f = from, to = to
+                    Haptics.big()
+                    dismiss()
+                    // Add the units after the sheet has closed, so the screen underneath isn't rebuilt mid-dismiss.
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.45) {
+                        e.bGenerateUnits(b, perFloor: p, type: t, carpet: c, price: pr, fromFloor: f, toFloor: to)
+                    }
                 }.bold()
             }
         }

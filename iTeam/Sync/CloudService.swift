@@ -193,7 +193,7 @@ final class CloudService {
             info.shouldSendContentAvailable = true
             info.desiredKeys = ["conv", "hint", "sndr"]
             sub.notificationInfo = info
-            _ = try await db.save(sub)
+            try await saveSubscription(sub)
         }
         if !existing.contains(quietID) {
             let sub = CKQuerySubscription(recordType: "Envelope",
@@ -203,7 +203,15 @@ final class CloudService {
             let info = CKSubscription.NotificationInfo()
             info.shouldSendContentAvailable = true
             sub.notificationInfo = info
-            _ = try await db.save(sub)
+            try await saveSubscription(sub)
+        }
+    }
+
+    /// "Already exists" is success: the list fetch can fail on a weak network, and then we try to save again.
+    private func saveSubscription(_ sub: CKSubscription) async throws {
+        do { _ = try await db.save(sub) }
+        catch let e as CKError where e.code == .serverRejectedRequest || e.code == .serverRecordChanged || e.code == .constraintViolation {
+            if (try? await db.subscription(for: sub.subscriptionID)) == nil { throw e }
         }
     }
 }

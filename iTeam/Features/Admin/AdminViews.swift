@@ -30,6 +30,8 @@ final class Admin: ObservableObject {
         /// iCloud user IDs banned from all public Rooms.
         var banned: [String]? = nil
         var grievance: Grievance? = nil
+        /// Builds older than this see "Please update". Old builds talk to the old (Development) iCloud database and can't reach anyone.
+        var minBuild: Int? = nil
     }
 
     struct UserRow: Identifiable { let id: String; let name: String; let joined: Date?; let seen: Date? }
@@ -54,6 +56,9 @@ final class Admin: ObservableObject {
         config.banned = Array(list)
         await saveConfig(force: true)
     }
+
+    static var currentBuild: Int { Int(Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "0") ?? 0 }
+    var updateRequired: Bool { (config.minBuild ?? 0) > Self.currentBuild }
 
     func isAdmin(_ me: String) -> Bool { isSuperOwner || config.people.contains { $0.id == me && $0.role == "owner" && $0.active } }
 
@@ -182,6 +187,21 @@ struct AdminPanelView: View {
                 NavigationLink { ComplaintsView(all: true) } label: { Label("Grievances (\(admin.complaints.count))", systemImage: "exclamationmark.bubble.fill") }
                 NavigationLink { GrievanceOfficerEditor() } label: { Label("Grievance Officer details", systemImage: "person.text.rectangle") }
                 LabeledContent("Banned from Rooms", value: "\((admin.config.banned ?? []).count)")
+            }
+            Section {
+                LabeledContent("This build", value: "\(Admin.currentBuild)")
+                LabeledContent("Minimum build", value: admin.config.minBuild.map(String.init) ?? "none")
+                if admin.isSuperOwner {
+                    Button("Ask everyone older than this build to update", systemImage: "arrow.down.app.fill") {
+                        admin.config.minBuild = Admin.currentBuild
+                        Task { await admin.saveConfig() }
+                    }
+                    if admin.config.minBuild != nil {
+                        Button("Stop asking", role: .destructive) { admin.config.minBuild = nil; Task { await admin.saveConfig() } }
+                    }
+                }
+            } header: { Text("Updates") } footer: {
+                Text("Users on an older build see a full-screen “Please update” with buttons for the App Store and TestFlight. Builds from before the iCloud move (22 Nov) can't see this — they need a TestFlight update.")
             }
             Section {
                 ForEach(admin.config.people) { p in

@@ -457,23 +457,26 @@ struct BuildProjectEditor: View {
     }
 
     private func save() {
-        if let e = existing {
-            var data = d
-            data.team = Array(team); data.admins = Array(admins)
-            engine.bSaveProject(e, data: data, status: status)
-            onSaved(e.id)
-        } else {
-            var cid = company
-            if cid.isEmpty {
-                var co = BuildData()
-                co["name"] = newCompany.trimmingCharacters(in: .whitespaces)
-                cid = engine.bCreateCompany(co)
-            }
-            let id = engine.bCreateProject(company: cid, data: d, team: Array(team), admins: Array(admins))
-            onSaved(id)
-        }
+        let engine = engine, existing = existing, d = d, team = Array(team), admins = Array(admins), status = status, company = company
+        let newCompany = newCompany.trimmingCharacters(in: .whitespaces), onSaved = onSaved
         Haptics.big()
         dismiss()
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
+            if let e = existing {
+                var data = d
+                data.team = team; data.admins = admins
+                engine.bSaveProject(e, data: data, status: status)
+                onSaved(e.id)
+            } else {
+                var cid = company
+                if cid.isEmpty {
+                    var co = BuildData()
+                    co["name"] = newCompany
+                    cid = engine.bCreateCompany(co)
+                }
+                onSaved(engine.bCreateProject(company: cid, data: d, team: team, admins: admins))
+            }
+        }
     }
 }
 

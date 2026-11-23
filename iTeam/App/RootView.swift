@@ -5,6 +5,7 @@ import SwiftData
 /// behind “More”). Every other module opens from Settings → Modules. On iPad the bar becomes
 /// a sidebar with room for everything, so all modules are listed there.
 struct RootView: View {
+    @ObservedObject private var admin = Admin.shared
     @EnvironmentObject var engine: SyncEngine
     @EnvironmentObject var router: Router
     @EnvironmentObject var modules: ModuleRegistry
@@ -250,6 +251,7 @@ struct RootView: View {
             .sheet(item: $router.openItem) { item in OpenItemView(item: item) }
             .sheet(isPresented: $router.openModuleStore) { NavigationStack { ModuleStoreView() } }
             .fullScreenCover(isPresented: Binding(get: { !tourDone && engine.isSetUp }, set: { if !$0 { tourDone = true } })) { WelcomeTour() }
+            .overlay { if admin.updateRequired { UpdateRequiredView() } }
             .alert("\(engine.lockedModule?.title ?? "This module") is read-only", isPresented: Binding(get: { engine.lockedModule != nil }, set: { if !$0 { engine.lockedModule = nil } })) {
             Button("Open Module Store") { router.openModuleStore = true }
             Button("OK", role: .cancel) {}
@@ -269,6 +271,29 @@ struct RootView: View {
 }
 
 /// The Modules tab: every module you have, as app-style tiles, plus the store and module requests.
+struct UpdateRequiredView: View {
+    var body: some View {
+        ZStack {
+            Rectangle().fill(.ultraThickMaterial).ignoresSafeArea()
+            VStack(spacing: 16) {
+                AppLogo(size: 84)
+                Text("Please update iTeam").font(.title.bold())
+                Text("This version is too old to send and receive messages and notifications reliably. Update to keep chatting with your team.")
+                    .multilineTextAlignment(.center).foregroundStyle(.secondary)
+                Link(destination: URL(string: "https://apps.apple.com/app/id6836669739")!) {
+                    Label("Update on the App Store", systemImage: "arrow.down.app.fill").frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.glassProminent).controlSize(.large)
+                Link(destination: URL(string: "itms-beta://")!) {
+                    Label("Open TestFlight", systemImage: "airplane").frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.glass).controlSize(.large)
+            }
+            .padding(32)
+        }
+    }
+}
+
 struct ModulesHubView: View {
     let available: [Router.TabID]
     let inBar: [Router.TabID]

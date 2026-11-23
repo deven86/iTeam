@@ -161,7 +161,7 @@ fun ModuleRequestScreen(app: AppState, onBack: () -> Unit) {
 
 object Reports {
     /** Builds an A4 PDF (logo, module name, title, date, then the lines) and opens the share sheet. */
-    fun share(ctx: Context, module: String, title: String, lines: List<String>, colors: List<Long> = listOf(0xFF5B5BF7, 0xFF00B4D8)) {
+    fun share(ctx: Context, module: String, title: String, lines: List<String>, colors: List<Long> = listOf(0xFF5B5BF7, 0xFF00B4D8), charts: List<Chart> = emptyList()) {
         val doc = PdfDocument()
         val w = 595; val h = 842; val left = 40f
         val body = Paint().apply { textSize = 11f; isAntiAlias = true }
@@ -191,6 +191,17 @@ object Reports {
             }
         }
         header()
+        // Charts first, two per row (like the iPhone reports).
+        val usable = charts.filter { it.usable }
+        if (usable.isNotEmpty()) {
+            val cw = (w - 2 * left - 12) / 2; val chh = 150f
+            usable.chunked(2).forEach { row ->
+                if (y + chh > h - 50) header()
+                row.forEachIndexed { i, ch -> Charts.draw(page!!.canvas, ch, RectF(left + i * (cw + 12), y, left + i * (cw + 12) + cw, y + chh)) }
+                y += chh + 12
+            }
+            y += 6
+        }
         for (raw in lines) {
             val isHead = raw.startsWith("## ")
             val p = if (isHead) Paint(bold).apply { textSize = 13f } else body
@@ -215,10 +226,10 @@ object Reports {
 
 /** Toolbar button: "Export report (PDF)". */
 @Composable
-fun PdfButton(module: String, title: String, lines: () -> List<String>) {
+fun PdfButton(module: String, title: String, charts: () -> List<Chart> = { emptyList() }, lines: () -> List<String>) {
     val ctx = LocalContext.current
     val scope = rememberCoroutineScope()
-    IconButton({ scope.launch { runCatching { Reports.share(ctx, module, title, lines()) } } }) { Icon(Icons.Default.PictureAsPdf, "Export report (PDF)") }
+    IconButton({ scope.launch { runCatching { Reports.share(ctx, module, title, lines(), charts = charts()) } } }) { Icon(Icons.Default.PictureAsPdf, "Export report (PDF)") }
 }
 
 /** Report text for each module. */

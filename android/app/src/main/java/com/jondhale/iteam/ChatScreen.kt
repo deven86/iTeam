@@ -87,6 +87,7 @@ fun ChatScreen(app: AppState, convID: String, onBack: () -> Unit, open: (Page) -
                 val p = withContext(Dispatchers.IO) { prep() }
                 withContext(Dispatchers.IO) { app.sync.sendText(convID, caption, replyTo?.id, p.map { it.att }, p.associate { it.blob }) }
                 replyTo = null; app.hurry(); app.changed()
+            } catch (e: AuthNeeded) { app.reconnect = e.redirectURL; app.toast = "Not sent — sign in again (top of the screen), then resend."
             } catch (e: Exception) { app.toast = "Not sent: ${e.message}" }
             sending--
         }
@@ -167,6 +168,7 @@ fun ChatScreen(app: AppState, convID: String, onBack: () -> Unit, open: (Page) -
                         try {
                             withContext(Dispatchers.IO) { if (ed != null) app.sync.edit(convID, ed.id, t) else app.sync.sendText(convID, t, re?.id) }
                             app.hurry(); app.changed()
+                        } catch (e: AuthNeeded) { app.reconnect = e.redirectURL; app.toast = "Not sent — sign in again (top of the screen), then tap send."; text = t
                         } catch (e: Exception) { app.toast = "Not sent: ${e.message}"; text = t }
                     }
                 }) { Icon(Icons.AutoMirrored.Filled.Send, "Send", tint = Brand) }

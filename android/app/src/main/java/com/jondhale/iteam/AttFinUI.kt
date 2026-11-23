@@ -319,7 +319,7 @@ fun FinanceHome(app: AppState, onBack: (() -> Unit)?) {
     val isOwner = comp == null || comp.optString("ownerID") == app.store.me
     val moduleLines = remember(app.tick) { moduleMoney(app) }
     Scaffold(topBar = { TopAppBar(title = { Text("Finance") }, navigationIcon = { onBack?.let { b -> IconButton(b) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back") } } },
-        actions = { PdfButton("Finance", books.firstOrNull { it.first == book }?.second ?: "Finance") { ReportText.finance(app, book) } }) },
+        actions = { PdfButton("Finance", books.firstOrNull { it.first == book }?.second ?: "Finance", charts = { ModuleCharts.finance(app, book) }) { ReportText.finance(app, book) } }) },
         floatingActionButton = { Row {
             ExtendedFloatingActionButton(onClick = { adding = true }, icon = { Icon(Icons.Default.ArrowDownward, null) }, text = { Text("Income") }, containerColor = Color(0xFFD7F5DD))
             Spacer(Modifier.width(8.dp))
@@ -332,6 +332,7 @@ fun FinanceHome(app: AppState, onBack: (() -> Unit)?) {
                 }
                 StatTiles(money(income) to "Income this month", money(expense) to "Spent this month", money(income - expense) to "Net")
             }
+            items(ModuleCharts.finance(app, book), key = { "ch" + it.title }) { ChartCard(it) }
             if (attention.isNotEmpty()) {
                 item { SectionHeader("Due & waiting approval") }
                 items(attention, key = { "a" + it.id }) { r ->

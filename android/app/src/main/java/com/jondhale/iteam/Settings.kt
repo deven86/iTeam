@@ -132,6 +132,7 @@ fun SettingsTab(app: AppState, open: (Page) -> Unit) {
                 }
                 Row1(Icons.Default.NearMe, "People & businesses nearby") { open(Page.Nearby) }
                 Row1(Icons.Default.GroupAdd, "New group") { open(Page.NewGroup) }
+                Row1(Icons.Default.Refresh, "Sign in with Apple ID again", "Use this if messages stop sending or say “sign in”") { app.signIn(app.reconnect) }
                 Row1(Icons.Default.PersonRemove, "Delete my account") { deleteAcc = true }
                 Text("Messages are end-to-end encrypted with a key that lives only on this phone. They travel through Apple's iCloud — there is no iTeam server.\n\nApp version ${BuildConfig.VERSION_NAME}",
                     Modifier.padding(16.dp), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)

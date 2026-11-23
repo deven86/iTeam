@@ -22,6 +22,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import org.json.JSONArray
+import kotlinx.coroutines.launch
 
 // CRM, Society and Gym & Training screens.
 
@@ -29,9 +30,10 @@ private fun miscList(app: AppState, t: String) = app.store.miscList(t)
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun Screen(title: String, onBack: (() -> Unit)?, fab: (@Composable () -> Unit)? = null, pdf: (() -> List<String>)? = null, content: androidx.compose.foundation.lazy.LazyListScope.() -> Unit) {
+private fun Screen(title: String, onBack: (() -> Unit)?, fab: (@Composable () -> Unit)? = null, pdf: (() -> List<String>)? = null,
+                   charts: () -> List<Chart> = { emptyList() }, module: String = title, content: androidx.compose.foundation.lazy.LazyListScope.() -> Unit) {
     Scaffold(topBar = { TopAppBar(title = { Text(title) }, navigationIcon = { onBack?.let { b -> IconButton(b) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back") } } },
-        actions = { pdf?.let { PdfButton(title, "$title report", it) } }) },
+        actions = { pdf?.let { PdfButton(module, "$title report", charts, it) } }) },
         floatingActionButton = { fab?.invoke() }) { pad -> LazyColumn(Modifier.padding(pad), content = content) }
 }
 
@@ -66,10 +68,11 @@ fun CRMHome(app: AppState, onBack: (() -> Unit)?, open: (Page) -> Unit) {
     var adding by remember { mutableStateOf(false) }
     var newGroup by remember { mutableStateOf(false) }
     val open0 = mine.filter { it.s("stage") !in listOf("won", "lost") }
-    Screen("CRM", onBack, { Fab("New lead") { adding = true } }, pdf = { crmStages.flatMap { st -> listOf("## ${st.replaceFirstChar { it.uppercase() }}") + mine.filter { it.s("stage") == st }.map { "• ${it.s("name")} ${it.s("company")} · ${money(it.p.optDouble("dealValue"))} · ${it.s("phone")}" } } }) {
+    Screen("CRM", onBack, { Fab("New lead") { adding = true } }, charts = { ModuleCharts.crm(app) }, pdf = { crmStages.flatMap { st -> listOf("## ${st.replaceFirstChar { it.uppercase() }}") + mine.filter { it.s("stage") == st }.map { "• ${it.s("name")} ${it.s("company")} · ${money(it.p.optDouble("dealValue"))} · ${it.s("phone")}" } } }) {
         item {
             StatTiles("${open0.size}" to "Open leads", money(open0.sumOf { it.p.optDouble("dealValue") }) to "Pipeline value",
                 money(mine.filter { it.s("stage") == "won" }.sumOf { it.p.optDouble("dealValue") }) to "Won")
+            ModuleCharts.crm(app).forEach { ChartCard(it) }
             Row(Modifier.horizontalScroll(rememberScrollState()).padding(horizontal = 12.dp)) {
                 FilterChip(stage == "", { stage = "" }, { Text("All") }, Modifier.padding(end = 4.dp))
                 crmStages.forEach { s -> FilterChip(stage == s, { stage = s }, { Text("${s.replaceFirstChar { it.uppercase() }} ${mine.count { it.s("stage") == s }}") }, Modifier.padding(end = 4.dp)) }
@@ -240,10 +243,13 @@ fun SocietyScreen(app: AppState, id: String, onBack: () -> Unit) {
     var dialog by remember { mutableStateOf("") }
     val scope = rememberCoroutineScope()
     fun flat(u: String) = units.firstOrNull { it.id == u }?.unitLabel ?: ""
-    Screen(soc.d.optString("name"), onBack, pdf = { listOf("## Bills") + bills.map { "• Flat ${flat(it.s("unitID"))} · ${it.d.optString("title")} · ${money(it.d.optDouble("amount"))} · ${it.status}" } +
+    val socCharts = listOf(Charts.grouped("Complaints by status", complaints, key = { it.status.ifEmpty { "open" } }),
+        Charts.grouped("Bills (amount)", bills, key = { it.status.ifEmpty { "due" } }, value = { it.d.optDouble("amount", 0.0) })).filter { it.usable }
+    Screen(soc.d.optString("name"), onBack, charts = { socCharts }, module = "Society", pdf = { listOf("## Bills") + bills.map { "• Flat ${flat(it.s("unitID"))} · ${it.d.optString("title")} · ${money(it.d.optDouble("amount"))} · ${it.status}" } +
         listOf("## Complaints") + complaints.map { "• Flat ${flat(it.s("unitID"))} · ${it.d.optString("title")} · ${it.status}" } }) {
         item {
             StatTiles(money(bills.filter { it.status != "paid" }.sumOf { it.d.optDouble("amount") }) to "Dues", "${complaints.count { it.status != "resolved" && it.status != "closed" }}" to "Open complaints", "${visitors.size}" to "At the gate")
+            socCharts.forEach { ChartCard(it) }
             Row(Modifier.horizontalScroll(rememberScrollState()).padding(horizontal = 12.dp)) {
                 if (committee) {
                     OutlinedButton({ dialog = "unit" }, Modifier.padding(end = 4.dp)) { Text("Add flat") }
@@ -305,13 +311,14 @@ fun GymHome(app: AppState, onBack: (() -> Unit)?, open: (Page) -> Unit) {
     val waiting = members.filter { it.s("trainerID") == me && it.s("trainerStatus") == "waiting" }
     var adding by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
-    Screen("Gym & Training", onBack, { Fab("Add person") { adding = true } }) {
+    Screen("Gym & Training", onBack, { Fab("Add person") { adding = true } }, pdf = { GymReport.all(app) }, charts = { ModuleCharts.gymAll(app) }) {
         item {
             val sessions = miscList(app, "gymsess").filter { !it.deleted }
             val month = java.util.Calendar.getInstance().apply { set(java.util.Calendar.DAY_OF_MONTH, 1) }.timeInMillis
             StatTiles("${members.size}" to "People", "${sessions.count { SwiftDate.toMillis(it.p.optDouble("date")) >= month }}" to "Sessions this month",
                 money(miscList(app, "gympay").filter { !it.deleted && SwiftDate.toMillis(it.p.optDouble("date")) >= month }.sumOf { it.amount }) to "Paid this month")
         }
+        items(ModuleCharts.gymAll(app), key = { "ch" + it.title }) { ChartCard(it) }
         if (waiting.isNotEmpty()) { item { SectionHeader("Asked to be trainer") }
             items(waiting, key = { "w" + it.id }) { m -> ListItem(headlineContent = { Text(m.s("name")) }, supportingContent = { Text("from ${app.store.name(m.owner)}") },
                 trailingContent = { Row { TextButton({ app.run(scope) { app.sync.gymAnswerTrainer(m, true, "") } }) { Text("Accept") }; TextButton({ app.run(scope) { app.sync.gymAnswerTrainer(m, false, "") } }) { Text("Decline") } } }) } }
@@ -344,8 +351,9 @@ fun GymMemberScreen(app: AppState, id: String, onBack: () -> Unit) {
     val plans = remember(app.tick) { miscList(app, "gymplan").filter { it.s("memberID") == id && !it.deleted } }
     var dialog by remember { mutableStateOf("") }
     val scope = rememberCoroutineScope()
-    Screen(m.s("name"), onBack, pdf = { listOf("## Sessions (${sessions.size})") + sessions.map { "• ${dateText(SwiftDate.toMillis(it.p.optDouble("date")))} ${it.s("workout")}" } +
-        listOf("## Payments") + pays.map { "• ${dateText(SwiftDate.toMillis(it.p.optDouble("date")))} · ${money(it.amount)} · ${it.s("kind")}" } }) {
+    val ctx = androidx.compose.ui.platform.LocalContext.current
+    val charts = remember(app.tick) { ModuleCharts.gymMember(app, id) }
+    Screen(m.s("name"), onBack, module = "Gym & Training", pdf = { GymReport.lines(app, id) }, charts = { charts }) {
         item {
             StatTiles("${sessions.size}" to "Sessions", money(pays.sumOf { it.amount }) to "Paid", money(sessions.size * m.p.optDouble("fee", 0.0) - pays.filter { it.s("kind") == "training" }.sumOf { it.amount }).let { it to "Training balance" })
             Text(listOf(m.s("goal"), m.s("trainer").let { if (it.isEmpty()) "" else "Trainer $it${if (m.s("trainerStatus") == "waiting") " (waiting)" else ""}" }, "Managed by ${app.store.name(m.owner)}").filter { it.isNotEmpty() }.joinToString(" · "),
@@ -355,6 +363,11 @@ fun GymMemberScreen(app: AppState, id: String, onBack: () -> Unit) {
                 OutlinedButton({ dialog = "pay" }, Modifier.padding(end = 4.dp)) { Text("Payment") }
                 OutlinedButton({ dialog = "plan" }) { Text("Membership") }
             }
+            Button({ scope.launch { runCatching { Reports.share(ctx, "Gym & Training", "${m.s("name")} — training report", GymReport.lines(app, id), charts = charts) } } },
+                Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp)) {
+                Icon(Icons.Default.PictureAsPdf, null); Spacer(Modifier.width(8.dp)); Text("Share my training report (PDF)")
+            }
+            charts.forEach { ChartCard(it) }
         }
         if (plans.isNotEmpty()) { item { SectionHeader("Memberships") }; items(plans, key = { it.id }) { p -> ListItem(headlineContent = { Text("${p.s("gymName")} · ${p.s("planName")}") }, supportingContent = { Text("${dateText(SwiftDate.toMillis(p.p.optDouble("start")))} – ${dateText(SwiftDate.toMillis(p.p.optDouble("end")))} · ${money(p.p.optDouble("fee"))}") }) } }
         item { SectionHeader("Sessions") }

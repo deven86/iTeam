@@ -167,7 +167,7 @@ fun BuildProjectScreen(app: AppState, id: String, onBack: () -> Unit, open: (Pag
         TopAppBar(title = { Text(p.btitle, maxLines = 1, overflow = TextOverflow.Ellipsis) }, navigationIcon = { onBack?.let { b -> IconButton(b) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back") } } },
             actions = {
                 p.d.optString("convID").takeIf { it.isNotEmpty() && app.store.conv(it) != null }?.let { c -> IconButton({ open(Page.Chat(c)) }) { Icon(Icons.Default.Chat, "Project chat") } }
-                PdfButton("Builder & Infra", p.btitle) { ReportText.build(app, p.id) }
+                PdfButton("Builder & Infra", p.btitle, charts = { ModuleCharts.build(app, p.id) }) { ReportText.build(app, p.id) }
                 if (admin) IconButton({ editing = true }) { Icon(Icons.Default.Edit, "Edit") }
             })
     }) { pad ->
@@ -177,6 +177,7 @@ fun BuildProjectScreen(app: AppState, id: String, onBack: () -> Unit, open: (Pag
                 Text(listOf(p.f("type"), p.f("city"), p.f("authority"), p.status).filter { it.isNotEmpty() }.joinToString(" · "), Modifier.padding(horizontal = 16.dp),
                     style = MaterialTheme.typography.bodySmall)
             }
+            items(ModuleCharts.build(app, p.id), key = { "ch" + it.title }) { ChartCard(it) }
             if (sales.isNotEmpty()) {
                 item { SectionHeader("Sales") }
                 items(sales.sortedByDescending { it.updated }, key = { it.id }) { s -> RecRow(app, s) { open(Page.BuildRec(s.id)) } }

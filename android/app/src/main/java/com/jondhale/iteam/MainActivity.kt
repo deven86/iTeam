@@ -71,15 +71,17 @@ class MainActivity : androidx.fragment.app.FragmentActivity() {
                 Surface(Modifier.fillMaxSize()) {
                     if (locked.value) Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.Center, horizontalAlignment = Alignment.CenterHorizontally) {
                         Logo(); Spacer(Modifier.height(16.dp)); Button({ unlock() }) { Text("Unlock") }
-                    } else App(Store.get(this), openConv, pastedInvite, signInTick)
+                    } else App(Store.get(this), openConv, pastedInvite, signInTick, openSignIn)
                 }
             }
         }
     }
 
     override fun onNewIntent(intent: Intent) { super.onNewIntent(intent); handle(intent) }
+    private val openSignIn = mutableStateOf(false)
     private fun handle(i: Intent?) {
         i?.getStringExtra("conv")?.let { openConv.value = it }
+        if (i?.getBooleanExtra("signin", false) == true) openSignIn.value = true
         i?.data?.toString()?.takeIf { it.startsWith("iteam://add") }?.let { pastedInvite.value = it }
         // Back from Apple ID sign-in in the browser.
         i?.data?.toString()?.let { u ->
@@ -98,6 +100,9 @@ class AppState(val store: Store, val sync: Sync) {
     val fastUntil = mutableLongStateOf(0L)
     val nextPoll = mutableLongStateOf(0L)
     var toast by mutableStateOf<String?>(null)
+    /** Set when the Apple ID sign-in expired: a banner on every screen offers "Sign in again". */
+    var reconnect by mutableStateOf<String?>(null)
+    var signIn: (String?) -> Unit = {}
     fun changed() { tick++ }
     fun hurry() { fastUntil.longValue = System.currentTimeMillis() + 90_000; nextPoll.longValue = System.currentTimeMillis() + 2_000 }
 }
@@ -106,20 +111,19 @@ class AppState(val store: Store, val sync: Sync) {
 fun AppState.run(scope: kotlinx.coroutines.CoroutineScope, block: suspend () -> Unit) {
     scope.launch {
         try { withContext(Dispatchers.IO) { block() }; changed() }
-        catch (e: AuthNeeded) { toast = "iCloud sign-in expired — tap Reconnect" }
+        catch (e: AuthNeeded) { reconnect = e.redirectURL; toast = "Apple ID sign-in expired — tap “Sign in again” at the top" }
         catch (e: Exception) { toast = e.message ?: "Something went wrong" }
     }
 }
 
 @Composable
-fun App(store: Store, openConv: MutableState<String?>, pastedInvite: MutableState<String?>, signInTick: MutableIntState) {
+fun App(store: Store, openConv: MutableState<String?>, pastedInvite: MutableState<String?>, signInTick: MutableIntState, openSignIn: MutableState<Boolean>) {
     val cloud = remember { CloudKit(store) }
     val sync = remember { Sync(store, cloud) }
     val app = remember { AppState(store, sync) }
     // Once this phone has its key, chats open straight away — even before iCloud reconnects.
     var signedIn by remember { mutableStateOf(store.me.isNotEmpty() && store.identity != null) }
     var authURL by remember { mutableStateOf<String?>(null) }
-    var reconnect by remember { mutableStateOf<String?>(null) }
     var error by remember { mutableStateOf<String?>(null) }
     val ctx = androidx.compose.ui.platform.LocalContext.current
     val lifecycle = androidx.lifecycle.compose.LocalLifecycleOwner.current.lifecycle
@@ -131,9 +135,19 @@ fun App(store: Store, openConv: MutableState<String?>, pastedInvite: MutableStat
     LaunchedEffect(authURL) {
         authURL?.let { u -> if (u.isNotEmpty()) ctx.startActivity(Intent(Intent.ACTION_VIEW, android.net.Uri.parse(u))) }
     }
-    LaunchedEffect(signInTick.intValue) {
-        if (signInTick.intValue > 0) { authURL = null; reconnect = null; error = null; app.nextPoll.longValue = 0; app.tick++ }
+    val scope0 = rememberCoroutineScope()
+    // Opens Apple's sign-in page; if we don't have a link (or it's stale), ask CloudKit for a fresh one.
+    app.signIn = { url ->
+        if (!url.isNullOrEmpty()) authURL = url
+        else scope0.launch {
+            val fresh = withContext(Dispatchers.IO) { runCatching { cloud.signInURL() }.getOrDefault("") }
+            if (fresh.isNotEmpty()) authURL = fresh else app.toast = "Couldn't reach Apple. Check the internet and try again."
+        }
     }
+    LaunchedEffect(signInTick.intValue) {
+        if (signInTick.intValue > 0) { authURL = null; app.reconnect = null; error = null; app.nextPoll.longValue = 0; app.tick++ }
+    }
+    LaunchedEffect(Unit) { if (openSignIn.value) { openSignIn.value = false; app.signIn(null) } }
     if (authURL != null) {
         Column(Modifier.fillMaxSize().padding(28.dp), verticalArrangement = Arrangement.Center, horizontalAlignment = Alignment.CenterHorizontally) {
             Logo(); Spacer(Modifier.height(16.dp))
@@ -163,9 +177,9 @@ fun App(store: Store, openConv: MutableState<String?>, pastedInvite: MutableStat
                     Notify.show(ctx, n)
                     if (sync.changed) app.tick++
                     if (now - roomsAt > 30_000) { roomsAt = now; if (withContext(Dispatchers.IO) { runCatching { app.rooms.pollDMs() }.getOrDefault(0) } > 0) app.tick++ }
-                    error = null; reconnect = null
+                    error = null; app.reconnect = null
                     if (System.currentTimeMillis() < app.fastUntil.longValue) 3_000L else 8_000L
-                } catch (e: AuthNeeded) { reconnect = e.redirectURL; 60_000L
+                } catch (e: AuthNeeded) { app.reconnect = e.redirectURL; 60_000L
                 } catch (e: Exception) { error = e.message ?: "No connection"; 15_000L }
                 app.nextPoll.longValue = System.currentTimeMillis() + wait
                 app.tick++
@@ -175,8 +189,18 @@ fun App(store: Store, openConv: MutableState<String?>, pastedInvite: MutableStat
         }
     }
 
-    val status = StatusInfo(reconnect, error, store.lastSync) { url -> authURL = url }
-    Home(app, status, openConv, pastedInvite)
+    val status = StatusInfo(null, error, store.lastSync) { url -> app.signIn(url) }
+    Column(Modifier.fillMaxSize()) {
+        app.reconnect?.let { r ->
+            Surface(color = MaterialTheme.colorScheme.errorContainer, modifier = Modifier.fillMaxWidth()) {
+                Row(Modifier.statusBarsPadding().padding(horizontal = 16.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Text("Apple ID sign-in expired — messages are paused.", style = MaterialTheme.typography.bodySmall, modifier = Modifier.weight(1f))
+                    Button({ app.signIn(r) }) { Text("Sign in again") }
+                }
+            }
+        }
+        Box(Modifier.weight(1f)) { Home(app, status, openConv, pastedInvite) }
+    }
     app.toast?.let { msg ->
         LaunchedEffect(msg) { delay(3500); app.toast = null }
         Box(Modifier.fillMaxSize().padding(bottom = 96.dp), contentAlignment = Alignment.BottomCenter) {

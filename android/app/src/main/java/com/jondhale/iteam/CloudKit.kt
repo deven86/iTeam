@@ -46,6 +46,12 @@ class CloudKit(private val store: Store) {
         }
     }
 
+    /** A fresh Apple sign-in page (used when the old one expired or was never given). */
+    fun signInURL(): String {
+        store.webToken = ""
+        return try { me(); "" } catch (e: AuthNeeded) { e.redirectURL }
+    }
+
     /** My iCloud user record name — the same ID the iPhone app uses for this Apple ID. */
     fun me(): String = call("users/caller", null).getString("userRecordName")
 

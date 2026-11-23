@@ -142,7 +142,7 @@ fun BizModuleScreen(app: AppState, module: String, onBack: (() -> Unit)?, open: 
     var editing by remember { mutableStateOf<Rec?>(null) }
 
     Scaffold(topBar = { TopAppBar(title = { Text(spec.title) }, navigationIcon = { onBack?.let { b -> IconButton(b) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back") } } },
-        actions = { PdfButton(spec.title, "${spec.title} report") { ReportText.biz(app, spec) } }) },
+        actions = { PdfButton(spec.title, "${spec.title} report", charts = { ModuleCharts.biz(app, spec) }) { ReportText.biz(app, spec) } }) },
         floatingActionButton = {
             ExtendedFloatingActionButton(onClick = { adding = spec.parent ?: spec.flat }, icon = { Icon(Icons.Default.Add, null) },
                 text = { Text("New ${(spec.parent ?: spec.flat)?.label?.lowercase() ?: "entry"}") })
@@ -155,6 +155,7 @@ fun BizModuleScreen(app: AppState, module: String, onBack: (() -> Unit)?, open: 
                     "${upcoming.size}" to "Next 7 days",
                 )
             }
+            items(ModuleCharts.biz(app, spec), key = { "ch" + it.title }) { ChartCard(it) }
             if (upcoming.isNotEmpty()) {
                 item { SectionHeader("Needs attention") }
                 items(upcoming.take(8), key = { "u" + it.id }) { r ->

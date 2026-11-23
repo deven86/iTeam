@@ -23,10 +23,11 @@ import java.util.concurrent.TimeUnit
 class PollWorker(ctx: Context, params: WorkerParameters) : CoroutineWorker(ctx, params) {
     override suspend fun doWork(): Result {
         val store = Store.get(applicationContext)
-        if (store.me.isEmpty() || store.webToken.isEmpty() || store.identity == null) return Result.success()
+        if (store.me.isEmpty() || store.identity == null) return Result.success()
+        if (store.webToken.isEmpty()) { Notify.signInNeeded(applicationContext); return Result.success() }
         return try {
             Notify.show(applicationContext, Sync(store).poll()); ITeamWidget.update(applicationContext); runCatching { Reminders.reschedule(applicationContext) }; Result.success()
-        } catch (e: AuthNeeded) { Result.success() } catch (e: Exception) { Result.retry() }
+        } catch (e: AuthNeeded) { Notify.signInNeeded(applicationContext); Result.success() } catch (e: Exception) { Result.retry() }
     }
 
     companion object {
@@ -41,6 +42,20 @@ class PollWorker(ctx: Context, params: WorkerParameters) : CoroutineWorker(ctx, 
 object Notify {
     private const val CH = "messages"
     var foregroundConv: String? = null
+
+    /** Once every 12 hours at most: "sign in again", because messages are paused until then. */
+    fun signInNeeded(ctx: Context) {
+        val prefs = ctx.getSharedPreferences("notify", Context.MODE_PRIVATE)
+        if (System.currentTimeMillis() - prefs.getLong("signin", 0) < 12 * 3_600_000L) return
+        if (ContextCompat.checkSelfPermission(ctx, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) return
+        prefs.edit().putLong("signin", System.currentTimeMillis()).apply()
+        val nm = ctx.getSystemService(NotificationManager::class.java)
+        nm.createNotificationChannel(NotificationChannel(CH, "Messages", NotificationManager.IMPORTANCE_HIGH))
+        val open = PendingIntent.getActivity(ctx, 77, Intent(ctx, MainActivity::class.java).putExtra("signin", true), PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
+        val note = NotificationCompat.Builder(ctx, CH).setSmallIcon(R.drawable.ic_launcher).setContentTitle("iTeam: sign in again")
+            .setContentText("Your Apple ID sign-in expired, so messages are paused. Tap to sign in.").setAutoCancel(true).setContentIntent(open).build()
+        NotificationManagerCompat.from(ctx).notify(77, note)
+    }
 
     fun show(ctx: Context, notices: List<Sync.Notice>) {
         if (notices.isEmpty()) return

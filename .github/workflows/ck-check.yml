@@ -1,0 +1,18 @@
+name: CloudKit production check
+on: workflow_dispatch
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Query live record types
+        env:
+          T: ${{ secrets.CK_API_TOKEN }}
+        run: |
+          B="https://api.apple-cloudkit.com/database/1/iCloud.com.jondhale.iteam/production/public/records/query?ckAPIToken=$T"
+          for q in \
+            '{"query":{"recordType":"Nearby","filterBy":[{"fieldName":"cell","comparator":"IN","fieldValue":{"value":["te7u0","te7u1"],"type":"STRING_LIST"}},{"fieldName":"until","comparator":"GREATER_THAN","fieldValue":{"value":1,"type":"TIMESTAMP"}}]},"resultsLimit":1}' \
+            '{"query":{"recordType":"Room"},"resultsLimit":1}' \
+            '{"query":{"recordType":"Profile"},"resultsLimit":1}'; do
+            echo "== $(echo "$q" | cut -c1-60)"
+            curl -s -X POST -H 'Content-Type: application/json' -d "$q" "$B" | head -c 400; echo
+          done

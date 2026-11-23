@@ -94,13 +94,13 @@ final class AISettings: ObservableObject {
         provider = p
         model = d.string(forKey: "ai.model.\(p.rawValue)") ?? ""
         features = Set(d.stringArray(forKey: "ai.features") ?? AIFeature.allCases.map(\.rawValue))
+        groupAI = Set(d.stringArray(forKey: "ai.groups") ?? [])
         // New switches start on for people who already chose their AI features.
         if !d.bool(forKey: "ai.features.v2") {
             features.formUnion([AIFeature.scan.rawValue, AIFeature.advisor.rawValue])
             d.set(Array(features), forKey: "ai.features")
             d.set(true, forKey: "ai.features.v2")
         }
-        groupAI = Set(d.stringArray(forKey: "ai.groups") ?? [])
     }
 
     func switchProvider(_ p: AIProvider) {

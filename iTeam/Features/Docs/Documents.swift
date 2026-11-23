@@ -281,8 +281,9 @@ struct DocumentLibraryView: View {
 
     private var shown: [(Int, DocItem)] {
         let q = search.trimmingCharacters(in: .whitespaces).lowercased()
-        let list = numbered.filter { (_, d) in
-            (folder == nil || d.folder == folder) &&
+        let list = numbered.filter { item in
+            let d = item.1
+            return (folder == nil || d.folder == folder) &&
             (q.isEmpty || d.title.lowercased().contains(q) || d.notes.lowercased().contains(q) || d.folder.lowercased().contains(q) || (d.ref?.name.lowercased().contains(q) ?? false))
         }
         return newestFirst ? list.reversed() : list
@@ -317,7 +318,7 @@ struct DocumentLibraryView: View {
             let groups = Dictionary(grouping: shown, by: { $0.1.folder })
             ForEach(groups.keys.sorted(by: { order($0) < order($1) }), id: \.self) { f in
                 Section {
-                    ForEach(groups[f] ?? [], id: \.1.id) { (n, d) in row(n, d) }
+                    ForEach(groups[f] ?? [], id: \.1.id) { item in row(item.0, item.1) }
                 } header: { Label(f, systemImage: DocFolders.icon(f)) }
                 .lookRows()
             }
@@ -399,7 +400,8 @@ struct DocumentLibraryView: View {
         var h = "<p class=\"muted\">\(docs.count) documents · folders: \(folders.map(PDFMaker.esc).joined(separator: ", "))</p>"
         for f in folders {
             h += "<h2>\(PDFMaker.esc(f))</h2><table><tr><th>No.</th><th>Particulars</th><th>Date</th><th>File</th></tr>"
-            for (n, d) in numbered where d.folder == f {
+            for item in numbered where item.1.folder == f {
+                let n = item.0, d = item.1
                 h += "<tr><td>D-\(n)</td><td>\(PDFMaker.esc(d.title))\(d.notes.isEmpty ? "" : "<br><span class=\"muted\">\(PDFMaker.esc(d.notes))</span>")</td>"
                 h += "<td>\(d.docDate.map { $0.formatted(date: .abbreviated, time: .omitted) } ?? "—")</td><td class=\"muted\">\(PDFMaker.esc(d.ref?.name ?? ""))</td></tr>"
             }
@@ -410,7 +412,7 @@ struct DocumentLibraryView: View {
 
     private func shareAll() async {
         var urls: [URL] = []
-        for (_, d) in shown { if let u = try? await DocStore.shareURL(d) { urls.append(u) } }
+        for item in shown { let d = item.1; if let u = try? await DocStore.shareURL(d) { urls.append(u) } }
         if urls.isEmpty { error = "Nothing to share yet." } else { share = ShareItems(items: urls) }
     }
 }

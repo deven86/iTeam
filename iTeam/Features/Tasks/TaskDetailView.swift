@@ -230,6 +230,7 @@ struct TaskDetailView: View {
             headerSection(t)
             statusSection(t)
             detailsSection(t)
+            DocumentsSection(module: "task", recordID: t.id, recordOwner: t.createdBy, convID: t.convID ?? "", title: t.title, canAdd: canEdit(t)).lookRows()
 
             Section("Checklist") {
                 ForEach(checklist) { item in

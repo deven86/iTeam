@@ -360,6 +360,7 @@ struct GymMemberView: View {
             if m.createdBy == engine.me {
                 Section { Button("Remove \(m.name)", role: .destructive) { confirmDelete = true } }.lookRows()
             }
+            DocumentsSection(module: "gym", recordID: m.id, recordOwner: m.createdBy, convID: m.convID, title: m.name).lookRows()
         }
         .listStyle(.insetGrouped)
         .lookScreen()

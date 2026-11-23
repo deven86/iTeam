@@ -92,6 +92,7 @@ struct Event: Codable {
         case album(AlbumPayload)
         /// Surveys and responses.
         case survey(SurveyPayload)
+        case doc(DocPayload)
     }
 }
 

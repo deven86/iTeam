@@ -306,6 +306,8 @@ struct CRMLeadDetailView: View {
             if l.ownerID == engine.me {
                 Section { Button("Delete lead", role: .destructive) { confirmDelete = true } }.lookRows()
             }
+            DocumentsSection(module: "crm", recordID: l.id, recordOwner: l.ownerID, convID: l.groupConvID, title: l.name, canAdd: canEdit,
+                             loose: activities.flatMap(\.files)).lookRows()
         }
         .listStyle(.insetGrouped)
         .lookScreen()

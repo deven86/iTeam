@@ -72,6 +72,7 @@ enum NotifyRoute {
         case .finance: return ("finance", "iteam://open/finance")
         case .album: return ("events", nil)
         case .survey: return ("surveys", "iteam://open/survey")
+        case .doc: return ("documents", nil)
         }
     }
 }

@@ -571,6 +571,8 @@ extension SyncEngine {
         await Nearby.shared.remove(userID: id)
         for (roomID, _) in Rooms.shared.joined { if let r = Rooms.shared.room(roomID) { await Rooms.shared.leave(r) } }
         eraseLocalData()
+        try? context.delete(model: DocItem.self)
+        try? FileManager.default.removeItem(at: FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0].appendingPathComponent("CaseFiles"))
         for key in ["me.id", "me.name", "me.avatar"] { UserDefaults.standard.removeObject(forKey: key) }
         me = ""; myName = ""; myAvatar = nil
     }

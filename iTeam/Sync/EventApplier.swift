@@ -792,6 +792,9 @@ struct EventApplier {
         case .survey(let p):
             return applySurvey(p, e, conv: conv, personal: personal)
 
+        case .doc(let p):
+            return applyDoc(p, e, conv: conv, personal: personal)
+
         case .society(let p):
             return applySociety(p, e, conv: conv, local: local)
         case .build(let p):

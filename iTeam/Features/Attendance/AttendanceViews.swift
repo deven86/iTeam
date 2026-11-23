@@ -566,6 +566,9 @@ struct AttMemberDetail: View {
                              : "Changes to existing entries go to the owner for approval.")
             }
             .lookRows()
+            // Staff file (ID, appointment letter, salary slips…) — shared only with the owner and attendance admins.
+            DocumentsSection(module: "attendance", recordID: m.id, recordOwner: data.c.ownerID, convID: data.c.adminConvID, title: data.name(m, engine),
+                             canAdd: isOwner || data.c.admins.contains(engine.me)).lookRows()
         }
         .lookScreen()
         .navigationTitle(data.name(m, engine))

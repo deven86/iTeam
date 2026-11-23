@@ -483,8 +483,11 @@ struct BizParentView: View {
                 }
                 .lookRows()
             }
+            // Case file / documents: every paper filed by folder, title and date (owner, team and linked client).
+            DocumentsSection(module: spec.module, recordID: r.id, recordOwner: r.ownerID, convID: r.convID, title: r.title,
+                             canAdd: mine || isClient, loose: r.files + children.flatMap(\.files))
+                .lookRows()
             if mine { actions(r, balance: bal) }
-            else if !r.files.isEmpty { Section("Attachments") { BizFilesList(files: r.files) }.lookRows() }
         }
         .lookScreen()
         .navigationTitle(r.title)

@@ -349,6 +349,7 @@ struct CareProfileView: View {
                 }
                 .lookRows()
             }
+            DocumentsSection(module: "care", recordID: p.id, recordOwner: p.createdBy, convID: p.convID, title: p.name).lookRows()
             if p.createdBy == engine.me {
                 Section {
                     Button("Delete care profile", role: .destructive) { confirmDelete = true }

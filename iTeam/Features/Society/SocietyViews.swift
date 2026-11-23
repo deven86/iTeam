@@ -134,6 +134,8 @@ struct SocCommitteeView: View {
                 }
             }
             .lookRows()
+            DocumentsSection(module: "society", recordID: society.id, recordOwner: society.society.ownerID, convID: society.society.committeeConvID,
+                             title: society.society.name).lookRows()
         }
         .listStyle(.insetGrouped)
         .lookScreen()

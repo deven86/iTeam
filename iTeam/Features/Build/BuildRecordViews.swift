@@ -314,6 +314,8 @@ struct BuildDetail: View {
             fieldSections
             if !r.d.files.isEmpty { Section("Documents & photos") { BizFilesList(files: r.d.files) }.lookRows() }
             kindSections
+            DocumentsSection(module: "build", recordID: r.id, recordOwner: r.ownerID, convID: project?.d.convID ?? "", title: r.title,
+                             canAdd: isTeam, loose: r.d.files).lookRows()
             actions
         }
         .listStyle(.insetGrouped)

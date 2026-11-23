@@ -13,7 +13,7 @@ extension EventApplier {
         guard let conv else { return .needsConversation }
         var changed = false
         // Projects first, so the others can check the team.
-        for it in p.items.sorted(by: { ($0.kind == "project" ? 0 : 1) < ($1.kind == "project" ? 0 : 1) }) {
+        for it in p.items.sorted(by: { (["project", "store"].contains($0.kind) ? 0 : 1) < (["project", "store"].contains($1.kind) ? 0 : 1) }) {
             let existing = bRec(it.id)
             if let existing, it.at <= existing.updatedAt { continue }
             if let existing, !existing.ownerID.isEmpty, existing.ownerID != it.ownerID { continue }
@@ -54,6 +54,7 @@ extension EventApplier {
         let parent = bRec(r.parentID)
         switch r.kind {
         case "company": return nil
+        case "store": return isNew ? "📦 \(who) set up store “\(t)”" : nil
         case "project": return isNew ? "🏗️ \(who) set up project “\(t)”" : (oldStatus != r.status ? "🏗️ “\(t)” is now \(r.status)" : nil)
         case "unit": return isNew ? nil : (oldStatus != r.status ? "🏠 Unit \(t): \(r.status)" : nil)
         case "sale":
@@ -134,7 +135,8 @@ extension SyncEngine {
     func bSend(_ items: [BuildItem], loud: Bool = false, preview: String? = nil, uploads: [String: String] = [:]) {
         guard let first = items.first else { return }
         let data = (try? JSONDecoder().decode(BuildData.self, from: first.data)) ?? BuildData()
-        let project = first.kind == "project" ? data : bRecord(first.projectID)?.d
+        // A Stock & Inventory store travels in its team chat like a project.
+        let project = ["project", "store"].contains(first.kind) ? data : bRecord(first.projectID)?.d
         let body = Event.Body.build(BuildPayload(items: items))
         if BuildKinds.isPrivate(first.kind, data: data) || project == nil || (project?.convID ?? "").isEmpty {
             send(body, in: DemoChats.notesToSelf(self), loud: false, uploads: uploads)

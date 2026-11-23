@@ -234,6 +234,22 @@ enum DemoChats {
     /// Removes all demo chats and their tasks from this device.
     static func remove(_ engine: SyncEngine) {
         let ctx = engine.context!
+        // Everything the demos created, in every module — not just the chats (old demo matters, fees and tasks kept floating).
+        let demoIDs = Set(((try? ctx.fetch(FetchDescriptor<Conversation>(predicate: #Predicate { $0.isDemo }))) ?? []).map(\.id))
+        func isDemo(_ conv: String, _ title: String) -> Bool { demoIDs.contains(conv) || title.contains("(demo)") }
+        func purge<T: PersistentModel>(_ type: T.Type, _ conv: KeyPath<T, String>, _ title: KeyPath<T, String>) {
+            for x in (try? ctx.fetch(FetchDescriptor<T>())) ?? [] where isDemo(x[keyPath: conv], x[keyPath: title]) { ctx.delete(x) }
+        }
+        let biz = (try? ctx.fetch(FetchDescriptor<BizRecord>())) ?? []
+        let demoParents = Set(biz.filter { $0.parentID.isEmpty && isDemo($0.convID, $0.title) }.map(\.id))
+        for r in biz where demoParents.contains(r.id) || demoParents.contains(r.parentID) || isDemo(r.convID, r.title) { ctx.delete(r) }
+        purge(GymMember.self, \.convID, \.name)
+        purge(Meeting.self, \.convID, \.title)
+        purge(InviteEvent.self, \.convID, \.title)
+        purge(CareProfile.self, \.convID, \.name)
+        purge(CRMLead.self, \.groupConvID, \.name)
+        purge(Approval.self, \.convID, \.title)
+        for t in (try? ctx.fetch(FetchDescriptor<TaskItem>())) ?? [] where t.createdBy.hasPrefix("demo_") || demoIDs.contains(t.convID ?? "") { ctx.delete(t) }
         for c in (try? ctx.fetch(FetchDescriptor<Conversation>(predicate: #Predicate { $0.isDemo }))) ?? [] {
             let id: String? = c.id
             for t in (try? ctx.fetch(FetchDescriptor<TaskItem>(predicate: #Predicate { $0.convID == id }))) ?? [] { ctx.delete(t) }

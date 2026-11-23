@@ -98,7 +98,11 @@ struct FitnessHomeView: View {
         }
         .environmentObject(session)
         .environmentObject(health)
-        .fullScreenCover(isPresented: $showSession) { ActiveWorkoutView().environmentObject(session).environmentObject(health) }
+        .environmentObject(MusicController.shared)
+        // The workout screen needs the music controller too — without it iOS crashed the moment a workout started.
+        .fullScreenCover(isPresented: $showSession) {
+            ActiveWorkoutView().environmentObject(session).environmentObject(health).environmentObject(MusicController.shared)
+        }
         .onChange(of: session.isActive) { _, active in if active { showSession = true } }
     }
 }

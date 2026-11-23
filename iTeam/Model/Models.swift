@@ -12,7 +12,7 @@ enum ITeamSchema {
         CareProfile.self, Medicine.self, DoseLog.self, HealthEvent.self, VaultItem.self,
         GymMember.self, GymPlan.self, GymSession.self, GymPayment.self, GymPhoto.self, CRMGroup.self, CRMLead.self, CRMActivity.self, SocietyRecord.self, BuildRecord.self,
         Post.self, PostReaction.self, PostComment.self, PostSeen.self,
-        MeditationLog.self, CustomMeditation.self,
+        MeditationLog.self, CustomMeditation.self, FitReview.self,
         FoodEntry.self, WaterEntry.self, WorkoutLog.self, ExerciseSet.self, WorkoutPlan.self, PlanExercise.self,
         EmergencyContact.self, HealthProfile.self, ProgressPhoto.self, LibraryPhoto.self, CustomFood.self, CustomExercise.self,
         Trainer.self, BodyMeasurement.self, Supplement.self, SupplementDose.self, ExerciseMedia.self,

@@ -14,9 +14,10 @@ final class WorkoutSessionController: ObservableObject {
     @Published var exercisePhotos: [Data?] = []
     @Published var exerciseEquipment: [String] = []
     @Published var exerciseIndex = 0
-    @Published var elapsed: TimeInterval = 0
-    @Published var heartRate = 0
-    @Published var calories: Double = 0
+    // Per-second numbers live in WorkoutClock: publishing them here redrew the whole Gym module every second (hang).
+    var elapsed: TimeInterval { get { WorkoutClock.shared.elapsed } set { WorkoutClock.shared.elapsed = newValue } }
+    var heartRate: Int { get { WorkoutClock.shared.heartRate } set { WorkoutClock.shared.heartRate = newValue } }
+    var calories: Double { get { WorkoutClock.shared.calories } set { WorkoutClock.shared.calories = newValue } }
 
     private(set) var startDate = Date.now
     private var pausedAccum: TimeInterval = 0
@@ -110,4 +111,14 @@ final class WorkoutSessionController: ObservableObject {
     private func endLiveActivity() async {
         LiveActivities.end(kind: "workout")
     }
+}
+
+
+/// The live numbers of a running workout (time, heart rate, calories). Only the workout screen watches them.
+@MainActor
+final class WorkoutClock: ObservableObject {
+    static let shared = WorkoutClock()
+    @Published var elapsed: TimeInterval = 0
+    @Published var heartRate = 0
+    @Published var calories: Double = 0
 }

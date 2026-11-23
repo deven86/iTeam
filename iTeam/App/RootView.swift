@@ -35,6 +35,9 @@ struct RootView: View {
     @Query(filter: #Predicate<BuildRecord> { $0.kind == "project" && !$0.deleted }) private var buildProjects: [BuildRecord]
     /// A buyer, partner, rehab tenant or team member of someone's project.
     private var inBuild: Bool { buildProjects.contains { $0.ownerID != engine.me } }
+    @Query(filter: #Predicate<BuildRecord> { $0.kind == "store" && !$0.deleted }) private var stores: [BuildRecord]
+    /// A team member of someone's store sees Stock free.
+    private var inStore: Bool { stores.contains { $0.ownerID != engine.me } }
     @Query(filter: #Predicate<AttRecord> { $0.kind == "member" && !$0.deleted }) private var attMembers: [AttRecord]
     /// Employees and admins use Attendance free once someone adds them.
     private var inAttendance: Bool { attMembers.contains { $0.member.userID == engine.me && $0.member.accepted != false } }
@@ -68,6 +71,7 @@ struct RootView: View {
         if modules.isOn(ModuleRegistry.crm) || crmShared { a.append(.crm) }
         if modules.isOn(ModuleRegistry.society) || inSociety { a.append(.society) }
         if modules.isOn(ModuleRegistry.build) || inBuild { a.append(.build) }
+        if modules.isOn(ModuleRegistry.stock) || inStore { a.append(.stock) }
         if modules.isOn(ModuleRegistry.attendance) || (inAttendance && modules.isVisible(ModuleRegistry.attendance)) { a.append(.attendance) }
         // Paid modules appear once bought (or unlocked for the owner / TestFlight testing) — or when
         // someone else shared a profile with you, because members use shared profiles free.
@@ -177,6 +181,11 @@ struct RootView: View {
             BuildHomeView()
         }
         .hidden(!inBar.contains(.build))
+
+        Tab("Stock", systemImage: "shippingbox.fill", value: Router.TabID.stock) {
+            StockHomeView()
+        }
+        .hidden(!inBar.contains(.stock))
     }
 
     @TabContentBuilder<Router.TabID>
@@ -237,7 +246,7 @@ struct RootView: View {
             .onChange(of: inBar) { _, bar in
                 router.barTabs = bar
                 // A tab that just left the bar reopens inside the hub instead of vanishing.
-                if [Router.TabID.views, .events, .rooms, .doctor, .safety, .khata, .tuition, .rent, .legal, .clinic, .bills, .kids, .travel, .petcare, .survey, .crm, .society, .build, .meetings, .attendance, .finance, .tasks, .care, .gym, .mind, .activity].contains(router.tab), !bar.contains(router.tab) {
+                if [Router.TabID.views, .events, .rooms, .doctor, .safety, .khata, .tuition, .rent, .legal, .clinic, .bills, .kids, .travel, .petcare, .survey, .crm, .society, .build, .stock, .meetings, .attendance, .finance, .tasks, .care, .gym, .mind, .activity].contains(router.tab), !bar.contains(router.tab) {
                     router.tab = .chats
                 }
             }
@@ -345,6 +354,7 @@ struct ModulesHubView: View {
         case .crm: CRMHomeView()
         case .society: SocietyHomeView()
         case .build: BuildHomeView()
+        case .stock: StockHomeView()
         case .tasks: TaskDashboardView()
         case .care: CareHomeView()
         case .gym: GymModuleView()
@@ -434,6 +444,7 @@ struct ModulesHubView: View {
         case .crm: ("CRM", ModuleRegistry.crm.icon, ModuleRegistry.crm.colors)
         case .society: ("Society", ModuleRegistry.society.icon, ModuleRegistry.society.colors)
         case .build: ("Builder & Infra", ModuleRegistry.build.icon, ModuleRegistry.build.colors)
+        case .stock: ("Stock", ModuleRegistry.stock.icon, ModuleRegistry.stock.colors)
         case .khata, .tuition, .rent, .legal, .clinic, .bills, .kids, .travel, .petcare:
             BizSpecs.all.first { $0.tab == t }.map { ($0.title, $0.icon, $0.colors) } ?? ("", "square", [0, 0])
         case .tasks: ("Tasks", ModuleRegistry.businessTasks.icon, ModuleRegistry.businessTasks.colors)

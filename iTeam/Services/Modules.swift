@@ -286,6 +286,24 @@ final class ModuleRegistry: ObservableObject {
         previews: [.socDashboard, .socGate],
         note: "Professional module: only the society committee subscriber pays. Flat owners, guards and staff use it free.")
 
+    static let stock = ModuleInfo(
+        id: "stock", title: "Stock & Inventory",
+        tagline: "Items with QR stickers, stock in and out, low-stock alerts and transfers between shops, warehouses and sites.",
+        icon: "shippingbox.fill", colors: [0x11998E, 0x38EF7D], availability: .included,
+        productID: nil, fallbackPrice: "Free",
+        problems: ["Nobody knows the real stock until something runs out",
+                   "Items go missing between the godown, the shop and the site",
+                   "Re-ordering happens too late, or twice"],
+        benefits: ["Stores, warehouses and Builder sites in one place — Builder & Infra stock shows here automatically",
+                   "Receive, issue, return and count stock; the balance updates itself",
+                   "Printable QR stickers; scan with the camera or from a photo to open the item",
+                   "Transfer stock between a store and a site in one step",
+                   "Low-stock list from re-order levels; stock value by category",
+                   "Purchases marked paid go to the company's Finance book",
+                   "Store team chat logs every entry; PDF reports with charts; ✨ scan bills and challans to fill entries"],
+        previews: [.buildStock, .buildForm],
+        note: "Business core module — free for life.")
+
     static let build = ModuleInfo(
         id: "build", title: "Builder & Infra",
         tagline: "Run a construction or real-estate company: projects, buildings, units, sales, partners, stock with QR stickers, machines, tests, approvals and an easy FSI calculator.",
@@ -370,7 +388,7 @@ final class ModuleRegistry: ObservableObject {
         benefits: ["“What did I miss?” summaries", "Suggested tasks from messages", "Runs on-device with Apple Intelligence (iPhone 15 Pro and newer)"],
         previews: [.assistant], note: "In development.")
 
-    static let all: [ModuleInfo] = [businessTasks, businessPro, iLifeCare, travel, events, safety, rooms, bills, kids, khata, tuition, rent, legal, clinic, petCare, survey, crm, society, build, attendance, finance, financePro, gymTraining, mindfulness, teamWorkspace]
+    static let all: [ModuleInfo] = [businessTasks, businessPro, iLifeCare, travel, events, safety, rooms, bills, kids, khata, tuition, rent, legal, clinic, petCare, survey, crm, society, build, stock, attendance, finance, financePro, gymTraining, mindfulness, teamWorkspace]
 
     @Published private var enabled: [String: Bool]
     /// Modules the user wants in the iPhone bottom bar, in order (Router.TabID raw values).
@@ -411,7 +429,7 @@ final class ModuleRegistry: ObservableObject {
     /// Shown in the app (paid modules show their store page until subscribed).
     /// Free extras are added from the Module Store ("Get"); core and paid ones start on.
     /// Core modules show for everyone; professional modules start hidden and are added from the Module Store.
-    static let optIn: Set<String> = ["survey", "crm", "society", "build", "petcare", "finance-pro", "business-pro", "gym-training", "mindfulness", "khata", "tuition", "rent", "legal", "clinic"]
+    static let optIn: Set<String> = ["survey", "crm", "society", "build", "petcare", "finance-pro", "business-pro", "gym-training", "mindfulness", "khata", "tuition", "rent", "legal", "clinic", "stock"]
     func isVisible(_ m: ModuleInfo) -> Bool { enabled[m.id] ?? !Self.optIn.contains(m.id) }
 
     func setOn(_ m: ModuleInfo, _ on: Bool) {

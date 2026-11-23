@@ -297,7 +297,7 @@ struct TaskDetailView: View {
             }
             .lookRows()
 
-            if t.createdBy == engine.me {
+            if t.createdBy == engine.me || t.createdBy.hasPrefix("demo_") {
                 Section {
                     Button("Delete task", role: .destructive) { confirmDelete = true }
                 } footer: {

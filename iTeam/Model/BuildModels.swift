@@ -407,7 +407,15 @@ enum BuildKinds {
         .init(key: "notes", label: "Notes", type: .long),
     ], privateKind: true)
 
-    static let all: [BKind] = [company, project, building, unit, sale, payment, demand, party, material, move, equipment, log, asset, test, approval, inspection, dispute, progress, land, reward, vault]
+    /// Stock & Inventory: a shop, warehouse or office store (holds items like a project does).
+    static let store = BKind(id: "store", label: "Store / warehouse", plural: "Stores", icon: "building.2.crop.circle", fields: [
+        .init(key: "name", label: "Name"),
+        .init(key: "type", label: "Type"),
+        .init(key: "address", label: "Address", type: .long),
+        .init(key: "manager", label: "Store keeper"),
+    ], statuses: ["Active", "Closed"])
+
+    static let all: [BKind] = [store, company, project, building, unit, sale, payment, demand, party, material, move, equipment, log, asset, test, approval, inspection, dispute, progress, land, reward, vault]
     static func of(_ id: String) -> BKind { all.first { $0.id == id } ?? progress }
 
     /// Kinds that only the owner/admins may write.

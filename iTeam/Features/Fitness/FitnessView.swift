@@ -24,6 +24,7 @@ struct FitnessView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 14) {
+                FitDailyBar()
                 Picker("", selection: $tab) {
                     Text("History").tag(0); Text("Plans").tag(1)
                 }

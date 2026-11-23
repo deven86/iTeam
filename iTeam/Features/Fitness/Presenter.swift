@@ -15,7 +15,9 @@ enum Presenter {
     static func top() -> UIViewController? {
         let scenes = UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }
         let scene = scenes.first { $0.activationState == .foregroundActive } ?? scenes.first
-        let window = scene?.windows.first { $0.isKeyWindow } ?? scene?.windows.first
+        // The app's main window (not an overlay window such as the tap-haptics or celebration layer).
+        let window = scene?.windows.first { $0.isKeyWindow && $0.windowLevel == .normal && $0.rootViewController != nil }
+            ?? scene?.windows.first { $0.windowLevel == .normal && $0.rootViewController != nil }
         var vc = window?.rootViewController
         while let next = vc?.presentedViewController, !next.isBeingDismissed { vc = next }
         return vc
@@ -30,6 +32,18 @@ enum Presenter {
             pop.permittedArrowDirections = []
         }
         top.present(vc, animated: true)
+    }
+
+    /// Share sheet for files or text, from anywhere.
+    static func share(_ items: [Any]) {
+        show(UIActivityViewController(activityItems: items, applicationActivities: nil))
+    }
+
+    /// A simple message, from anywhere.
+    static func alert(_ title: String, _ message: String) {
+        let a = UIAlertController(title: title, message: message, preferredStyle: .alert)
+        a.addAction(UIAlertAction(title: "OK", style: .default))
+        show(a)
     }
 
     static var hasCamera: Bool { UIImagePickerController.isSourceTypeAvailable(.camera) }

@@ -198,7 +198,12 @@ struct BizHomeView: View {
         return h + "</table>"
     }
 
-    private var mine: [BizRecord] { all.filter { $0.module == spec.module && $0.ownerID == engine.me } }
+    /// My records — leaving out entries whose parent was deleted (old demo matters left their fees and hearings behind).
+    private var mine: [BizRecord] {
+        let live = all.filter { $0.module == spec.module && $0.ownerID == engine.me }
+        let parents = Set(all.filter { $0.module == spec.module && $0.parentID.isEmpty }.map(\.id))
+        return live.filter { $0.parentID.isEmpty || parents.contains($0.parentID) }
+    }
     private func autoRun() { if spec.module == "rent" { engine.autoRentCharges() } }
     private var shared: [BizRecord] {
         all.filter { $0.module == spec.module && $0.ownerID != engine.me && $0.parentID.isEmpty && ($0.subjectID == engine.me || ($0.subjectID.isEmpty && !$0.convID.isEmpty)) }
@@ -525,8 +530,12 @@ struct BizParentView: View {
         }
         .shareSheet($shareItems)
         .confirmationDialog("Delete \(r.title)?", isPresented: $confirmDelete, titleVisibility: .visible) {
-            Button("Delete", role: .destructive) { var p = BizPayload(r); p.deleted = true; engine.saveBiz(p, convID: r.convID); dismiss() }
-        }
+            Button("Delete", role: .destructive) {
+                // Delete its hearings, fees and updates too, so nothing keeps floating in "Next 7 days".
+                for c in children where c.ownerID == engine.me { var cp = BizPayload(c); cp.deleted = true; engine.saveBiz(cp, convID: c.convID) }
+                var p = BizPayload(r); p.deleted = true; engine.saveBiz(p, convID: r.convID); dismiss()
+            }
+        } message: { Text("Its hearings, fees and updates are deleted too.") }
     }
 
     @ViewBuilder
@@ -996,11 +1005,12 @@ struct BizFilesList: View {
     @State private var error: String?
     var body: some View {
         ForEach(files) { f in
-            Button {
-                Task { @MainActor in
-                    do { Presenter.preview(try await Attachments.load(f)) } catch { self.error = "Couldn't open — files are kept 45 days." }
-                }
-            } label: { Label(f.name, systemImage: f.kind == "image" ? "photo" : f.kind == "video" ? "video" : "doc") }
+            HStack {
+                Button { DocOpen.open(f) } label: { Label(f.name, systemImage: f.kind == "image" ? "photo" : f.kind == "video" ? "video" : "doc") }
+                    .buttonStyle(.borderless)
+                Spacer()
+                Button { DocOpen.share(f) } label: { Image(systemName: "square.and.arrow.up") }.buttonStyle(.borderless)
+            }
         }
         if let error { Text(error).font(.caption).foregroundStyle(.red) }
     }

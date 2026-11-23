@@ -6,6 +6,7 @@ import MusicKit
 struct ActiveWorkoutView: View {
     @EnvironmentObject var session: WorkoutSessionController
     @EnvironmentObject var music: MusicController
+    @ObservedObject private var clock = WorkoutClock.shared
     @Environment(\.modelContext) private var context
     @Environment(\.dismiss) private var dismiss
     @State private var confirmEnd = false
@@ -24,14 +25,14 @@ struct ActiveWorkoutView: View {
                 }
                 .padding(.horizontal)
 
-                Text(Duration.seconds(session.elapsed).formatted(.time(pattern: .hourMinuteSecond)))
+                Text(Duration.seconds(clock.elapsed).formatted(.time(pattern: .hourMinuteSecond)))
                     .font(.system(size: 64, weight: .bold, design: .rounded).monospacedDigit())
                     .foregroundStyle(.green)
                     .contentTransition(.numericText())
 
                 HStack(spacing: 12) {
-                    MetricTile(title: "Heart Rate", value: session.heartRate > 0 ? "\(session.heartRate)" : "–", unit: "bpm", icon: "heart.fill", color: .red)
-                    MetricTile(title: "Calories", value: "\(Int(session.calories))", unit: "kcal", icon: "flame.fill", color: .orange)
+                    MetricTile(title: "Heart Rate", value: clock.heartRate > 0 ? "\(clock.heartRate)" : "–", unit: "bpm", icon: "heart.fill", color: .red)
+                    MetricTile(title: "Calories", value: "\(Int(clock.calories))", unit: "kcal", icon: "flame.fill", color: .orange)
                 }
                 .padding(.horizontal)
 
@@ -83,7 +84,7 @@ struct ActiveWorkoutView: View {
         }
         .confirmationDialog("End workout?", isPresented: $confirmEnd, titleVisibility: .visible) {
             Button("Save workout") {
-                let mins = Int(session.elapsed / 60), kcal = Int(session.calories)
+                let mins = Int(clock.elapsed / 60), kcal = Int(clock.calories)
                 Task {
                     await session.finish(context: context, save: true)
                     dismiss()

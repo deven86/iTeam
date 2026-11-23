@@ -233,11 +233,16 @@ struct DocumentsSection: View {
                 Label("\(f) · \(folders[f]?.count ?? 0)", systemImage: DocFolders.icon(f)).font(.subheadline)
             }
             ForEach(unfiled) { r in
+                // Tap the name/icon to open (preview has Share/Print); "File it" is its own button.
+                // (A whole-row tap used to fire "File it" and open the editor by mistake.)
                 HStack {
-                    Label(r.name, systemImage: r.kind == "image" ? "photo" : "doc").lineLimit(1)
+                    Button { DocOpen.open(r) } label: {
+                        Label(r.name, systemImage: r.kind == "image" ? "photo" : "doc").lineLimit(1)
+                    }
+                    .buttonStyle(.borderless)
                     Spacer()
+                    Button { DocOpen.share(r) } label: { Image(systemName: "square.and.arrow.up") }.buttonStyle(.borderless)
                     if canAdd { Button("File it") { filing = r }.buttonStyle(.bordered).controlSize(.small) }
-                    else { Button("Open") { Task { if let u = try? await DocStore.open(r) { Presenter.preview(u) } } }.controlSize(.small) }
                 }
             }
             if canAdd { Button("Add document", systemImage: "doc.badge.plus") { adding = true } }
@@ -369,7 +374,7 @@ struct DocumentLibraryView: View {
         return Button {
             Task { @MainActor in
                 guard let r = d.ref else { return }
-                do { Presenter.preview(try await DocStore.open(r)) } catch { self.error = "Couldn't open “\(d.title)” — ask \(engine.name(of: d.by)) to file it again (iCloud keeps files 45 days)." }
+                do { Presenter.preview(try await DocOpen.file(r)) } catch { self.error = "Couldn't open “\(d.title)” — ask \(engine.name(of: d.by)) to file it again (iCloud keeps files 45 days)." }
             }
         } label: {
             HStack(alignment: .top, spacing: 12) {
@@ -391,7 +396,7 @@ struct DocumentLibraryView: View {
             Button("Share") { Task { if let u = try? await DocStore.shareURL(d) { share = ShareItems(items: [u]) } } }.tint(.green)
         }
         .contextMenu {
-            Button("Open", systemImage: "eye") { Task { if let r = d.ref, let u = try? await DocStore.open(r) { Presenter.preview(u) } } }
+            Button("Open", systemImage: "eye") { if let r = d.ref { DocOpen.open(r) } }
             Button("Share", systemImage: "square.and.arrow.up") { Task { if let u = try? await DocStore.shareURL(d) { share = ShareItems(items: [u]) } } }
             if mine { Button("Edit / move folder", systemImage: "folder") { editing = d } }
             if mine { Button("Delete", systemImage: "trash", role: .destructive) { engine.docDelete(d) } }
@@ -548,5 +553,38 @@ struct DocumentEditor: View {
         }
         Haptics.success()
         dismiss()
+    }
+}
+
+
+/// Opening and sharing attachments safely: downloads (or uses the kept copy), gives the file a proper
+/// extension so Quick Look can show it, then previews or shares it. Errors become a message, never a crash.
+@MainActor
+enum DocOpen {
+    static func file(_ r: AttachmentRef) async throws -> URL {
+        let src = try await DocStore.open(r)
+        var ext = (r.name as NSString).pathExtension
+        if ext.isEmpty { ext = r.kind == "image" ? "jpg" : r.kind == "video" ? "mp4" : src.pathExtension }
+        let name = PDFMaker.safe(((r.name as NSString).deletingPathExtension).isEmpty ? "File" : (r.name as NSString).deletingPathExtension)
+        let dir = FileManager.default.temporaryDirectory.appendingPathComponent("open", isDirectory: true)
+        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        let dst = dir.appendingPathComponent(ext.isEmpty ? name : "\(name).\(ext)")
+        try? FileManager.default.removeItem(at: dst)
+        try FileManager.default.copyItem(at: src, to: dst)
+        return dst
+    }
+
+    static func open(_ r: AttachmentRef) {
+        Task { @MainActor in
+            do { Presenter.preview(try await file(r)) }
+            catch { Presenter.alert("Couldn't open “\(r.name)”", "It may be older than 45 days on iCloud. Ask the person who added it to file it again.") }
+        }
+    }
+
+    static func share(_ r: AttachmentRef) {
+        Task { @MainActor in
+            do { Presenter.share([try await file(r)]) }
+            catch { Presenter.alert("Couldn't share “\(r.name)”", "It may be older than 45 days on iCloud.") }
+        }
     }
 }

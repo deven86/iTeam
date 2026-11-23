@@ -119,6 +119,19 @@ final class Reminders {
             }
         }
 
+        // Gym: morning planner and night review nudges (local only).
+        if UserDefaults.standard.object(forKey: "fit.planner.on") as? Bool ?? false {
+            let cal = Calendar.current
+            for day in [now, tomorrow] {
+                let s = cal.startOfDay(for: day)
+                for (h, m, id, title, body) in [(7, 0, "plan", "☀️ Plan your day", "Today's workout, meals, water and supplements — open Gym → Plan my day."),
+                                                (21, 30, "review", "🌙 Night review", "How did today go? Two minutes in Gym → Night review.")] {
+                    let fire = s.addingTimeInterval(Double(h * 3600 + m * 60))
+                    if fire > now { plans.append(Plan(id: "dose.fit.\(id).\(Int(s.timeIntervalSince1970))", fire: fire, title: title, body: body, category: "FIT", info: ["open": "gym"])) }
+                }
+            }
+        }
+
         // Daily "I'm OK" check-ins (Care): a nudge on the person's phone, an alert on family phones if none came.
         let okRemind = CareOK.remind, okWatch = CareOK.watch
         if !okRemind.isEmpty || !okWatch.isEmpty {

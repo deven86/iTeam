@@ -24,13 +24,13 @@ object E2E {
 
     fun publicKey(priv: ByteArray): String = b64(X25519PrivateKeyParameters(priv, 0).generatePublicKey().encoded)
 
-    fun pairwiseKey(priv: ByteArray, theirPublic: String, context: String): ByteArray {
+    fun pairwiseKey(priv: ByteArray, theirPublic: String, context: String, info: String = "iteam-e2e-v1"): ByteArray {
         val agreement = X25519Agreement()
         agreement.init(X25519PrivateKeyParameters(priv, 0))
         val secret = ByteArray(32)
         agreement.calculateAgreement(X25519PublicKeyParameters(unb64(theirPublic), 0), secret, 0)
         val hkdf = HKDFBytesGenerator(SHA256Digest())
-        hkdf.init(HKDFParameters(secret, context.toByteArray(), "iteam-e2e-v1".toByteArray()))
+        hkdf.init(HKDFParameters(secret, context.toByteArray(), info.toByteArray()))
         val out = ByteArray(32)
         hkdf.generateBytes(out, 0, 32)
         return out

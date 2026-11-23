@@ -1,43 +1,28 @@
 package com.jondhale.iteam
 
 import android.Manifest
-import android.annotation.SuppressLint
-import android.content.ClipData
-import android.content.ClipboardManager
 import android.content.Intent
 import android.os.Build
 import android.os.Bundle
-import android.webkit.WebResourceRequest
-import android.webkit.WebView
-import android.webkit.WebViewClient
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.automirrored.filled.Send
-import androidx.compose.material.icons.filled.PersonAdd
-import androidx.compose.material.icons.filled.QrCode
+import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.viewinterop.AndroidView
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -46,8 +31,8 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
-private val Brand = Color(0xFF5B5BF7)
-private val Teal = Color(0xFF00B4D8)
+val Brand = Color(0xFF5B5BF7)
+val Teal = Color(0xFF00B4D8)
 
 class MainActivity : ComponentActivity() {
     private var openConv = mutableStateOf<String?>(null)
@@ -79,18 +64,37 @@ class MainActivity : ComponentActivity() {
     }
 }
 
+/** Everything the screens share. */
+class AppState(val store: Store, val sync: Sync) {
+    val rooms = Rooms(store, sync.cloudKit)
+    val nearby = Nearby(store, sync.cloudKit)
+    var tick by mutableIntStateOf(0)
+    val fastUntil = mutableLongStateOf(0L)
+    val nextPoll = mutableLongStateOf(0L)
+    var toast by mutableStateOf<String?>(null)
+    fun changed() { tick++ }
+    fun hurry() { fastUntil.longValue = System.currentTimeMillis() + 90_000; nextPoll.longValue = System.currentTimeMillis() + 2_000 }
+}
+
+/** Runs [block] off the main thread and shows any error. */
+fun AppState.run(scope: kotlinx.coroutines.CoroutineScope, block: suspend () -> Unit) {
+    scope.launch {
+        try { withContext(Dispatchers.IO) { block() }; changed() }
+        catch (e: AuthNeeded) { toast = "iCloud sign-in expired — tap Reconnect" }
+        catch (e: Exception) { toast = e.message ?: "Something went wrong" }
+    }
+}
+
 @Composable
 fun App(store: Store, openConv: MutableState<String?>, pastedInvite: MutableState<String?>, signInTick: MutableIntState) {
     val cloud = remember { CloudKit(store) }
     val sync = remember { Sync(store, cloud) }
+    val app = remember { AppState(store, sync) }
     // Once this phone has its key, chats open straight away — even before iCloud reconnects.
     var signedIn by remember { mutableStateOf(store.me.isNotEmpty() && store.identity != null) }
-    var tick by remember { mutableIntStateOf(0) }
     var authURL by remember { mutableStateOf<String?>(null) }
     var reconnect by remember { mutableStateOf<String?>(null) }
     var error by remember { mutableStateOf<String?>(null) }
-    val nextPoll = remember { mutableLongStateOf(0L) }
-    val fastUntil = remember { mutableLongStateOf(0L) }
     val ctx = androidx.compose.ui.platform.LocalContext.current
     val lifecycle = androidx.lifecycle.compose.LocalLifecycleOwner.current.lifecycle
 
@@ -102,7 +106,7 @@ fun App(store: Store, openConv: MutableState<String?>, pastedInvite: MutableStat
         authURL?.let { u -> if (u.isNotEmpty()) ctx.startActivity(Intent(Intent.ACTION_VIEW, android.net.Uri.parse(u))) }
     }
     LaunchedEffect(signInTick.intValue) {
-        if (signInTick.intValue > 0) { authURL = null; reconnect = null; error = null; nextPoll.longValue = 0; tick++ }
+        if (signInTick.intValue > 0) { authURL = null; reconnect = null; error = null; app.nextPoll.longValue = 0; app.tick++ }
     }
     if (authURL != null) {
         Column(Modifier.fillMaxSize().padding(28.dp), verticalArrangement = Arrangement.Center, horizontalAlignment = Alignment.CenterHorizontally) {
@@ -110,32 +114,35 @@ fun App(store: Store, openConv: MutableState<String?>, pastedInvite: MutableStat
             Text("Sign in with your Apple ID in the browser that just opened. You'll come back here automatically.", textAlign = TextAlign.Center)
             Spacer(Modifier.height(16.dp))
             Button({ authURL?.let { ctx.startActivity(Intent(Intent.ACTION_VIEW, android.net.Uri.parse(it))) } }) { Text("Open sign-in again") }
-            TextButton({ authURL = null; tick++ }) { Text("Cancel") }
+            TextButton({ authURL = null; app.tick++ }) { Text("Cancel") }
         }
         return
     }
     if (!signedIn) {
-        SignInScreen(store, sync, onAuth = { authURL = it }, onDone = { signedIn = true; nextPoll.longValue = 0; tick++ }, tick = tick); return
+        SignInScreen(store, sync, onAuth = { authURL = it }, onDone = { signedIn = true; app.nextPoll.longValue = 0; app.tick++ }, tick = app.tick); return
     }
 
     // Checks the mailbox only while the app is on screen: every 3 s just after you chat, otherwise every 8 s.
     // In the background Android's worker checks every 15 minutes.
     LaunchedEffect(signedIn) {
         var wasActive = false
+        var roomsAt = 0L
+        withContext(Dispatchers.IO) { app.rooms.loadBans() }
         while (true) {
             val active = lifecycle.currentState.isAtLeast(androidx.lifecycle.Lifecycle.State.STARTED)
             val now = System.currentTimeMillis()
-            if (active && (!wasActive || now >= nextPoll.longValue)) {
+            if (active && (!wasActive || now >= app.nextPoll.longValue)) {
                 val wait = try {
                     val n = withContext(Dispatchers.IO) { sync.poll() }
                     Notify.show(ctx, n)
-                    if (sync.changed) tick++
+                    if (sync.changed) app.tick++
+                    if (now - roomsAt > 30_000) { roomsAt = now; if (withContext(Dispatchers.IO) { runCatching { app.rooms.pollDMs() }.getOrDefault(0) } > 0) app.tick++ }
                     error = null; reconnect = null
-                    if (System.currentTimeMillis() < fastUntil.longValue) 3_000L else 8_000L
+                    if (System.currentTimeMillis() < app.fastUntil.longValue) 3_000L else 8_000L
                 } catch (e: AuthNeeded) { reconnect = e.redirectURL; 60_000L
                 } catch (e: Exception) { error = e.message ?: "No connection"; 15_000L }
-                nextPoll.longValue = System.currentTimeMillis() + wait
-                tick++
+                app.nextPoll.longValue = System.currentTimeMillis() + wait
+                app.tick++
             }
             wasActive = active
             delay(1000)
@@ -143,16 +150,70 @@ fun App(store: Store, openConv: MutableState<String?>, pastedInvite: MutableStat
     }
 
     val status = StatusInfo(reconnect, error, store.lastSync) { url -> authURL = url }
-    val conv = openConv.value
-    if (conv != null && store.conv(conv) != null) {
-        BackHandler { openConv.value = null; Notify.foregroundConv = null }
-        Notify.foregroundConv = conv
-        LaunchedEffect(conv) { fastUntil.longValue = System.currentTimeMillis() + 90_000; nextPoll.longValue = 0 }
-        ChatScreen(store, sync, conv, tick, onBack = { openConv.value = null; Notify.foregroundConv = null }) {
-            fastUntil.longValue = System.currentTimeMillis() + 90_000; nextPoll.longValue = System.currentTimeMillis() + 2_000; tick++
+    Home(app, status, openConv, pastedInvite)
+    app.toast?.let { msg ->
+        LaunchedEffect(msg) { delay(3500); app.toast = null }
+        Box(Modifier.fillMaxSize().padding(bottom = 96.dp), contentAlignment = Alignment.BottomCenter) {
+            Surface(shape = RoundedCornerShape(14.dp), color = MaterialTheme.colorScheme.inverseSurface, shadowElevation = 6.dp) {
+                Text(msg, color = MaterialTheme.colorScheme.inverseOnSurface, modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp))
+            }
         }
-    } else {
-        ChatList(store, sync, tick, status, pastedInvite, open = { openConv.value = it }) { nextPoll.longValue = 0; tick++ }
+    }
+}
+
+/** Screens on top of the tabs. */
+sealed class Page {
+    data class Chat(val id: String) : Page()
+    data class Task(val id: String) : Page()
+    data class GroupInfo(val id: String) : Page()
+    data class Room(val room: Rooms.Room) : Page()
+    data class RoomDM(val room: String, val other: String) : Page()
+    object NewGroup : Page()
+    object Nearby : Page()
+    object Profile : Page()
+}
+
+@Composable
+fun Home(app: AppState, status: StatusInfo, openConv: MutableState<String?>, pastedInvite: MutableState<String?>) {
+    var tab by rememberSaveable { mutableIntStateOf(0) }
+    val stack = remember { mutableStateListOf<Page>() }
+    fun push(p: Page) { stack.add(p) }
+    fun pop() { if (stack.isNotEmpty()) stack.removeAt(stack.size - 1) }
+
+    LaunchedEffect(openConv.value) { openConv.value?.let { if (app.store.conv(it) != null) { stack.clear(); stack.add(Page.Chat(it)) }; openConv.value = null } }
+
+    val top = stack.lastOrNull()
+    if (top != null) {
+        BackHandler { pop() }
+        when (top) {
+            is Page.Chat -> ChatScreen(app, top.id, onBack = { pop() }, open = { push(it) })
+            is Page.Task -> TaskScreen(app, top.id, onBack = { pop() }, open = { push(it) })
+            is Page.GroupInfo -> GroupInfoScreen(app, top.id, onBack = { pop() })
+            is Page.Room -> RoomScreen(app, top.room, onBack = { pop() }, open = { push(it) })
+            is Page.RoomDM -> RoomDMScreen(app, top.room, top.other, onBack = { pop() })
+            Page.NewGroup -> NewGroupScreen(app, onBack = { pop() }, created = { pop(); push(Page.Chat(it)) })
+            Page.Nearby -> NearbyScreen(app, onBack = { pop() }, open = { push(it) })
+            Page.Profile -> ProfileScreen(app, onBack = { pop() })
+        }
+        return
+    }
+    Scaffold(bottomBar = {
+        NavigationBar {
+            val unread = remember(app.tick) { app.store.unreadTotal() }
+            NavigationBarItem(tab == 0, { tab = 0 }, { BadgedBox({ if (unread > 0) Badge { Text("$unread") } }) { Icon(Icons.Default.Chat, null) } }, label = { Text("Chats") })
+            NavigationBarItem(tab == 1, { tab = 1 }, { Icon(Icons.Default.Checklist, null) }, label = { Text("Tasks") })
+            NavigationBarItem(tab == 2, { tab = 2 }, { Icon(Icons.Default.Forum, null) }, label = { Text("Rooms") })
+            NavigationBarItem(tab == 3, { tab = 3 }, { Icon(Icons.Default.GridView, null) }, label = { Text("More") })
+        }
+    }) { pad ->
+        Box(Modifier.padding(pad)) {
+            when (tab) {
+                0 -> ChatList(app, status, pastedInvite, open = { push(it) })
+                1 -> TasksTab(app, open = { push(it) })
+                2 -> RoomsTab(app, open = { push(it) })
+                else -> MoreTab(app, open = { push(it) })
+            }
+        }
     }
 }
 
@@ -190,6 +251,14 @@ fun Logo(size: Int = 72) {
     }
 }
 
+fun time(ms: Long): String {
+    val today = SimpleDateFormat("yyyyMMdd", Locale.getDefault()).format(Date())
+    val d = SimpleDateFormat("yyyyMMdd", Locale.getDefault()).format(Date(ms))
+    return SimpleDateFormat(if (d == today) "HH:mm" else "d MMM", Locale.getDefault()).format(Date(ms))
+}
+
+fun dateText(ms: Long): String = SimpleDateFormat("d MMM yyyy", Locale.getDefault()).format(Date(ms))
+
 @Composable
 fun SignInScreen(store: Store, sync: Sync, onAuth: (String) -> Unit, onDone: () -> Unit, tick: Int) {
     var name by remember { mutableStateOf(store.myName) }
@@ -225,179 +294,4 @@ fun SignInScreen(store: Store, sync: Sync, onAuth: (String) -> Unit, onDone: () 
         text = { Text("This Apple ID already has iTeam on an iPhone or iPad. Using it here gives it a new security key, and that iPhone would stop reading new messages. Best: sign in here with a different Apple ID.") },
         confirmButton = { TextButton({ conflict = false; go(true) }) { Text("Use here anyway") } },
         dismissButton = { TextButton({ conflict = false; store.signOut() }) { Text("Use another Apple ID") } })
-}
-
-/** Apple ID sign-in in a web view; the CloudKit token's "URL redirect" callback carries ckWebAuthToken, which we catch. */
-@SuppressLint("SetJavaScriptEnabled")
-@Composable
-fun AppleSignIn(url: String, onToken: (String) -> Unit) {
-    AndroidView(factory = { c ->
-        WebView(c).apply {
-            settings.javaScriptEnabled = true; settings.domStorageEnabled = true
-            webViewClient = object : WebViewClient() {
-                fun check(u: String): Boolean {
-                    val t = android.net.Uri.parse(u).getQueryParameter("ckWebAuthToken") ?: Regex("ckWebAuthToken=([^&#]+)").find(u)?.groupValues?.get(1)?.let { java.net.URLDecoder.decode(it, "UTF-8") }
-                    if (t != null) { onToken(t); return true }
-                    return false
-                }
-                override fun shouldOverrideUrlLoading(v: WebView, r: WebResourceRequest) = check(r.url.toString())
-                override fun onPageStarted(v: WebView, u: String, f: android.graphics.Bitmap?) { if (check(u)) v.stopLoading() }
-            }
-            loadUrl(url)
-        }
-    }, modifier = Modifier.fillMaxSize().systemBarsPadding())
-}
-
-private fun time(ms: Long): String {
-    val today = SimpleDateFormat("yyyyMMdd", Locale.getDefault()).format(Date())
-    val d = SimpleDateFormat("yyyyMMdd", Locale.getDefault()).format(Date(ms))
-    return SimpleDateFormat(if (d == today) "HH:mm" else "d MMM", Locale.getDefault()).format(Date(ms))
-}
-
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-fun ChatList(store: Store, sync: Sync, tick: Int, status: StatusInfo, pastedInvite: MutableState<String?>, open: (String) -> Unit, changed: () -> Unit) {
-    var adding by remember { mutableStateOf(false) }
-    var showInvite by remember { mutableStateOf(false) }
-    LaunchedEffect(pastedInvite.value) { if (pastedInvite.value != null) adding = true }
-    val convs = remember(tick) { store.convList() }
-    val lastMsgs = remember(tick) { store.lastMessages() }
-    Scaffold(topBar = {
-        TopAppBar(title = { Text("Chats", fontWeight = FontWeight.Bold) }, actions = {
-            IconButton({ showInvite = true }) { Icon(Icons.Default.QrCode, "My invite") }
-        })
-    }, floatingActionButton = {
-        FloatingActionButton({ adding = true }, containerColor = Brand, contentColor = Color.White) { Icon(Icons.Default.PersonAdd, "Add contact") }
-    }) { pad ->
-        Column(Modifier.padding(pad)) {
-            StatusBar(status)
-            if (convs.isEmpty()) Centered("No chats yet.\n\nTap ➕ and paste an iTeam invite link from an iPhone user (Settings → My QR → Share), or share your own link with the QR button.")
-            LazyColumn {
-                items(convs, key = { it.id }) { c ->
-                    val last = lastMsgs[c.id]
-                    ListItem(modifier = Modifier.clickable { open(c.id); store.markRead(c.id) },
-                        leadingContent = {
-                            Box(Modifier.size(46.dp).background(Brush.linearGradient(listOf(Brand, Teal)), CircleShape), contentAlignment = Alignment.Center) {
-                                Text(c.title.take(1).uppercase(), color = Color.White, fontWeight = FontWeight.Bold)
-                            }
-                        },
-                        headlineContent = { Text(c.title, fontWeight = FontWeight.SemiBold, maxLines = 1) },
-                        supportingContent = { Text(last?.let { (if (c.isGroup && !it.system) store.name(it.from) + ": " else "") + it.text } ?: "Say hello 👋", maxLines = 1, overflow = TextOverflow.Ellipsis) },
-                        trailingContent = {
-                            Column(horizontalAlignment = Alignment.End) {
-                                Text(if (c.updated > 0) time(c.updated) else "", style = MaterialTheme.typography.labelSmall)
-                                if (c.unread > 0) Badge(containerColor = Teal) { Text("${c.unread}") }
-                            }
-                        })
-                    HorizontalDivider()
-                }
-            }
-        }
-    }
-    if (adding) AddContactDialog(sync, pastedInvite.value ?: "", onDone = { id -> adding = false; pastedInvite.value = null; changed(); if (id != null) open(id) })
-    if (showInvite) InviteDialog(sync) { showInvite = false }
-}
-
-@Composable
-fun AddContactDialog(sync: Sync, initial: String, onDone: (String?) -> Unit) {
-    var text by remember { mutableStateOf(initial) }
-    var msg by remember { mutableStateOf<String?>(null) }
-    var busy by remember { mutableStateOf(false) }
-    val scope = rememberCoroutineScope()
-    AlertDialog(onDismissRequest = { onDone(null) }, title = { Text("Add contact") },
-        text = {
-            Column {
-                Text("Paste the iTeam invite link they shared (it starts with iteam://add).", style = MaterialTheme.typography.bodySmall)
-                OutlinedTextField(text, { text = it }, minLines = 3, modifier = Modifier.fillMaxWidth().padding(top = 8.dp))
-                msg?.let { Text(it, color = MaterialTheme.colorScheme.error) }
-            }
-        },
-        confirmButton = {
-            TextButton({
-                busy = true
-                scope.launch {
-                    try { onDone(withContext(Dispatchers.IO) { sync.addContact(text) }) } catch (e: Exception) { msg = e.message }
-                    busy = false
-                }
-            }, enabled = !busy && text.isNotBlank()) { Text(if (busy) "Checking…" else "Add") }
-        },
-        dismissButton = { TextButton({ onDone(null) }) { Text("Cancel") } })
-}
-
-@Composable
-fun InviteDialog(sync: Sync, onDone: () -> Unit) {
-    val ctx = androidx.compose.ui.platform.LocalContext.current
-    val link = remember { sync.inviteLink() }
-    AlertDialog(onDismissRequest = onDone, title = { Text("My invite link") },
-        text = { Text("Send this to iPhone, iPad or Android users. They tap it (or paste it in Add contact) to add you.\n\n$link", style = MaterialTheme.typography.bodySmall) },
-        confirmButton = {
-            TextButton({
-                ctx.startActivity(Intent.createChooser(Intent(Intent.ACTION_SEND).setType("text/plain").putExtra(Intent.EXTRA_TEXT, "Add me on iTeam: $link"), "Share invite"))
-                onDone()
-            }) { Text("Share") }
-        },
-        dismissButton = {
-            TextButton({
-                (ctx.getSystemService(ClipboardManager::class.java)).setPrimaryClip(ClipData.newPlainText("iTeam", link)); onDone()
-            }) { Text("Copy") }
-        })
-}
-
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-fun ChatScreen(store: Store, sync: Sync, convID: String, tick: Int, onBack: () -> Unit, changed: () -> Unit) {
-    val conv = remember(tick, convID) { store.conv(convID) } ?: return
-    val msgs = remember(tick, convID) { store.messages(convID) }
-    var text by remember { mutableStateOf("") }
-    var err by remember { mutableStateOf<String?>(null) }
-    val scope = rememberCoroutineScope()
-    val list = rememberLazyListState()
-    LaunchedEffect(msgs.size) { if (msgs.isNotEmpty()) list.animateScrollToItem(msgs.size - 1) }
-    LaunchedEffect(tick) { if (conv.unread > 0) withContext(Dispatchers.IO) { store.markRead(convID) } }
-    Scaffold(topBar = {
-        TopAppBar(title = {
-            Column {
-                Text(conv.title, fontWeight = FontWeight.Bold, maxLines = 1)
-                Text(if (conv.isGroup) "${conv.members.size} members" else "🔒 End-to-end encrypted", style = MaterialTheme.typography.labelSmall)
-            }
-        }, navigationIcon = { IconButton(onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back") } })
-    }, bottomBar = {
-        Row(Modifier.fillMaxWidth().navigationBarsPadding().imePadding().padding(8.dp), verticalAlignment = Alignment.CenterVertically) {
-            OutlinedTextField(text, { text = it }, placeholder = { Text("Message") }, modifier = Modifier.weight(1f), shape = RoundedCornerShape(24.dp), maxLines = 5)
-            IconButton({
-                val t = text.trim(); if (t.isEmpty()) return@IconButton
-                text = ""
-                scope.launch {
-                    try { withContext(Dispatchers.IO) { sync.sendText(convID, t) }; err = null; changed() } catch (e: Exception) { err = e.message; text = t }
-                }
-            }) { Icon(Icons.AutoMirrored.Filled.Send, "Send", tint = Brand) }
-        }
-    }) { pad ->
-        Column(Modifier.padding(pad).fillMaxSize()) {
-            err?.let { Text("Not sent: $it", color = MaterialTheme.colorScheme.error, modifier = Modifier.padding(8.dp)) }
-            LazyColumn(state = list, modifier = Modifier.weight(1f).padding(horizontal = 10.dp)) {
-                items(msgs, key = { it.id }) { m -> Bubble(m, mine = m.from == store.me, showName = conv.isGroup, name = store.name(m.from)) }
-            }
-        }
-    }
-}
-
-@Composable
-fun Bubble(m: Msg, mine: Boolean, showName: Boolean, name: String) {
-    if (m.system) {
-        Box(Modifier.fillMaxWidth().padding(vertical = 4.dp), contentAlignment = Alignment.Center) {
-            Text(m.text, style = MaterialTheme.typography.labelSmall, textAlign = TextAlign.Center,
-                modifier = Modifier.background(MaterialTheme.colorScheme.surfaceVariant, RoundedCornerShape(10.dp)).padding(horizontal = 10.dp, vertical = 4.dp))
-        }
-        return
-    }
-    Row(Modifier.fillMaxWidth().padding(vertical = 3.dp), horizontalArrangement = if (mine) Arrangement.End else Arrangement.Start) {
-        Column(Modifier.widthIn(max = 300.dp)
-            .background(if (mine) Brush.linearGradient(listOf(Brand, Teal)) else Brush.linearGradient(listOf(MaterialTheme.colorScheme.surfaceVariant, MaterialTheme.colorScheme.surfaceVariant)), RoundedCornerShape(18.dp))
-            .padding(horizontal = 12.dp, vertical = 8.dp)) {
-            if (showName && !mine) Text(name, style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold, color = Teal)
-            Text(m.text, color = if (mine) Color.White else MaterialTheme.colorScheme.onSurface)
-            Text(time(m.at), style = MaterialTheme.typography.labelSmall, color = if (mine) Color.White.copy(alpha = 0.8f) else MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.align(Alignment.End))
-        }
-    }
 }

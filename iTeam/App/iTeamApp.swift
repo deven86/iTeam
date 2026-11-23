@@ -56,6 +56,7 @@ struct iTeamApp: App {
             switch phase {
             case .active:
                 engine.setForeground(true)
+                Autopilot.shared.applyStation()
                 NowPlaying.shared.start()
                 Reminders.shared.updateBadge(totalUnread(engine))
                 Task {
@@ -187,6 +188,7 @@ final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCent
             Self.scheduleRefresh()
             let work = Task { @MainActor in
                 await SyncEngine.shared.sync()
+                await Autopilot.shared.run(SyncEngine.shared)
                 task.setTaskCompleted(success: true)
             }
             task.expirationHandler = { work.cancel() }
@@ -204,6 +206,8 @@ final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCent
     /// CloudKit pushes (loud and quiet) land here when iTeam is running or can be woken.
     func application(_ application: UIApplication, didReceiveRemoteNotification userInfo: [AnyHashable: Any]) async -> UIBackgroundFetchResult {
         await SyncEngine.shared.sync()
+        // Woken by a new message: let Autopilot answer before iOS suspends us again.
+        await Autopilot.shared.run(SyncEngine.shared)
         return .newData
     }
 

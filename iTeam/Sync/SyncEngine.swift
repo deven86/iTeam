@@ -182,6 +182,8 @@ final class SyncEngine: ObservableObject {
         save()
         refreshCounts()
         Reminders.shared.reschedule(context: context, me: me)
+        // Business Autopilot answers new client questions while iTeam is open.
+        if timer != nil && Autopilot.shared.on { Task { await Autopilot.shared.run(self) } }
     }
 
     /// A direct chat always shows the person's current name (never the "Chat" placeholder).

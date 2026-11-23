@@ -145,6 +145,8 @@ struct TaskExpensesSection: View {
             }
             if editable {
                 Button { adding = true } label: { Label("Add expense", systemImage: "plus.circle") }
+                    .sheet(isPresented: $adding) { NavigationStack { ExpenseEditor(task: task, expense: nil) } }
+                    .sheet(item: $editing) { x in NavigationStack { ExpenseEditor(task: task, expense: x) } }
             }
         } header: {
             Text("Expenses")
@@ -152,8 +154,6 @@ struct TaskExpensesSection: View {
             Text("Attach bills or vouchers to each expense. Amounts approved through approval requests on this task count as the budget.")
         }
         .lookRows()
-        .sheet(isPresented: $adding) { NavigationStack { ExpenseEditor(task: task, expense: nil) } }
-        .sheet(item: $editing) { x in NavigationStack { ExpenseEditor(task: task, expense: x) } }
     }
 
     private func row(_ x: Expense) -> some View {
@@ -290,9 +290,9 @@ struct TaskApprovalsSection: View {
             Section("Approvals") {
                 ForEach(approvals) { a in ApprovalCard(approvalID: a.id).padding(.vertical, 4) }
                 Button { requesting = true } label: { Label("Request approval", systemImage: "checkmark.seal") }
+                    .sheet(isPresented: $requesting) { NavigationStack { ApprovalRequestView(conv: conv, task: task) } }
             }
             .lookRows()
-            .sheet(isPresented: $requesting) { NavigationStack { ApprovalRequestView(conv: conv, task: task) } }
         }
     }
 }

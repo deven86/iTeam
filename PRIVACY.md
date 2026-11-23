@@ -17,6 +17,7 @@ Last updated: 23 November 2026 · Developer: Devendra Jondhale
 - No sale or sharing of data with third parties.
 - AI features are optional. By default they run on your device with Apple Intelligence. If you add your own OpenAI, Anthropic or Google key, only the text you choose is sent to that provider.
 - **Scan & fill:** papers you scan or pick (photos, PDFs) are read on your device. With Apple Intelligence the values are also filled on your device; with your own AI key, only the text read from that paper is sent to your chosen provider. Nothing is saved until you check the values and tap "Use these".
+- **Business Autopilot (optional, off by default):** when a business owner turns it on, questions in their module chats are answered by AI from that module's records, marked "🤖 assistant". With Apple Intelligence this happens on the owner's device; with the owner's own AI key, the question and those records are sent to that provider.
 - **Holiday check:** if you allow it, iTeam reads the holidays in your iPhone calendar on the device to warn about hearings or events on holidays. Calendar data never leaves your phone.
 
 ## Your choices

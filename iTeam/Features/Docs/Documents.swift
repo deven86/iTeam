@@ -221,6 +221,14 @@ struct DocumentsSection: View {
                         .font(.caption).foregroundStyle(.secondary)
                 } } icon: { Image(systemName: "folder.fill").foregroundStyle(.tint) }
             }
+            // Sheets live on this one row: a modifier on a Section is copied onto every row,
+            // and several rows presenting the same sheet made it close by itself (and could crash).
+            .sheet(isPresented: $adding) {
+                NavigationStack { DocumentEditor(module: module, recordID: recordID, recordOwner: recordOwner, convID: convID, existing: nil, preset: nil) }
+            }
+            .sheet(item: $filing) { r in
+                NavigationStack { DocumentEditor(module: module, recordID: recordID, recordOwner: recordOwner, convID: convID, existing: nil, preset: r) }
+            }
             ForEach(folders.keys.sorted(by: { order($0) < order($1) }), id: \.self) { f in
                 Label("\(f) · \(folders[f]?.count ?? 0)", systemImage: DocFolders.icon(f)).font(.subheadline)
             }
@@ -235,12 +243,6 @@ struct DocumentsSection: View {
             if canAdd { Button("Add document", systemImage: "doc.badge.plus") { adding = true } }
         } header: { Text("Documents") } footer: {
             if !unfiled.isEmpty { Text("Attachments not yet in a folder — tap File it to give each one a title, date and folder.") }
-        }
-        .sheet(isPresented: $adding) {
-            NavigationStack { DocumentEditor(module: module, recordID: recordID, recordOwner: recordOwner, convID: convID, existing: nil, preset: nil) }
-        }
-        .sheet(item: $filing) { r in
-            NavigationStack { DocumentEditor(module: module, recordID: recordID, recordOwner: recordOwner, convID: convID, existing: nil, preset: r) }
         }
     }
 

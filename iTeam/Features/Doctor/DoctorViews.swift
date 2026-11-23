@@ -389,8 +389,8 @@ struct CarePrescriptionsSection: View {
                 Label("Prescriptions (\(all.count))", systemImage: "list.clipboard")
             }
             Button("Write a prescription (for doctors)", systemImage: "stethoscope") { writing = true }
+                .sheet(isPresented: $writing) { NavigationStack { PickPatientView() } }
         } header: { Text(toReview.isEmpty ? "Prescriptions" : "Prescriptions to review (\(toReview.count))") }
         .lookRows()
-        .sheet(isPresented: $writing) { NavigationStack { PickPatientView() } }
     }
 }

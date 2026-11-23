@@ -72,6 +72,16 @@ struct AISettingsView: View {
                 .lookRows()
 
                 Section {
+                    NavigationLink { AutopilotSettingsView() } label: {
+                        Label { VStack(alignment: .leading, spacing: 2) {
+                            Text("🤖 Business Autopilot").font(.headline)
+                            Text(Autopilot.shared.on ? "On — answering clients & sending follow-ups" : "Answer clients and follow up automatically").font(.caption).foregroundStyle(look.textSecondary)
+                        } } icon: { Image(systemName: "airplane.circle.fill") }
+                    }
+                }
+                .lookRows()
+
+                Section {
                     ForEach(AIFeature.allCases) { f in
                         Toggle(isOn: Binding(get: { ai.features.contains(f.rawValue) },
                                              set: { on in if on { ai.features.insert(f.rawValue) } else { ai.features.remove(f.rawValue) } })) {

@@ -420,6 +420,11 @@ struct GymMemberView: View {
                             .buttonStyle(.glassProminent)
                         Button(role: .destructive) { askDecline = true } label: { Label("Decline", systemImage: "xmark") }.buttonStyle(.glass)
                     }
+                    .alert("Decline training \(m.name)?", isPresented: $askDecline) {
+                        TextField("Reason (optional)", text: $declineNote)
+                        Button("Decline", role: .destructive) { engine.answerTrainer(m, accept: false, note: declineNote) }
+                        Button("Cancel", role: .cancel) {}
+                    }
                 } else {
                     let who = m.trainerID == engine.me ? "You" : engine.name(of: m.trainerID)
                     switch m.trainerStatus {
@@ -430,11 +435,6 @@ struct GymMemberView: View {
                 }
             } header: { Text("Trainer") }
             .lookRows()
-            .alert("Decline training \(m.name)?", isPresented: $askDecline) {
-                TextField("Reason (optional)", text: $declineNote)
-                Button("Decline", role: .destructive) { engine.answerTrainer(m, accept: false, note: declineNote) }
-                Button("Cancel", role: .cancel) {}
-            }
         }
     }
 

@@ -880,6 +880,11 @@ struct CareOKSection: View {
                 }
             }
             .disabled(sent || engine.conversation(profile.convID) == nil)
+            .onAppear(perform: load)
+            .onChange(of: remindOn) { _, _ in save() }
+            .onChange(of: remindAt) { _, _ in save() }
+            .onChange(of: watchOn) { _, _ in save() }
+            .onChange(of: watchAt) { _, _ in save() }
             Toggle("Remind me daily to check in", isOn: $remindOn)
             if remindOn { DatePicker("At", selection: $remindAt, displayedComponents: .hourAndMinute) }
             Toggle("Alert me if no check-in by", isOn: $watchOn)
@@ -887,11 +892,6 @@ struct CareOKSection: View {
         } header: { Text("Daily check-in") } footer: {
             Text("The person taps “I'm OK” once a day. If it hasn't arrived by your time, your phone alerts you. Apple Watch fall detection also calls emergency contacts. Nobody's photos or location are watched.")
         }
-        .onAppear(perform: load)
-        .onChange(of: remindOn) { _, _ in save() }
-        .onChange(of: remindAt) { _, _ in save() }
-        .onChange(of: watchOn) { _, _ in save() }
-        .onChange(of: watchAt) { _, _ in save() }
     }
 
     private func minutes(_ d: Date) -> Int { let c = Calendar.current.dateComponents([.hour, .minute], from: d); return (c.hour ?? 0) * 60 + (c.minute ?? 0) }

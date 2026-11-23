@@ -133,6 +133,18 @@ fun TaskScreen(app: AppState, id: String, onBack: () -> Unit, open: (Page) -> Un
                 Text("• ${app.store.name(u)}$state${if (t.doneBy.containsKey(u)) " · part done ✅" else ""}")
             }
 
+            var editFollow by remember { mutableStateOf(false) }
+            Text("Follow-ups", style = MaterialTheme.typography.titleSmall, modifier = Modifier.padding(top = 16.dp))
+            val fu = t.p.optJSONObject("followUp")?.takeIf { f -> f.optDoubleOrNull("until")?.let { SwiftDate.toMillis(it) > System.currentTimeMillis() } ?: true }
+            Text(fu?.let { followUpText(it) } ?: "None", style = MaterialTheme.typography.bodyMedium)
+            if (t.createdBy == me && t.status != "done") Row {
+                TextButton({ editFollow = true }) { Text(if (fu == null) "Add follow-ups" else "Change") }
+                if (fu != null) TextButton({ app.run(scope) { app.sync.updateTask(id, "stopped follow-ups") { p -> p.put("followUp", org.json.JSONObject(fu.toString()).put("until", SwiftDate.now())); listOf("followUp") } } }) { Text("Stop") }
+            }
+            if (editFollow) FollowUpDialog(fu, app.store.conv(t.conv ?: "")?.isGroup == true, onDone = { editFollow = false }) { f ->
+                if (f != null) app.run(scope) { app.sync.updateTask(id, "set follow-ups: ${followUpText(f)}") { p -> p.put("followUp", f); listOf("followUp") } }
+            }
+
             TaskExtras(app, t)
 
             Text("Comments", style = MaterialTheme.typography.titleSmall, modifier = Modifier.padding(top = 16.dp))
@@ -169,6 +181,9 @@ fun TaskEditorDialog(app: AppState, conv: Conv, onDone: () -> Unit) {
     var everyone by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
     var busy by remember { mutableStateOf(false) }
+    var followUp by remember { mutableStateOf<org.json.JSONObject?>(null) }
+    var editFollow by remember { mutableStateOf(false) }
+    if (editFollow) FollowUpDialog(followUp, conv.isGroup, onDone = { editFollow = false }) { followUp = it }
     AlertDialog(onDismissRequest = onDone, title = { Text("New task") },
         text = {
             Column(Modifier.verticalScroll(rememberScrollState())) {
@@ -177,6 +192,7 @@ fun TaskEditorDialog(app: AppState, conv: Conv, onDone: () -> Unit) {
                 Text("Priority", style = MaterialTheme.typography.labelMedium, modifier = Modifier.padding(top = 10.dp))
                 Row { priorities.forEachIndexed { i, p -> FilterChip(priority == i, { priority = i }, label = { Text(p) }, modifier = Modifier.padding(end = 4.dp)) } }
                 TextButton({ pickDate = true }) { Icon(Icons.Default.Event, null); Spacer(Modifier.width(6.dp)); Text(due?.let { "Due ${dateText(it)}" } ?: "Add a due date") }
+                TextButton({ editFollow = true }) { Icon(Icons.Default.NotificationsActive, null); Spacer(Modifier.width(6.dp)); Text(followUp?.let { followUpText(it) } ?: "Add follow-up reminders") }
                 Text("Assign to", style = MaterialTheme.typography.labelMedium)
                 conv.members.forEach { u ->
                     Row(Modifier.fillMaxWidth().clickable { if (u in people) people.remove(u) else people.add(u) }, verticalAlignment = Alignment.CenterVertically) {
@@ -195,7 +211,7 @@ fun TaskEditorDialog(app: AppState, conv: Conv, onDone: () -> Unit) {
                 busy = true
                 scope.launch {
                     try {
-                        withContext(Dispatchers.IO) { app.sync.createTask(conv.id, title.trim(), notes.trim(), people.toList(), due, priority, everyone) }
+                        withContext(Dispatchers.IO) { app.sync.createTask(conv.id, title.trim(), notes.trim(), people.toList(), due, priority, everyone, followUp) }
                         app.changed(); onDone()
                     } catch (e: Exception) { app.toast = e.message }
                     busy = false
@@ -209,4 +225,51 @@ fun TaskEditorDialog(app: AppState, conv: Conv, onDone: () -> Unit) {
             confirmButton = { TextButton({ due = state.selectedDateMillis?.let { it + 18 * 3_600_000L }; pickDate = false }) { Text("OK") } },
             dismissButton = { TextButton({ due = null; pickDate = false }) { Text("No date") } }) { DatePicker(state) }
     }
+}
+
+
+/** "10:00 AM, 6:00 PM · Mon–Fri · until done" */
+fun followUpText(f: org.json.JSONObject): String {
+    val times = f.optJSONArray("times")?.let { a -> (0 until a.length()).map { AttData.clock(a.optInt(it)) } } ?: emptyList()
+    val wd = f.optJSONArray("weekdays")?.let { a -> (0 until a.length()).map { a.optInt(it) } }?.sorted() ?: emptyList()
+    val names = listOf("", "Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat")
+    val days = when (wd) { listOf(2, 3, 4, 5, 6) -> "Mon–Fri"; (1..7).toList() -> "Every day"; listOf(2, 3, 4, 5, 6, 7) -> "Mon–Sat"; else -> wd.joinToString { names.getOrElse(it) { "" } } }
+    val until = f.optDoubleOrNull("until")?.let { "until ${dateText(SwiftDate.toMillis(it))}" } ?: "until done"
+    return "${times.joinToString()} · $days · $until${if (f.optBoolean("wholeGroup")) " · whole group" else ""}"
+}
+
+/** Pro follow-ups: 1–4 times a day, chosen weekdays, until a date or until done, optionally for the whole group. */
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
+@Composable
+fun FollowUpDialog(current: org.json.JSONObject?, group: Boolean, onDone: () -> Unit, onSave: (org.json.JSONObject?) -> Unit) {
+    val times = remember { mutableStateListOf<Int>().apply { addAll(current?.optJSONArray("times")?.let { a -> (0 until a.length()).map { a.optInt(it) } } ?: listOf(600)) } }
+    val days = remember { mutableStateListOf<Int>().apply { addAll(current?.optJSONArray("weekdays")?.let { a -> (0 until a.length()).map { a.optInt(it) } } ?: listOf(2, 3, 4, 5, 6)) } }
+    var until by remember { mutableStateOf(current?.optDoubleOrNull("until")?.let { SwiftDate.toMillis(it) }) }
+    var whole by remember { mutableStateOf(current?.optBoolean("wholeGroup") ?: false) }
+    var pick by remember { mutableStateOf(false) }
+    AlertDialog(onDismissRequest = onDone, title = { Text("Follow-up reminders") }, text = {
+        Column(Modifier.verticalScroll(rememberScrollState())) {
+            Text("Times a day (up to 4)", style = MaterialTheme.typography.labelMedium)
+            FlowRow { listOf(480, 540, 600, 660, 720, 840, 960, 1080, 1200).forEach { t ->
+                FilterChip(t in times, { if (t in times) { if (times.size > 1) times.remove(t) } else if (times.size < 4) times.add(t) }, { Text(AttData.clock(t)) }, Modifier.padding(end = 4.dp)) } }
+            Text("Days", style = MaterialTheme.typography.labelMedium, modifier = Modifier.padding(top = 8.dp))
+            FlowRow { listOf("Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat").forEachIndexed { i, d -> val w = i + 1
+                FilterChip(w in days, { if (w in days) { if (days.size > 1) days.remove(w) } else days.add(w) }, { Text(d) }, Modifier.padding(end = 4.dp)) } }
+            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 8.dp)) {
+                Switch(until == null, { until = if (it) null else System.currentTimeMillis() + 7 * 86_400_000L }); Spacer(Modifier.width(8.dp)); Text("Until the task is done")
+            }
+            until?.let { u -> TextButton({ pick = true }) { Text("Until ${dateText(u)}") } }
+            if (group) Row(verticalAlignment = Alignment.CenterVertically) { Switch(whole, { whole = it }); Spacer(Modifier.width(8.dp)); Text("Remind the whole group") }
+            Text("Reminders ring on each involved phone (after they accept) until the task is completed.", style = MaterialTheme.typography.labelSmall, modifier = Modifier.padding(top = 6.dp))
+        }
+    }, confirmButton = { TextButton({
+        val f = org.json.JSONObject().put("times", org.json.JSONArray(times.sorted())).put("weekdays", org.json.JSONArray(days.sorted())).put("wholeGroup", whole)
+        until?.let { f.put("until", SwiftDate.from(it)) }
+        onSave(f); onDone()
+    }) { Text("Save") } }, dismissButton = { Row {
+        if (current != null) TextButton({ onSave(null); onDone() }) { Text("Remove") }
+        TextButton(onDone) { Text("Cancel") }
+    } })
+    if (pick) { val st = rememberDatePickerState(initialSelectedDateMillis = until ?: System.currentTimeMillis())
+        DatePickerDialog(onDismissRequest = { pick = false }, confirmButton = { TextButton({ until = st.selectedDateMillis?.let { it + 20 * 3_600_000L }; pick = false }) { Text("OK") } }) { DatePicker(st) } }
 }

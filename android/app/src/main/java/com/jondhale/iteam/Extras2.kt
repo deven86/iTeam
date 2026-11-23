@@ -323,6 +323,20 @@ object Reminders {
         store.miscList("meet").filter { !it.deleted && it.s("status") == "scheduled" }.forEach { e -> val at = SwiftDate.toMillis(e.p.optDouble("start")) - 900_000L; if (at in now..horizon) out += Triple(at, "📅 In 15 min: ${e.s("title")}", if (e.p.optBoolean("online")) e.s("link") else e.s("place")) }
         // Tasks due.
         store.taskList().filter { it.status != "done" && (it.assignees.contains(me) || it.createdBy == me) && it.answer(me) != "declined" }.forEach { t -> t.due?.let { if (it in now..horizon) out += Triple(it, "☑ Task due: ${t.title}", "") } }
+        // Task follow-ups (1–4 times a day on chosen weekdays, until done or a date).
+        store.taskList().filter { it.status != "done" && !it.deleted }.forEach { t ->
+            val f = t.p.optJSONObject("followUp") ?: return@forEach
+            val accepted = t.assignees.contains(me) && (!t.needsAcceptance || t.answer(me)?.startsWith("accepted") == true)
+            val group = f.optBoolean("wholeGroup") && store.conv(t.conv ?: "")?.members?.contains(me) == true
+            if (!(t.createdBy == me || accepted || group)) return@forEach
+            val until = f.optDoubleOrNull("until")?.let { SwiftDate.toMillis(it) } ?: Long.MAX_VALUE
+            val times = f.optJSONArray("times")?.let { a -> (0 until a.length()).map { a.optInt(it) } } ?: listOf(600)
+            val days = f.optJSONArray("weekdays")?.let { a -> (0 until a.length()).map { a.optInt(it) } } ?: listOf(2, 3, 4, 5, 6)
+            for (d in 0..2) { val base = day0 + d * 86_400_000L
+                if (Calendar.getInstance().apply { timeInMillis = base }.get(Calendar.DAY_OF_WEEK) !in days) continue
+                for (m in times) { val at = base + m * 60_000L; if (at in (now + 1)..minOf(until, horizon)) out += Triple(at, "🔔 Follow up: ${t.title}", if (t.createdBy == me) "Check progress with ${t.assignees.filter { it != me }.joinToString { store.name(it) }.ifEmpty { "the group" }}" else "From ${store.name(t.createdBy)}") }
+            }
+        }
         // Magic moments arriving.
         store.msgs.filter { it.showAt != null && it.showAt > now && it.from != me }.forEach { out += Triple(it.showAt!!, "✨ ${store.name(it.from)}", it.text.ifEmpty { "Sent you a Magic moment" }) }
 

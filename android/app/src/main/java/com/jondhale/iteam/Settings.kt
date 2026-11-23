@@ -100,7 +100,7 @@ fun SettingsTab(app: AppState, open: (Page) -> Unit) {
                 Row1(Icons.Default.QrCode, "My QR code") { invite = true }
                 Row1(Icons.Default.Storefront, "Module Store", "Add or remove modules — all free on Android") { open(Page.ModuleStore) }
                 Row1(Icons.Default.Palette, "Appearance", "${LookState.look.name} · ${modeName(LookState.mode)}") { open(Page.Appearance) }
-                Row1(Icons.Default.ViewWeek, "Bottom bar", store.prefList("pinned", listOf("tasks", "rooms")).joinToString(" · ") { id -> tabOptions.firstOrNull { it.id == id }?.title ?: id }) { open(Page.BottomBar) }
+                Row1(Icons.Default.ViewWeek, "Bottom bar", store.prefList("pinned", listOf("tasks", "views")).joinToString(" · ") { id -> tabOptions.firstOrNull { it.id == id }?.title ?: id }) { open(Page.BottomBar) }
                 Row1(Icons.Default.ChatBubble, "Chat bubble colour") { open(Page.BubbleColor) }
                 Row1(Icons.Default.Lock, "Privacy & lock", "Fingerprint lock, photo, About, read receipts") { open(Page.Privacy) }
                 Row1(Icons.Default.Lightbulb, "Request a module") { open(Page.ModuleRequest) }
@@ -250,7 +250,7 @@ fun AppearanceScreen(app: AppState, onBack: () -> Unit) {
 
 @Composable
 fun BottomBarScreen(app: AppState, onBack: () -> Unit) {
-    var pinned by remember { mutableStateOf(app.store.prefList("pinned", listOf("tasks", "rooms"))) }
+    var pinned by remember { mutableStateOf(app.store.prefList("pinned", listOf("tasks", "views"))) }
     Back("Bottom bar", onBack) {
         Text("Chats · two of your choice · Modules · Settings. Pick two:", style = MaterialTheme.typography.bodyMedium)
         tabOptions.forEach { t ->

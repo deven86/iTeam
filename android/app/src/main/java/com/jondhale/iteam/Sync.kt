@@ -231,13 +231,14 @@ class Sync(internal val store: Store, private val cloud: CloudKit = CloudKit(sto
 
     private val taskFields = listOf("title", "notes", "status", "priority", "dueAt", "policy", "assignees", "repeat", "followUp")
 
-    fun createTask(convID: String, title: String, notes: String, assignees: List<String>, due: Long?, priority: Int, everyone: Boolean) {
+    fun createTask(convID: String, title: String, notes: String, assignees: List<String>, due: Long?, priority: Int, everyone: Boolean, followUp: JSONObject? = null) {
         val now = SwiftDate.now()
         val stamps = JSONObject(); taskFields.forEach { stamps.put(it, now) }
         val p = JSONObject().put("id", newID()).put("title", title).put("notes", notes).put("status", "open").put("priority", priority)
             .put("policy", "any").put("assignees", JSONArray(assignees)).put("createdBy", me).put("createdAt", now)
             .put("stamps", stamps).put("repeatRule", "none")
         if (due != null) p.put("dueAt", SwiftDate.from(due))
+        if (followUp != null) p.put("followUp", followUp)
         if (assignees.any { it != me } && !everyone) p.put("needsAcceptance", true)
         val who = if (assignees.isEmpty()) "the group" else assignees.joinToString { store.name(it) }
         send(convID, ev("task", p), loud = true, hintText = "📋 New task for $who: $title")

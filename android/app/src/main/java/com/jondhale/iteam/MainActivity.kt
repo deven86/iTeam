@@ -299,7 +299,15 @@ fun Home(app: AppState, status: StatusInfo, openConv: MutableState<String?>, pas
         }
         return
     }
-    val pinned = remember(app.tick) { app.store.prefList("pinned", listOf("tasks", "rooms")).mapNotNull { id -> tabOptions.firstOrNull { it.id == id } } }
+    LaunchedEffect(Unit) {
+        // Rooms now sits next to Chats; free its bottom-bar slot once.
+        if (!app.store.prefBool("roomsMoved", false)) {
+            val p = app.store.prefList("pinned", listOf("tasks", "views"))
+            if ("rooms" in p) app.store.setPref("pinned", p.map { if (it == "rooms") (if ("views" in p) "events" else "views") else it })
+            app.store.setPref("roomsMoved", true); app.changed()
+        }
+    }
+    val pinned = remember(app.tick) { app.store.prefList("pinned", listOf("tasks", "views")).mapNotNull { id -> tabOptions.firstOrNull { it.id == id } } }
     val tabs = listOf(TabOption("chats", "Chats", Icons.Default.Chat)) + pinned + listOf(TabOption("modules", "Modules", Icons.Default.GridView), TabOption("settings", "Settings", Icons.Default.Settings))
     if (tab >= tabs.size) tab = 0
     Scaffold(bottomBar = {

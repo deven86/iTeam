@@ -53,7 +53,11 @@ fun ChatList(app: AppState, status: StatusInfo, pastedInvite: MutableState<Strin
     val convs = remember(app.tick) { app.store.convList() }
     val lastMsgs = remember(app.tick) { app.store.lastMessages() }
     Scaffold(topBar = {
-        TopAppBar(title = { Text("Chats", fontWeight = FontWeight.Bold) }, actions = {
+        TopAppBar(title = { Row(verticalAlignment = Alignment.CenterVertically) {
+            Text("Chats", fontWeight = FontWeight.Bold)
+            Spacer(Modifier.width(10.dp))
+            AssistChip(onClick = { open(Page.RoomsPage) }, label = { Text("Rooms") }, leadingIcon = { Icon(Icons.Default.Groups, null, Modifier.size(18.dp)) })
+        } }, actions = {
             IconButton({ showInvite = true }) { Icon(Icons.Default.QrCode, "My QR") }
             Box {
                 IconButton({ menu = true }) { Icon(Icons.Default.Edit, "New") }

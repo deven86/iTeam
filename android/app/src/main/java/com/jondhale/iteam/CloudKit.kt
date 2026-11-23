@@ -14,7 +14,10 @@ class CloudError(msg: String) : Exception(msg)
 
 /** CloudKit Web Services for the iPhone app's public database — the same encrypted mailbox, no server of ours. */
 class CloudKit(private val store: Store) {
-    private val http = OkHttpClient.Builder().connectTimeout(20, TimeUnit.SECONDS).readTimeout(40, TimeUnit.SECONDS).build()
+    companion object {
+        val http: OkHttpClient = OkHttpClient.Builder().connectTimeout(12, TimeUnit.SECONDS).readTimeout(30, TimeUnit.SECONDS)
+            .retryOnConnectionFailure(true).build()
+    }
     private val base = "https://api.apple-cloudkit.com/database/1/iCloud.com.jondhale.iteam/${BuildConfig.CK_ENV}/public"
     private val json = "application/json".toMediaType()
 

@@ -83,11 +83,16 @@ class MainActivity : ComponentActivity() {
 fun App(store: Store, openConv: MutableState<String?>, pastedInvite: MutableState<String?>, signInTick: MutableIntState) {
     val cloud = remember { CloudKit(store) }
     val sync = remember { Sync(store, cloud) }
-    var signedIn by remember { mutableStateOf(store.me.isNotEmpty() && store.webToken.isNotEmpty() && store.identity != null) }
+    // Once this phone has its key, chats open straight away — even before iCloud reconnects.
+    var signedIn by remember { mutableStateOf(store.me.isNotEmpty() && store.identity != null) }
     var tick by remember { mutableIntStateOf(0) }
     var authURL by remember { mutableStateOf<String?>(null) }
+    var reconnect by remember { mutableStateOf<String?>(null) }
     var error by remember { mutableStateOf<String?>(null) }
+    val nextPoll = remember { mutableLongStateOf(0L) }
+    val fastUntil = remember { mutableLongStateOf(0L) }
     val ctx = androidx.compose.ui.platform.LocalContext.current
+    val lifecycle = androidx.lifecycle.compose.LocalLifecycleOwner.current.lifecycle
 
     if (!cloud.configured) {
         Centered("This build has no CloudKit token yet.\n\nAdd the CK_API_TOKEN secret on GitHub and run the Android APK workflow again."); return
@@ -96,39 +101,80 @@ fun App(store: Store, openConv: MutableState<String?>, pastedInvite: MutableStat
     LaunchedEffect(authURL) {
         authURL?.let { u -> if (u.isNotEmpty()) ctx.startActivity(Intent(Intent.ACTION_VIEW, android.net.Uri.parse(u))) }
     }
-    LaunchedEffect(signInTick.intValue) { if (signInTick.intValue > 0) { authURL = null; tick++ } }
+    LaunchedEffect(signInTick.intValue) {
+        if (signInTick.intValue > 0) { authURL = null; reconnect = null; error = null; nextPoll.longValue = 0; tick++ }
+    }
     if (authURL != null) {
         Column(Modifier.fillMaxSize().padding(28.dp), verticalArrangement = Arrangement.Center, horizontalAlignment = Alignment.CenterHorizontally) {
             Logo(); Spacer(Modifier.height(16.dp))
             Text("Sign in with your Apple ID in the browser that just opened. You'll come back here automatically.", textAlign = TextAlign.Center)
             Spacer(Modifier.height(16.dp))
             Button({ authURL?.let { ctx.startActivity(Intent(Intent.ACTION_VIEW, android.net.Uri.parse(it))) } }) { Text("Open sign-in again") }
-            TextButton({ authURL = null; store.webToken = ""; tick++ }) { Text("Cancel") }
+            TextButton({ authURL = null; tick++ }) { Text("Cancel") }
         }
         return
     }
     if (!signedIn) {
-        SignInScreen(store, sync, onAuth = { authURL = it }, onDone = { signedIn = true; tick++ }, tick = tick); return
+        SignInScreen(store, sync, onAuth = { authURL = it }, onDone = { signedIn = true; nextPoll.longValue = 0; tick++ }, tick = tick); return
     }
 
-    // Foreground: check the mailbox every 8 seconds.
+    // Checks the mailbox only while the app is on screen: every 3 s just after you chat, otherwise every 8 s.
+    // In the background Android's worker checks every 15 minutes.
     LaunchedEffect(signedIn) {
+        var wasActive = false
         while (true) {
-            try {
-                val n = withContext(Dispatchers.IO) { sync.poll() }
-                Notify.show(ctx, n); tick++; error = null
-            } catch (e: AuthNeeded) { authURL = e.redirectURL } catch (e: Exception) { error = e.message }
-            delay(8000)
+            val active = lifecycle.currentState.isAtLeast(androidx.lifecycle.Lifecycle.State.STARTED)
+            val now = System.currentTimeMillis()
+            if (active && (!wasActive || now >= nextPoll.longValue)) {
+                val wait = try {
+                    val n = withContext(Dispatchers.IO) { sync.poll() }
+                    Notify.show(ctx, n)
+                    if (sync.changed) tick++
+                    error = null; reconnect = null
+                    if (System.currentTimeMillis() < fastUntil.longValue) 3_000L else 8_000L
+                } catch (e: AuthNeeded) { reconnect = e.redirectURL; 60_000L
+                } catch (e: Exception) { error = e.message ?: "No connection"; 15_000L }
+                nextPoll.longValue = System.currentTimeMillis() + wait
+                tick++
+            }
+            wasActive = active
+            delay(1000)
         }
     }
 
+    val status = StatusInfo(reconnect, error, store.lastSync) { url -> authURL = url }
     val conv = openConv.value
-    if (conv != null && store.convs[conv] != null) {
+    if (conv != null && store.conv(conv) != null) {
         BackHandler { openConv.value = null; Notify.foregroundConv = null }
         Notify.foregroundConv = conv
-        ChatScreen(store, sync, conv, tick, onBack = { openConv.value = null; Notify.foregroundConv = null }) { tick++ }
+        LaunchedEffect(conv) { fastUntil.longValue = System.currentTimeMillis() + 90_000; nextPoll.longValue = 0 }
+        ChatScreen(store, sync, conv, tick, onBack = { openConv.value = null; Notify.foregroundConv = null }) {
+            fastUntil.longValue = System.currentTimeMillis() + 90_000; nextPoll.longValue = System.currentTimeMillis() + 2_000; tick++
+        }
     } else {
-        ChatList(store, sync, tick, error, pastedInvite, open = { openConv.value = it }) { tick++ }
+        ChatList(store, sync, tick, status, pastedInvite, open = { openConv.value = it }) { nextPoll.longValue = 0; tick++ }
+    }
+}
+
+class StatusInfo(val reconnect: String?, val error: String?, val lastSync: Long, val signIn: (String) -> Unit)
+
+@Composable
+fun StatusBar(s: StatusInfo) {
+    when {
+        s.reconnect != null -> Surface(color = MaterialTheme.colorScheme.errorContainer, modifier = Modifier.fillMaxWidth()) {
+            Row(Modifier.padding(horizontal = 16.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                Text("iCloud sign-in expired — new messages are paused.", style = MaterialTheme.typography.bodySmall, modifier = Modifier.weight(1f))
+                TextButton({ s.signIn(s.reconnect) }) { Text("Reconnect") }
+            }
+        }
+        s.error != null -> Text("Offline — retrying: ${s.error}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error,
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp))
+        s.lastSync > 0 -> Text("Up to date · ${time(s.lastSync)}", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 2.dp))
+        else -> Row(Modifier.padding(horizontal = 16.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+            CircularProgressIndicator(Modifier.size(12.dp), strokeWidth = 2.dp); Spacer(Modifier.width(8.dp))
+            Text("Connecting…", style = MaterialTheme.typography.labelSmall)
+        }
     }
 }
 
@@ -210,11 +256,12 @@ private fun time(ms: Long): String {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ChatList(store: Store, sync: Sync, tick: Int, error: String?, pastedInvite: MutableState<String?>, open: (String) -> Unit, changed: () -> Unit) {
+fun ChatList(store: Store, sync: Sync, tick: Int, status: StatusInfo, pastedInvite: MutableState<String?>, open: (String) -> Unit, changed: () -> Unit) {
     var adding by remember { mutableStateOf(false) }
     var showInvite by remember { mutableStateOf(false) }
     LaunchedEffect(pastedInvite.value) { if (pastedInvite.value != null) adding = true }
-    val convs = remember(tick) { store.convs.values.sortedByDescending { it.updated } }
+    val convs = remember(tick) { store.convList() }
+    val lastMsgs = remember(tick) { store.lastMessages() }
     Scaffold(topBar = {
         TopAppBar(title = { Text("Chats", fontWeight = FontWeight.Bold) }, actions = {
             IconButton({ showInvite = true }) { Icon(Icons.Default.QrCode, "My invite") }
@@ -223,12 +270,12 @@ fun ChatList(store: Store, sync: Sync, tick: Int, error: String?, pastedInvite: 
         FloatingActionButton({ adding = true }, containerColor = Brand, contentColor = Color.White) { Icon(Icons.Default.PersonAdd, "Add contact") }
     }) { pad ->
         Column(Modifier.padding(pad)) {
-            error?.let { Text("Offline: $it", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error, modifier = Modifier.padding(horizontal = 16.dp)) }
+            StatusBar(status)
             if (convs.isEmpty()) Centered("No chats yet.\n\nTap ➕ and paste an iTeam invite link from an iPhone user (Settings → My QR → Share), or share your own link with the QR button.")
             LazyColumn {
                 items(convs, key = { it.id }) { c ->
-                    val last = store.msgs.lastOrNull { it.conv == c.id }
-                    ListItem(modifier = Modifier.clickable { c.unread = 0; store.save(); open(c.id) },
+                    val last = lastMsgs[c.id]
+                    ListItem(modifier = Modifier.clickable { open(c.id); store.markRead(c.id) },
                         leadingContent = {
                             Box(Modifier.size(46.dp).background(Brush.linearGradient(listOf(Brand, Teal)), CircleShape), contentAlignment = Alignment.Center) {
                                 Text(c.title.take(1).uppercase(), color = Color.White, fontWeight = FontWeight.Bold)
@@ -299,14 +346,14 @@ fun InviteDialog(sync: Sync, onDone: () -> Unit) {
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ChatScreen(store: Store, sync: Sync, convID: String, tick: Int, onBack: () -> Unit, changed: () -> Unit) {
-    val conv = store.convs[convID] ?: return
-    val msgs = remember(tick, convID) { store.msgs.filter { it.conv == convID }.sortedBy { it.at } }
+    val conv = remember(tick, convID) { store.conv(convID) } ?: return
+    val msgs = remember(tick, convID) { store.messages(convID) }
     var text by remember { mutableStateOf("") }
     var err by remember { mutableStateOf<String?>(null) }
     val scope = rememberCoroutineScope()
     val list = rememberLazyListState()
-    LaunchedEffect(msgs.size) { if (msgs.isNotEmpty()) list.scrollToItem(msgs.size - 1) }
-    LaunchedEffect(tick) { if (conv.unread > 0) { conv.unread = 0; store.save() } }
+    LaunchedEffect(msgs.size) { if (msgs.isNotEmpty()) list.animateScrollToItem(msgs.size - 1) }
+    LaunchedEffect(tick) { if (conv.unread > 0) withContext(Dispatchers.IO) { store.markRead(convID) } }
     Scaffold(topBar = {
         TopAppBar(title = {
             Column {

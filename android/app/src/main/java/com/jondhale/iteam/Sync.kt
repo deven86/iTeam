@@ -45,7 +45,9 @@ class Sync(private val store: Store, private val cloud: CloudKit = CloudKit(stor
     }
 
     /** Adds a contact from an "iteam://add?…" link; the key is checked against their iCloud profile. */
-    fun addContact(text: String): String {
+    fun addContact(text: String): String = synchronized(store) { addLocked(text) }
+
+    private fun addLocked(text: String): String {
         val link = Regex("iteam://add\\?\\S+").find(text)?.value ?: throw IllegalArgumentException("Paste an iTeam invite link")
         val q = android.net.Uri.parse(link)
         val u = q.getQueryParameter("u") ?: throw IllegalArgumentException("Invite link is incomplete")
@@ -73,7 +75,9 @@ class Sync(private val store: Store, private val cloud: CloudKit = CloudKit(stor
 
     // MARK: Send
 
-    fun sendText(convID: String, text: String) {
+    fun sendText(convID: String, text: String) = synchronized(store) { sendLocked(convID, text) }
+
+    private fun sendLocked(convID: String, text: String) {
         val conv = store.convs[convID] ?: return
         val mid = UUID.randomUUID().toString().uppercase()
         val payload = JSONObject().put("id", mid).put("text", text).put("attachments", JSONArray())
@@ -94,9 +98,23 @@ class Sync(private val store: Store, private val cloud: CloudKit = CloudKit(stor
 
     // MARK: Receive
 
+    /** Returns the new notifications; [changed] is true when anything was added. */
+    var changed = false
+        private set
+
     fun poll(): List<Notice> {
+        // Network first, outside the lock, so the screen never waits on it.
+        val fresh = cloud.inbox(me, store.since)
+        return synchronized(store) { pollLocked(fresh) }
+    }
+
+    private fun pollLocked(fresh: List<CloudKit.Incoming>): List<Notice> {
         val notices = mutableListOf<Notice>()
-        val incoming = store.pending.toList() + cloud.inbox(me, store.since)
+        val before = store.msgs.size + store.convs.size
+        val retry = store.pending.toList()
+        val incoming = retry + fresh.filter { f -> retry.none { it.name == f.name } }
+        store.lastSync = System.currentTimeMillis()
+        if (incoming.isEmpty()) { changed = false; return notices }
         store.pending.clear()
         for (inc in incoming) {
             if (inc.created > store.since) store.since = inc.created
@@ -105,6 +123,7 @@ class Sync(private val store: Store, private val cloud: CloudKit = CloudKit(stor
             if (!ok && System.currentTimeMillis() - inc.created < 7L * 86_400_000) store.pending += inc
         }
         store.save()
+        changed = notices.isNotEmpty() || store.msgs.size + store.convs.size != before || incoming.isNotEmpty()
         return notices
     }
 

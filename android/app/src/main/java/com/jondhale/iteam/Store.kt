@@ -25,22 +25,31 @@ class Store private constructor(ctx: Context) {
         EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV, EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM)
     private val file = File(ctx.filesDir, "data.json")
 
-    var webToken: String
-        get() = secure.getString("ck.web", "") ?: ""
-        set(v) { secure.edit().putString("ck.web", v).apply() }
-    var me: String
-        get() = secure.getString("me", "") ?: ""
-        set(v) { secure.edit().putString("me", v).apply() }
-    var myName: String
-        get() = secure.getString("name", "") ?: ""
-        set(v) { secure.edit().putString("name", v).apply() }
-    var identity: ByteArray?
-        get() = secure.getString("identity.v1", null)?.let { E2E.unb64(it) }
-        set(v) { secure.edit().putString("identity.v1", v?.let { E2E.b64(it) }).apply() }
-    val myPublicKey get() = identity?.let { E2E.publicKey(it) } ?: ""
+    // Encrypted storage is slow to read, so values are kept in memory after the first read.
+    private val cache = java.util.concurrent.ConcurrentHashMap<String, String>()
+    private fun get(k: String): String? = cache[k] ?: secure.getString(k, null)?.also { cache[k] = it }
+    private fun put(k: String, v: String?) {
+        if (v == null) cache.remove(k) else cache[k] = v
+        secure.edit().putString(k, v).apply()
+    }
 
-    fun convKey(conv: String, version: Int): ByteArray? = secure.getString("conv.$conv.$version", null)?.let { E2E.unb64(it) }
-    fun setConvKey(conv: String, version: Int, key: ByteArray) { secure.edit().putString("conv.$conv.$version", E2E.b64(key)).apply() }
+    var webToken: String
+        get() = get("ck.web") ?: ""
+        set(v) { put("ck.web", v) }
+    var me: String
+        get() = get("me") ?: ""
+        set(v) { put("me", v) }
+    var myName: String
+        get() = get("name") ?: ""
+        set(v) { put("name", v) }
+    var identity: ByteArray?
+        get() = get("identity.v1")?.let { E2E.unb64(it) }
+        set(v) { put("identity.v1", v?.let { E2E.b64(it) }); pubCache = null }
+    @Volatile private var pubCache: String? = null
+    val myPublicKey: String get() = pubCache ?: (identity?.let { E2E.publicKey(it) } ?: "").also { if (it.isNotEmpty()) pubCache = it }
+
+    fun convKey(conv: String, version: Int): ByteArray? = get("conv.$conv.$version")?.let { E2E.unb64(it) }
+    fun setConvKey(conv: String, version: Int, key: ByteArray) { put("conv.$conv.$version", E2E.b64(key)) }
 
     val contacts = mutableMapOf<String, Contact>()
     val convs = mutableMapOf<String, Conv>()
@@ -75,6 +84,14 @@ class Store private constructor(ctx: Context) {
         val tmp = File(file.path + ".tmp"); tmp.writeText(o.toString()); tmp.renameTo(file)
     }
 
-    fun signOut() { secure.edit().remove("ck.web").apply() }
+    fun signOut() { cache.remove("ck.web"); secure.edit().remove("ck.web").apply() }
+
+    /** Safe copies for the screen while the background check may be writing. */
+    @Synchronized fun convList(): List<Conv> = convs.values.map { it.copy() }.sortedByDescending { it.updated }
+    @Synchronized fun lastMessages(): Map<String, Msg> { val m = HashMap<String, Msg>(); for (x in msgs) m[x.conv] = x; return m }
+    @Synchronized fun messages(conv: String): List<Msg> = msgs.filter { it.conv == conv }.sortedBy { it.at }.map { it.copy() }
+    @Synchronized fun conv(id: String): Conv? = convs[id]?.copy()
+    @Synchronized fun markRead(id: String) { convs[id]?.let { if (it.unread > 0) { it.unread = 0; save() } } }
+    @Volatile var lastSync: Long = 0
     fun name(of: String): String = if (of == me) "You" else contacts[of]?.name ?: "Someone"
 }

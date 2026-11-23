@@ -122,7 +122,7 @@ fun BizModuleScreen(app: AppState, module: String, onBack: () -> Unit, open: (Pa
 
     Scaffold(topBar = { TopAppBar(title = { Text(spec.title) }, navigationIcon = { IconButton(onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back") } }) },
         floatingActionButton = {
-            ExtendedFloatingActionButton({ adding = spec.parent ?: spec.flat }, icon = { Icon(Icons.Default.Add, null) },
+            ExtendedFloatingActionButton(onClick = { adding = spec.parent ?: spec.flat }, icon = { Icon(Icons.Default.Add, null) },
                 text = { Text("New ${(spec.parent ?: spec.flat)?.label?.lowercase() ?: "entry"}") })
         }) { pad ->
         LazyColumn(Modifier.padding(pad)) {

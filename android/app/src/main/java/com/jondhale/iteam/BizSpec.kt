@@ -124,7 +124,7 @@ object BizSpecs {
 
     val bills = BizSpec(
         module = "bills", tab = "bills", title = "Bills & Renewals", icon = "calendar.badge.exclamationmark", colors = longListOf(0xFFFF512F, 0xFFDD2476),
-        parent = nil,
+        parent = null,
         children = listOf(
             BizKind(id = "bill", label = "Bill / renewal", plural = "Bills", icon = "doc.text",
                     fields = listOf(BF(key = BK.title, label = "What (electricity, insurance, PUC…)"), BF(key = BK.amount, label = "Amount"), BF(key = BK.due, label = "Due date"),

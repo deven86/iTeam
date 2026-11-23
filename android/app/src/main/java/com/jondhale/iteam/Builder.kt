@@ -78,7 +78,7 @@ fun BuilderHome(app: AppState, onBack: () -> Unit, open: (Page) -> Unit) {
                 IconButton({ scan.launch(ScanOptions().setDesiredBarcodeFormats(ScanOptions.QR_CODE).setPrompt("Scan a stock / machine / asset QR").setBeepEnabled(false)) }) { Icon(Icons.Default.QrCodeScanner, "Scan") }
                 IconButton({ open(Page.FSI) }) { Icon(Icons.Default.Calculate, "FSI calculator") }
             })
-    }, floatingActionButton = { ExtendedFloatingActionButton({ newProject = true }, icon = { Icon(Icons.Default.Add, null) }, text = { Text("New project") }) }) { pad ->
+    }, floatingActionButton = { ExtendedFloatingActionButton(onClick = { newProject = true }, icon = { Icon(Icons.Default.Add, null) }, text = { Text("New project") }) }) { pad ->
         LazyColumn(Modifier.padding(pad)) {
             item { StatTiles("${projects.size}" to "Projects", "$sold / ${units.size}" to "Units sold", money(dues) to "Instalments due") }
             item { SectionHeader("Projects") }
@@ -342,7 +342,7 @@ private fun GenerateUnits(app: AppState, b: Rec, onDone: () -> Unit) {
                     OutlinedTextField(to, { to = it }, label = { Text("To floor") }, keyboardOptions = nk, modifier = Modifier.weight(1f)) }
                 OutlinedTextField(perFloor, { perFloor = it }, label = { Text("Units per floor") }, keyboardOptions = nk, modifier = Modifier.fillMaxWidth())
                 Text("Type", style = MaterialTheme.typography.labelMedium, modifier = Modifier.padding(top = 6.dp))
-                FlowRow { BuildCatalog.unitTypes.take(10).forEach { t -> FilterChip(type == t, { type = t }, label = { Text(t) }, modifier = Modifier.padding(end = 4.dp)) } }
+                FlowRow { BuildKinds.unitTypes.take(10).forEach { t -> FilterChip(type == t, { type = t }, label = { Text(t) }, modifier = Modifier.padding(end = 4.dp)) } }
                 OutlinedTextField(carpet, { carpet = it }, label = { Text("Carpet area (sq ft)") }, keyboardOptions = nk, modifier = Modifier.fillMaxWidth())
                 OutlinedTextField(price, { price = it }, label = { Text("Price") }, keyboardOptions = nk, modifier = Modifier.fillMaxWidth())
             }

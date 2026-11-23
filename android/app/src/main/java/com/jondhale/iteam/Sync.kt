@@ -430,7 +430,10 @@ class Sync(internal val store: Store, private val cloud: CloudKit = CloudKit(sto
             "finance" -> if (p != null) applyFinance(p, from, convID) { t -> line(t, true, notify = from != me) }
             "photo" -> if (from != me) store.contacts[from]?.photo = v.optString("_0")
             "about" -> if (from != me) store.contacts[from]?.about = v.optString("_0")
-            "post", "postReact", "postComment", "postSeen", "facetime", "nowPlaying" -> {}
+            "post", "postReact", "postComment", "invite", "rsvp", "checkIn", "care", "medicine", "dose" -> applyMisc(case, v, p, from, convID, atSwift) { t, n -> line(t, true, notify = n && from != me) }
+            "crmGroup", "crmLead", "crmActivity", "crmQuoteAnswer", "society", "gymMember", "gymTrainerAnswer", "gymPlan", "gymSession", "gymPayment" ->
+                applyPhase3b(case, v, p, from, convID, atSwift) { t -> line(t, true, notify = from != me) }
+            "postSeen", "facetime", "nowPlaying" -> {}
             else -> {}
         }
     }

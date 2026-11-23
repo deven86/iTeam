@@ -131,6 +131,8 @@ class Store private constructor(ctx: Context) {
     val build = mutableMapOf<String, Rec>()
     val att = mutableMapOf<String, Rec>()
     val fin = mutableMapOf<String, Rec>()
+    /** Views posts, events, Check Ins, Care profiles, medicines and doses — p["t"] says which. */
+    val misc = mutableMapOf<String, Rec>()
     var since: Long = 0
     /** Envelopes whose group key hasn't arrived yet. */
     val pending = mutableListOf<CloudKit.Incoming>()
@@ -177,7 +179,7 @@ class Store private constructor(ctx: Context) {
         fun recs(key: String, into: MutableMap<String, Rec>) = o.optJSONArray(key)?.forEachObj { r ->
             into[r.getString("id")] = Rec(r.getString("id"), r.optString("c"), r.optString("o"), r.optString("by"), r.optLong("cr"), r.getJSONObject("p"), r.optDouble("up", 0.0), r.optString("db"))
         }
-        recs("biz", biz); recs("build", build); recs("att", att); recs("fin", fin)
+        recs("biz", biz); recs("build", build); recs("att", att); recs("fin", fin); recs("misc", misc)
     }
 
     @Synchronized fun save() {
@@ -209,7 +211,7 @@ class Store private constructor(ctx: Context) {
         fun recs(m: Map<String, Rec>) = JSONArray(m.values.map { r ->
             JSONObject().put("id", r.id).put("c", r.conv).put("o", r.owner).put("by", r.by).put("cr", r.created).put("p", r.p).put("up", r.updated).put("db", r.deletedBy)
         })
-        o.put("biz", recs(biz)); o.put("build", recs(build)); o.put("att", recs(att)); o.put("fin", recs(fin))
+        o.put("biz", recs(biz)); o.put("build", recs(build)); o.put("att", recs(att)); o.put("fin", recs(fin)); o.put("misc", recs(misc))
         val tmp = File(file.path + ".tmp"); tmp.writeText(o.toString()); tmp.renameTo(file)
     }
 
@@ -232,6 +234,7 @@ class Store private constructor(ctx: Context) {
     @Synchronized fun attList(): List<Rec> = att.values.map { it.copyDeep() }
     @Synchronized fun attRec(id: String): Rec? = att[id]?.copyDeep()
     @Synchronized fun finList(): List<Rec> = fin.values.map { it.copyDeep() }
+    @Synchronized fun miscList(t: String): List<Rec> = misc.values.filter { it.s("t") == t }.map { it.copyDeep() }
     @Synchronized fun buildList(): List<Rec> = build.values.map { it.copyDeep() }
     @Synchronized fun buildRec(id: String): Rec? = build[id]?.copyDeep()
     @Synchronized fun pref(k: String, def: String = ""): String = prefs.optString(k, def)

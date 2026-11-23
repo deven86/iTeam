@@ -63,6 +63,9 @@ val tabOptions: List<TabOption> get() = listOf(
     TabOption("build", "Builder", Icons.Default.Apartment),
     TabOption("attendance", "Attendance", Icons.Default.Fingerprint),
     TabOption("finance", "Finance", Icons.Default.AccountBalanceWallet),
+    TabOption("crm", "CRM", Icons.Default.Handshake),
+    TabOption("society", "Society", Icons.Default.Apartment),
+    TabOption("gym", "Gym", Icons.Default.FitnessCenter),
     TabOption("nearby", "Nearby", Icons.Default.NearMe),
 ) + BizSpecs.all.map { TabOption(it.module, it.title.substringBefore(" &").substringBefore(" Planner").substringBefore(" Desk").substringBefore(" Matters"), moduleIcon(it.module)) }
 
@@ -70,8 +73,9 @@ val tabOptions: List<TabOption> get() = listOf(
 fun visibleModules(store: Store): List<String> {
     val added = store.prefList("modules", emptyList())
     val withData = (store.bizList().filter { !it.deleted }.map { it.module } + (if (store.buildList().any { !it.deleted }) listOf("build") else emptyList()) +
-        (if (store.attList().any { !it.deleted }) listOf("attendance") else emptyList()) + (if (store.finList().any { !it.deleted }) listOf("finance") else emptyList())).toSet()
-    return (listOf("attendance", "finance", "build") + BizSpecs.all.map { it.module }).filter { it in added || it in withData }
+        (if (store.attList().any { !it.deleted }) listOf("attendance") else emptyList()) + (if (store.finList().any { !it.deleted }) listOf("finance") else emptyList()) +
+        store.misc.values.filter { !it.deleted }.mapNotNull { when (it.s("t")) { "crml", "crmg" -> "crm"; "soc" -> "society"; "gymm" -> "gym"; else -> null } }).toSet()
+    return (listOf("attendance", "finance", "crm", "society", "gym", "build") + BizSpecs.all.map { it.module }).filter { it in added || it in withData }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -260,12 +264,15 @@ fun ModuleStoreScreen(app: AppState, onBack: () -> Unit, open: (Page) -> Unit) {
             style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         StoreRow("Attendance", "Punch in/out, leave, holidays, monthly register for your team", listOf(Color(0xFF11998E), Color(0xFF38EF7D)), Icons.Default.Fingerprint, "attendance" in shown, "attendance" in added, { toggle("attendance") }) { open(Page.Attendance) }
         StoreRow("Finance", "Income, expenses, dues, approvals — personal and company books", listOf(Color(0xFF2193B0), Color(0xFF6DD5ED)), Icons.Default.AccountBalanceWallet, "finance" in shown, "finance" in added, { toggle("finance") }) { open(Page.Finance) }
+        StoreRow("CRM", "Leads, pipeline, follow-ups, quotes your client accepts", listOf(Color(0xFFFF512F), Color(0xFFDD2476)), Icons.Default.Handshake, "crm" in shown, "crm" in added, { toggle("crm") }) { open(Page.CRM) }
+        StoreRow("Society", "Flats, maintenance bills, complaints, visitors, notices", listOf(Color(0xFF8E2DE2), Color(0xFF4A00E0)), Icons.Default.Apartment, "society" in shown, "society" in added, { toggle("society") }) { open(Page.Societies) }
+        StoreRow("Gym & Training", "Sessions, memberships, payments, trainer requests", listOf(Color(0xFFF7971E), Color(0xFFFFD200)), Icons.Default.FitnessCenter, "gym" in shown, "gym" in added, { toggle("gym") }) { open(Page.Gym) }
         StoreRow("Builder & Infra", "Projects, units, sales, stock, machines, approvals, FSI", listOf(Color(0xFFF7971E), Color(0xFF8E2DE2)), moduleIcon("build"), "build" in shown, "build" in added, { toggle("build") }) { open(Page.Builder) }
         BizSpecs.all.forEach { s ->
             StoreRow(s.title, (listOfNotNull(s.parent?.plural) + s.children.map { it.plural }).joinToString(", "), specColors(s), moduleIcon(s.module),
                 s.module in shown, s.module in added, { toggle(s.module) }) { open(Page.BizModule(s.module)) }
         }
-        Text("Coming next on Android: CRM, Society, Gym, Events, Care, Family Safety.", Modifier.padding(top = 12.dp), style = MaterialTheme.typography.labelMedium)
+        Text("Coming next on Android: mini (Views), Events, Care, Family Safety, Fluffy Fight practice, widgets.", Modifier.padding(top = 12.dp), style = MaterialTheme.typography.labelMedium)
     }
 }
 

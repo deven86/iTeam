@@ -94,6 +94,9 @@ fun ModulesHub(app: AppState, onBack: (() -> Unit)?, open: (Page) -> Unit) {
                 ModuleTile("Nearby", "People & businesses near you", listOf(Color(0xFF2193B0), Color(0xFF6DD5ED)), Icons.Default.NearMe) { open(Page.Nearby) }
                 if ("attendance" in shown) ModuleTile("Attendance", "Punch in/out, leave, team register", listOf(Color(0xFF11998E), Color(0xFF38EF7D)), Icons.Default.Fingerprint) { open(Page.Attendance) }
                 if ("finance" in shown) ModuleTile("Finance", "Income, expenses, dues, approvals", listOf(Color(0xFF2193B0), Color(0xFF6DD5ED)), Icons.Default.AccountBalanceWallet) { open(Page.Finance) }
+                if ("crm" in shown) ModuleTile("CRM", "Leads, pipeline, quotes", listOf(Color(0xFFFF512F), Color(0xFFDD2476)), Icons.Default.Handshake) { open(Page.CRM) }
+                if ("society" in shown) ModuleTile("Society", "Flats, bills, complaints, visitors", listOf(Color(0xFF8E2DE2), Color(0xFF4A00E0)), Icons.Default.Apartment) { open(Page.Societies) }
+                if ("gym" in shown) ModuleTile("Gym & Training", "Sessions, memberships, payments", listOf(Color(0xFFF7971E), Color(0xFFFFD200)), Icons.Default.FitnessCenter) { open(Page.Gym) }
                 if ("build" in shown) ModuleTile("Builder & Infra", if (projects > 0) "$projects projects" else "Projects, units, sales, stock, approvals, FSI",
                     listOf(Color(0xFFF7971E), Color(0xFF8E2DE2)), moduleIcon("build")) { open(Page.Builder) }
             }

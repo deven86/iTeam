@@ -29,7 +29,7 @@ data class Att(
 fun JSONObject.optDoubleOrNull(k: String): Double? = if (has(k) && !isNull(k)) optDouble(k).takeIf { !it.isNaN() } else null
 fun JSONObject.optStringOrNull(k: String): String? = if (has(k) && !isNull(k)) optString(k) else null
 
-data class Contact(val userID: String, var name: String, var pubkey: String)
+data class Contact(val userID: String, var name: String, var pubkey: String, var photo: String = "", var about: String = "")
 
 data class Conv(
     val id: String, var title: String, var members: List<String>, var keyVersion: Int = 0, var updated: Long = 0, var unread: Int = 0,
@@ -134,6 +134,8 @@ class Store private constructor(ctx: Context) {
     val pending = mutableListOf<CloudKit.Incoming>()
     /** Rooms state (personas, joined rooms, private threads) as JSON — see Rooms.kt. */
     var rooms: JSONObject = JSONObject()
+    /** My details and app settings (name parts, age, sex, mobile, email, photo, about, privacy, look, bottom bar, modules). */
+    var prefs: JSONObject = JSONObject()
     @Volatile var lastSync: Long = 0
 
     init { load() }
@@ -142,7 +144,7 @@ class Store private constructor(ctx: Context) {
         if (!file.exists()) return
         val o = runCatching { JSONObject(file.readText()) }.getOrNull() ?: return
         since = o.optLong("since")
-        o.optJSONArray("contacts")?.forEachObj { c -> contacts[c.getString("u")] = Contact(c.getString("u"), c.getString("n"), c.getString("k")) }
+        o.optJSONArray("contacts")?.forEachObj { c -> contacts[c.getString("u")] = Contact(c.getString("u"), c.getString("n"), c.getString("k"), c.optString("p"), c.optString("ab")) }
         o.optJSONArray("convs")?.forEachObj { c ->
             val rec = mutableMapOf<String, DoubleArray>()
             c.optJSONObject("rc")?.let { r -> r.keys().forEach { k -> r.optJSONArray(k)?.let { a -> rec[k] = doubleArrayOf(a.optDouble(0, 0.0), a.optDouble(1, 0.0)) } } }
@@ -169,6 +171,7 @@ class Store private constructor(ctx: Context) {
             pending += CloudKit.Incoming(p.getString("n"), p.getString("f"), p.getString("cr"), p.getString("c"), p.getInt("k"), E2E.unb64(p.getString("b")), p.getLong("at"))
         }
         rooms = o.optJSONObject("rooms") ?: JSONObject()
+        prefs = o.optJSONObject("prefs") ?: JSONObject()
         fun recs(key: String, into: MutableMap<String, Rec>) = o.optJSONArray(key)?.forEachObj { r ->
             into[r.getString("id")] = Rec(r.getString("id"), r.optString("c"), r.optString("o"), r.optString("by"), r.optLong("cr"), r.getJSONObject("p"), r.optDouble("up", 0.0), r.optString("db"))
         }
@@ -177,7 +180,7 @@ class Store private constructor(ctx: Context) {
 
     @Synchronized fun save() {
         val o = JSONObject().put("since", since)
-        o.put("contacts", JSONArray(contacts.values.map { JSONObject().put("u", it.userID).put("n", it.name).put("k", it.pubkey) }))
+        o.put("contacts", JSONArray(contacts.values.map { JSONObject().put("u", it.userID).put("n", it.name).put("k", it.pubkey).put("p", it.photo).put("ab", it.about) }))
         o.put("convs", JSONArray(convs.values.map { c ->
             val rc = JSONObject(); c.receipts.forEach { (k, v) -> rc.put(k, JSONArray().put(v[0]).put(v[1])) }
             JSONObject().put("id", c.id).put("t", c.title).put("m", JSONArray(c.members)).put("v", c.keyVersion).put("up", c.updated)
@@ -200,6 +203,7 @@ class Store private constructor(ctx: Context) {
         }))
         o.put("pending", JSONArray(pending.takeLast(500).map { JSONObject().put("n", it.name).put("f", it.from).put("cr", it.creator).put("c", it.conv).put("k", it.kind).put("b", E2E.b64(it.body)).put("at", it.created) }))
         o.put("rooms", rooms)
+        o.put("prefs", prefs)
         fun recs(m: Map<String, Rec>) = JSONArray(m.values.map { r ->
             JSONObject().put("id", r.id).put("c", r.conv).put("o", r.owner).put("by", r.by).put("cr", r.created).put("p", r.p).put("up", r.updated).put("db", r.deletedBy)
         })
@@ -225,6 +229,11 @@ class Store private constructor(ctx: Context) {
     @Synchronized fun bizRec(id: String): Rec? = biz[id]?.copyDeep()
     @Synchronized fun buildList(): List<Rec> = build.values.map { it.copyDeep() }
     @Synchronized fun buildRec(id: String): Rec? = build[id]?.copyDeep()
+    @Synchronized fun pref(k: String, def: String = ""): String = prefs.optString(k, def)
+    @Synchronized fun prefBool(k: String, def: Boolean): Boolean = if (prefs.has(k)) prefs.optBoolean(k) else def
+    @Synchronized fun prefList(k: String, def: List<String>): List<String> = prefs.optJSONArray(k)?.strings() ?: def
+    @Synchronized fun setPref(k: String, v: Any?) { if (v == null) prefs.remove(k) else prefs.put(k, if (v is List<*>) JSONArray(v) else v); save() }
+    @Synchronized fun photoOf(user: String): String = if (user == me) pref("photo") else contacts[user]?.photo ?: ""
     @Synchronized fun unreadTotal(): Int = convs.values.sumOf { it.unread }
 }
 

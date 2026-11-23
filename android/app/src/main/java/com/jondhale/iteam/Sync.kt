@@ -53,6 +53,29 @@ class Sync(internal val store: Store, private val cloud: CloudKit = CloudKit(sto
         cloud.saveProfile(me, store.myName, store.myPublicKey, replace = false)
     }
 
+    private fun directs() = synchronized(store) { store.convs.values.filter { it.id.startsWith("d_") && !it.left && peer(it.id) != null }.map { it.id } }
+
+    /** Saves my details; the name goes on my public profile, the photo to people I chat with (or everyone). */
+    fun saveMyDetails(first: String, last: String, photo: ByteArray?, photoChanged: Boolean) {
+        val name = listOf(first.trim(), last.trim()).filter { it.isNotEmpty() }.joinToString(" ")
+        if (name.isNotEmpty()) store.myName = name
+        val everyone = !store.prefBool("photoContactsOnly", true)
+        cloud.saveProfile(me, store.myName, store.myPublicKey, replace = false,
+            pic = if (everyone && photoChanged) photo else null, clearPic = photoChanged && (photo == null || !everyone))
+        if (photoChanged) sendPhotoToContacts()
+    }
+
+    fun sendPhotoToContacts() {
+        val b64 = store.pref("photo")
+        val body = JSONObject().put("photo", if (b64.isEmpty()) JSONObject() else JSONObject().put("_0", b64))
+        for (c in directs()) runCatching { send(c, body) }
+    }
+
+    fun sendAbout() {
+        val text = if (store.prefBool("aboutContacts", true)) store.pref("about") else ""
+        for (c in directs()) runCatching { send(c, JSONObject().put("about", JSONObject().put("_0", text))) }
+    }
+
     fun inviteLink(): String {
         fun safe(s: String) = s.replace('+', '-').replace('/', '_').trimEnd('=')
         return "iteam://add?u=${me}&k=${safe(store.myPublicKey)}&n=" + java.net.URLEncoder.encode(store.myName, "UTF-8").replace("+", "%20")
@@ -69,11 +92,14 @@ class Sync(internal val store: Store, private val cloud: CloudKit = CloudKit(sto
     fun addContactID(u: String): String {
         val p = cloud.profile(u) ?: throw IllegalArgumentException("That person isn't on iTeam yet")
         return synchronized(store) {
-            store.contacts[u] = Contact(u, p.name, p.pubkey)
+            store.contacts[u] = Contact(u, p.name, p.pubkey, p.pic, store.contacts[u]?.about ?: "")
             val conv = directID(me, u)
             store.convs.getOrPut(conv) { Conv(conv, p.name, listOf(me, u), updated = System.currentTimeMillis()) }
             store.save()
             conv
+        }.also { conv ->
+            if (store.pref("photo").isNotEmpty()) runCatching { send(conv, JSONObject().put("photo", JSONObject().put("_0", store.pref("photo")))) }
+            if (store.prefBool("aboutContacts", true) && store.pref("about").isNotEmpty()) runCatching { send(conv, JSONObject().put("about", JSONObject().put("_0", store.pref("about")))) }
         }
     }
 
@@ -190,7 +216,8 @@ class Sync(internal val store: Store, private val cloud: CloudKit = CloudKit(sto
         val key = "rr.$convID"
         if ((store.secret(key)?.toDoubleOrNull() ?: 0.0) >= t) return
         store.setSecret(key, t.toString())
-        runCatching { send(convID, evNamed("receipt", JSONObject().put("delivered", t).put("read", t))) }
+        val read = store.prefBool("readReceipts", true)
+        runCatching { send(convID, evNamed("receipt", JSONObject().put("delivered", t).put("read", if (read) t else 0.0))) }
     }
 
     // MARK: Tasks
@@ -399,7 +426,9 @@ class Sync(internal val store: Store, private val cloud: CloudKit = CloudKit(sto
             "game" -> if (p != null && p.optString("kind", "xo") == "xo") applyGame(p, from, convID, atSwift, ::line)
             "biz" -> if (p != null) applyBiz(p, from, convID) { t -> line(t, true, notify = from != me) }
             "build" -> if (p != null) applyBuild(p, from, convID) { t -> line(t, true, notify = from != me) }
-            "post", "postReact", "postComment", "postSeen", "photo", "about", "facetime", "nowPlaying" -> {}
+            "photo" -> if (from != me) store.contacts[from]?.photo = v.optString("_0")
+            "about" -> if (from != me) store.contacts[from]?.about = v.optString("_0")
+            "post", "postReact", "postComment", "postSeen", "facetime", "nowPlaying" -> {}
             else -> {}
         }
     }

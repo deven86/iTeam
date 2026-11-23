@@ -31,8 +31,8 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
-val Brand = Color(0xFF5B5BF7)
-val Teal = Color(0xFF00B4D8)
+val Brand: Color get() = LookState.primary
+val Teal: Color get() = LookState.secondary
 
 class MainActivity : ComponentActivity() {
     private var openConv = mutableStateOf<String?>(null)
@@ -44,8 +44,10 @@ class MainActivity : ComponentActivity() {
         if (Build.VERSION.SDK_INT >= 33) requestPermissions(arrayOf(Manifest.permission.POST_NOTIFICATIONS), 1)
         PollWorker.schedule(this)
         handle(intent)
+        LookState.load(Store.get(this))
         setContent {
-            MaterialTheme(colorScheme = if (isSystemInDarkTheme()) darkColorScheme(primary = Brand, secondary = Teal) else lightColorScheme(primary = Brand, secondary = Teal)) {
+            val dark = when (LookState.mode) { "dark" -> true; "light" -> false; else -> isSystemInDarkTheme() }
+            MaterialTheme(colorScheme = LookState.scheme(dark)) {
                 Surface(Modifier.fillMaxSize()) { App(Store.get(this), openConv, pastedInvite, signInTick) }
             }
         }
@@ -178,6 +180,12 @@ sealed class Page {
     data class BuildProject(val id: String) : Page()
     data class BuildRec(val id: String) : Page()
     object FSI : Page()
+    object ModuleStore : Page()
+    object TasksPage : Page()
+    object RoomsPage : Page()
+    object Appearance : Page()
+    object BottomBar : Page()
+    object Privacy : Page()
 }
 
 @Composable
@@ -200,7 +208,13 @@ fun Home(app: AppState, status: StatusInfo, openConv: MutableState<String?>, pas
             is Page.RoomDM -> RoomDMScreen(app, top.room, top.other, onBack = { pop() })
             Page.NewGroup -> NewGroupScreen(app, onBack = { pop() }, created = { pop(); push(Page.Chat(it)) })
             Page.Nearby -> NearbyScreen(app, onBack = { pop() }, open = { push(it) })
-            Page.Profile -> ProfileScreen(app, onBack = { pop() })
+            Page.Profile -> MyDetailsScreen(app, onBack = { pop() })
+            Page.TasksPage -> Column { TopBack("Tasks") { pop() }; TasksTab(app, open = { push(it) }) }
+            Page.RoomsPage -> Column { TopBack("Rooms") { pop() }; RoomsTab(app, open = { push(it) }) }
+            Page.ModuleStore -> ModuleStoreScreen(app, onBack = { pop() }, open = { push(it) })
+            Page.Appearance -> AppearanceScreen(app, onBack = { pop() })
+            Page.BottomBar -> BottomBarScreen(app, onBack = { pop() })
+            Page.Privacy -> PrivacyScreen(app, onBack = { pop() })
             Page.Modules -> ModulesHub(app, onBack = { pop() }, open = { push(it) })
             is Page.BizModule -> BizModuleScreen(app, top.module, onBack = { pop() }, open = { push(it) })
             is Page.BizParent -> BizParentScreen(app, top.module, top.id, onBack = { pop() })
@@ -211,21 +225,30 @@ fun Home(app: AppState, status: StatusInfo, openConv: MutableState<String?>, pas
         }
         return
     }
+    val pinned = remember(app.tick) { app.store.prefList("pinned", listOf("tasks", "rooms")).mapNotNull { id -> tabOptions.firstOrNull { it.id == id } } }
+    val tabs = listOf(TabOption("chats", "Chats", Icons.Default.Chat)) + pinned + listOf(TabOption("modules", "Modules", Icons.Default.GridView), TabOption("settings", "Settings", Icons.Default.Settings))
+    if (tab >= tabs.size) tab = 0
     Scaffold(bottomBar = {
         NavigationBar {
             val unread = remember(app.tick) { app.store.unreadTotal() }
-            NavigationBarItem(tab == 0, { tab = 0 }, { BadgedBox({ if (unread > 0) Badge { Text("$unread") } }) { Icon(Icons.Default.Chat, null) } }, label = { Text("Chats") })
-            NavigationBarItem(tab == 1, { tab = 1 }, { Icon(Icons.Default.Checklist, null) }, label = { Text("Tasks") })
-            NavigationBarItem(tab == 2, { tab = 2 }, { Icon(Icons.Default.Forum, null) }, label = { Text("Rooms") })
-            NavigationBarItem(tab == 3, { tab = 3 }, { Icon(Icons.Default.GridView, null) }, label = { Text("More") })
+            tabs.forEachIndexed { i, t ->
+                NavigationBarItem(tab == i, { tab = i }, {
+                    if (t.id == "chats") BadgedBox({ if (unread > 0) Badge { Text("$unread") } }) { Icon(t.icon, null) } else Icon(t.icon, null)
+                }, label = { Text(t.title, maxLines = 1) })
+            }
         }
     }) { pad ->
         Box(Modifier.padding(pad)) {
-            when (tab) {
-                0 -> ChatList(app, status, pastedInvite, open = { push(it) })
-                1 -> TasksTab(app, open = { push(it) })
-                2 -> RoomsTab(app, open = { push(it) })
-                else -> MoreTab(app, open = { push(it) })
+            val go: (Page) -> Unit = { push(it) }
+            when (val id = tabs[tab].id) {
+                "chats" -> ChatList(app, status, pastedInvite, open = go)
+                "tasks" -> TasksTab(app, open = go)
+                "rooms" -> RoomsTab(app, open = go)
+                "nearby" -> NearbyScreen(app, onBack = { tab = 0 }, open = go)
+                "build" -> BuilderHome(app, onBack = null, open = go)
+                "modules" -> ModulesHub(app, onBack = null, open = go)
+                "settings" -> SettingsTab(app, open = go)
+                else -> BizModuleScreen(app, id, onBack = null, open = go)
             }
         }
     }
@@ -308,4 +331,10 @@ fun SignInScreen(store: Store, sync: Sync, onAuth: (String) -> Unit, onDone: () 
         text = { Text("This Apple ID already has iTeam on an iPhone or iPad. Using it here gives it a new security key, and that iPhone would stop reading new messages. Best: sign in here with a different Apple ID.") },
         confirmButton = { TextButton({ conflict = false; go(true) }) { Text("Use here anyway") } },
         dismissButton = { TextButton({ conflict = false; store.signOut() }) { Text("Use another Apple ID") } })
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun TopBack(title: String, onBack: () -> Unit) {
+    TopAppBar(title = { Text(title) }, navigationIcon = { IconButton(onBack) { Icon(androidx.compose.material.icons.Icons.AutoMirrored.Filled.ArrowBack, "Back") } })
 }

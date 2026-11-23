@@ -79,18 +79,23 @@ fun SectionHeader(text: String, action: String? = null, onAction: () -> Unit = {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ModulesHub(app: AppState, onBack: () -> Unit, open: (Page) -> Unit) {
+fun ModulesHub(app: AppState, onBack: (() -> Unit)?, open: (Page) -> Unit) {
     val counts = remember(app.tick) { app.store.bizList().filter { !it.deleted }.groupingBy { it.module }.eachCount() }
     val projects = remember(app.tick) { app.store.buildList().count { it.bkind == "project" && !it.deleted } }
-    Scaffold(topBar = { TopAppBar(title = { Text("Modules") }, navigationIcon = { IconButton(onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back") } }) }) { pad ->
+    val shown = remember(app.tick) { visibleModules(app.store) }
+    Scaffold(topBar = { TopAppBar(title = { Text("Modules") }, navigationIcon = { onBack?.let { b -> IconButton(b) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back") } } }) }) { pad ->
         LazyColumn(Modifier.padding(pad)) {
             item {
                 Text("All modules are free on Android. They sync with iPhone and iPad through your chats.", Modifier.padding(16.dp),
                     style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                ModuleTile("Builder & Infra", if (projects > 0) "$projects projects" else "Projects, units, sales, stock, approvals, FSI",
+                ModuleTile("Module Store", "Add Builder, Khata, Tuition, Rent, Legal, Clinic and more — free", listOf(Color(0xFF5B5BF7), Color(0xFF00B4D8)), Icons.Default.Storefront) { open(Page.ModuleStore) }
+                ModuleTile("Business Tasks", "Assign, accept, track", listOf(Color(0xFF11998E), Color(0xFF38EF7D)), Icons.Default.Checklist) { open(Page.TasksPage) }
+                ModuleTile("Rooms", "Public rooms & private chats", listOf(Color(0xFF8E2DE2), Color(0xFF4A00E0)), Icons.Default.Forum) { open(Page.RoomsPage) }
+                ModuleTile("Nearby", "People & businesses near you", listOf(Color(0xFF2193B0), Color(0xFF6DD5ED)), Icons.Default.NearMe) { open(Page.Nearby) }
+                if ("build" in shown) ModuleTile("Builder & Infra", if (projects > 0) "$projects projects" else "Projects, units, sales, stock, approvals, FSI",
                     listOf(Color(0xFFF7971E), Color(0xFF8E2DE2)), moduleIcon("build")) { open(Page.Builder) }
             }
-            items(BizSpecs.all, key = { it.module }) { s ->
+            items(BizSpecs.all.filter { it.module in shown }, key = { it.module }) { s ->
                 val n = counts[s.module] ?: 0
                 ModuleTile(s.title, if (n > 0) "$n records" else (s.parent?.plural ?: s.children.first().plural), specColors(s), moduleIcon(s.module)) { open(Page.BizModule(s.module)) }
             }
@@ -106,7 +111,7 @@ private fun isDone(spec: BizSpec, r: Rec) = spec.kind(r.kind)?.doneStatuses?.con
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun BizModuleScreen(app: AppState, module: String, onBack: () -> Unit, open: (Page) -> Unit) {
+fun BizModuleScreen(app: AppState, module: String, onBack: (() -> Unit)?, open: (Page) -> Unit) {
     val spec = BizSpecs.spec(module) ?: return
     val me = app.store.me
     val all = remember(app.tick) { app.store.bizList(module).filter { !it.deleted } }
@@ -120,7 +125,7 @@ fun BizModuleScreen(app: AppState, module: String, onBack: () -> Unit, open: (Pa
     var adding by remember { mutableStateOf<BizKind?>(null) }
     var editing by remember { mutableStateOf<Rec?>(null) }
 
-    Scaffold(topBar = { TopAppBar(title = { Text(spec.title) }, navigationIcon = { IconButton(onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back") } }) },
+    Scaffold(topBar = { TopAppBar(title = { Text(spec.title) }, navigationIcon = { onBack?.let { b -> IconButton(b) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back") } } }) },
         floatingActionButton = {
             ExtendedFloatingActionButton(onClick = { adding = spec.parent ?: spec.flat }, icon = { Icon(Icons.Default.Add, null) },
                 text = { Text("New ${(spec.parent ?: spec.flat)?.label?.lowercase() ?: "entry"}") })
@@ -203,7 +208,7 @@ fun BizParentScreen(app: AppState, module: String, id: String, onBack: () -> Uni
     val scope = rememberCoroutineScope()
     Scaffold(topBar = {
         TopAppBar(title = { Text(parent?.title ?: spec.title, maxLines = 1, overflow = TextOverflow.Ellipsis) },
-            navigationIcon = { IconButton(onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back") } },
+            navigationIcon = { onBack?.let { b -> IconButton(b) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back") } } },
             actions = {
                 if (owner && parent != null) {
                     IconButton({ editParent = true }) { Icon(Icons.Default.Edit, "Edit") }

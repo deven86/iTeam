@@ -26,6 +26,7 @@ import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.unit.dp
 import com.google.zxing.BarcodeFormat
 import com.journeyapps.barcodescanner.BarcodeEncoder
@@ -33,9 +34,11 @@ import com.journeyapps.barcodescanner.ScanContract
 import com.journeyapps.barcodescanner.ScanOptions
 
 @Composable
-fun Avatar(name: String, size: Int = 46, group: Boolean = false) {
-    Box(Modifier.size(size.dp).background(Brush.linearGradient(listOf(Brand, Teal)), CircleShape), contentAlignment = Alignment.Center) {
-        if (group) Icon(Icons.Default.Groups, null, tint = Color.White)
+fun Avatar(name: String, size: Int = 46, group: Boolean = false, photo: String = "") {
+    val bmp = remember(photo) { if (photo.isEmpty()) null else runCatching { E2E.unb64(photo).let { android.graphics.BitmapFactory.decodeByteArray(it, 0, it.size)?.asImageBitmap() } }.getOrNull() }
+    Box(Modifier.size(size.dp).clip(CircleShape).background(Brush.linearGradient(listOf(LookState.primary, LookState.secondary)), CircleShape), contentAlignment = Alignment.Center) {
+        if (bmp != null) Image(bmp, null, Modifier.fillMaxSize(), contentScale = androidx.compose.ui.layout.ContentScale.Crop)
+        else if (group) Icon(Icons.Default.Groups, null, tint = Color.White)
         else Text(name.take(1).uppercase(), color = Color.White, fontWeight = FontWeight.Bold)
     }
 }
@@ -71,7 +74,7 @@ fun ChatList(app: AppState, status: StatusInfo, pastedInvite: MutableState<Strin
                 items(convs, key = { it.id }) { c ->
                     val last = lastMsgs[c.id]
                     ListItem(modifier = Modifier.clickable { open(Page.Chat(c.id)) },
-                        leadingContent = { Avatar(c.title, group = c.isGroup) },
+                        leadingContent = { Avatar(c.title, group = c.isGroup, photo = app.sync.peerOf(c.id)?.let { app.store.photoOf(it) } ?: "") },
                         headlineContent = { Text(c.title, fontWeight = FontWeight.SemiBold, maxLines = 1) },
                         supportingContent = {
                             Text(last?.let { (if (c.isGroup && !it.system) app.store.name(it.from) + ": " else "") + preview(it) } ?: "Say hello 👋",
@@ -160,7 +163,7 @@ fun ContactPicker(app: AppState, picked: SnapshotStateList<String>, exclude: Lis
     LazyColumn {
         items(contacts, key = { it.userID }) { c ->
             ListItem(modifier = Modifier.clickable { if (c.userID in picked) picked.remove(c.userID) else picked.add(c.userID) },
-                leadingContent = { Avatar(c.name, 40) },
+                leadingContent = { Avatar(c.name, 40, photo = c.photo) },
                 headlineContent = { Text(c.name) },
                 trailingContent = { Checkbox(c.userID in picked, { if (it) picked.add(c.userID) else picked.remove(c.userID) }) })
         }
@@ -209,7 +212,7 @@ fun GroupInfoScreen(app: AppState, id: String, onBack: () -> Unit) {
         LazyColumn(Modifier.padding(pad)) {
             item { Text("${conv.members.size} members · end-to-end encrypted", Modifier.padding(16.dp), style = MaterialTheme.typography.bodySmall) }
             items(conv.members) { m ->
-                ListItem(leadingContent = { Avatar(app.store.name(m), 40) }, headlineContent = { Text(if (m == me) "You" else app.store.name(m)) },
+                ListItem(leadingContent = { Avatar(app.store.name(m), 40, photo = app.store.photoOf(m)) }, headlineContent = { Text(if (m == me) "You" else app.store.name(m)) },
                     trailingContent = { Text(if (m == conv.owner) "Owner" else if (m in conv.admins) "Admin" else "", style = MaterialTheme.typography.labelSmall) })
             }
             item {

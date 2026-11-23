@@ -60,7 +60,7 @@ fun statusColor(s: String) = when (s) {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun BuilderHome(app: AppState, onBack: () -> Unit, open: (Page) -> Unit) {
+fun BuilderHome(app: AppState, onBack: (() -> Unit)?, open: (Page) -> Unit) {
     val me = app.store.me
     val all = remember(app.tick) { app.store.buildList().filter { !it.deleted } }
     val projects = all.filter { it.bkind == "project" && (it.ownerID == me || me in it.team || me in it.admins) }
@@ -73,7 +73,7 @@ fun BuilderHome(app: AppState, onBack: () -> Unit, open: (Page) -> Unit) {
         r.contents?.removePrefix("iteam-build:")?.let { id -> if (app.store.buildRec(id) != null) open(Page.BuildRec(id)) else app.toast = "Not found on this phone" }
     }
     Scaffold(topBar = {
-        TopAppBar(title = { Text("Builder & Infra") }, navigationIcon = { IconButton(onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back") } },
+        TopAppBar(title = { Text("Builder & Infra") }, navigationIcon = { onBack?.let { b -> IconButton(b) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back") } } },
             actions = {
                 IconButton({ scan.launch(ScanOptions().setDesiredBarcodeFormats(ScanOptions.QR_CODE).setPrompt("Scan a stock / machine / asset QR").setBeepEnabled(false)) }) { Icon(Icons.Default.QrCodeScanner, "Scan") }
                 IconButton({ open(Page.FSI) }) { Icon(Icons.Default.Calculate, "FSI calculator") }
@@ -164,7 +164,7 @@ fun BuildProjectScreen(app: AppState, id: String, onBack: () -> Unit, open: (Pag
     val units = all.filter { it.bkind == "unit" }
     val received = all.filter { it.bkind == "payment" && it.status != "Bounced" && app.store.buildRec(it.s("parentID"))?.bkind == "sale" }.sumOf { it.fnum("amount") }
     Scaffold(topBar = {
-        TopAppBar(title = { Text(p.btitle, maxLines = 1, overflow = TextOverflow.Ellipsis) }, navigationIcon = { IconButton(onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back") } },
+        TopAppBar(title = { Text(p.btitle, maxLines = 1, overflow = TextOverflow.Ellipsis) }, navigationIcon = { onBack?.let { b -> IconButton(b) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back") } } },
             actions = {
                 p.d.optString("convID").takeIf { it.isNotEmpty() && app.store.conv(it) != null }?.let { c -> IconButton({ open(Page.Chat(c)) }) { Icon(Icons.Default.Chat, "Project chat") } }
                 if (admin) IconButton({ editing = true }) { Icon(Icons.Default.Edit, "Edit") }
@@ -231,7 +231,7 @@ fun BuildRecScreen(app: AppState, id: String, onBack: () -> Unit, open: (Page) -
     val scope = rememberCoroutineScope()
     Scaffold(topBar = {
         TopAppBar(title = { Text(r.btitle.ifEmpty { kind.label }, maxLines = 1, overflow = TextOverflow.Ellipsis) },
-            navigationIcon = { IconButton(onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back") } },
+            navigationIcon = { onBack?.let { b -> IconButton(b) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back") } } },
             actions = {
                 if (kind.qr) IconButton({ showQR = true }) { Icon(Icons.Default.QrCode, "QR sticker") }
                 if (canEdit) {
@@ -473,7 +473,7 @@ fun FSIScreen(onBack: () -> Unit) {
     val toSqm = if (sqft) 1 / 10.7639 else 1.0
     val unit = if (sqft) "sq ft" else "m²"
     val back = 1 / toSqm
-    Scaffold(topBar = { TopAppBar(title = { Text("FSI calculator") }, navigationIcon = { IconButton(onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back") } }) }) { pad ->
+    Scaffold(topBar = { TopAppBar(title = { Text("FSI calculator") }, navigationIcon = { onBack?.let { b -> IconButton(b) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back") } } }) }) { pad ->
         Column(Modifier.padding(pad).padding(16.dp).verticalScroll(rememberScrollState())) {
             Row { FilterChip(!world, { world = false }, { Text("Maharashtra UDCPR") }); Spacer(Modifier.width(6.dp)); FilterChip(world, { world = true }, { Text("Any country") }) }
             Row { FilterChip(!sqft, { sqft = false }, { Text("Square metres") }); Spacer(Modifier.width(6.dp)); FilterChip(sqft, { sqft = true }, { Text("Square feet") }) }

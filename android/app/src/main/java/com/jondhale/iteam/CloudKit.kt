@@ -59,18 +59,19 @@ class CloudKit(private val store: Store) {
         return out
     }
 
-    data class Profile(val userID: String, val name: String, val pubkey: String, val qr: String)
+    data class Profile(val userID: String, val name: String, val pubkey: String, val qr: String, val pic: String = "")
 
     fun profile(userID: String): Profile? {
         val r = lookup(listOf("P$userID"))["P$userID"] ?: return null
         val f = r.getJSONObject("fields")
         fun s(k: String) = f.optJSONObject(k)?.optString("value") ?: ""
         if (s("pubkey").isEmpty()) return null
-        return Profile(userID, s("name"), s("pubkey"), s("qr"))
+        return Profile(userID, s("name"), s("pubkey"), s("qr"), s("pic"))
     }
 
-    fun saveProfile(userID: String, name: String, pubkey: String, replace: Boolean) {
+    fun saveProfile(userID: String, name: String, pubkey: String, replace: Boolean, pic: ByteArray? = null, clearPic: Boolean = false) {
         val fields = JSONObject().put("name", v(name))
+        if (pic != null) fields.put("pic", bytes(pic)) else if (clearPic) fields.put("pic", JSONObject().put("value", JSONObject.NULL))
         if (replace) fields.put("pubkey", v(pubkey))
         val rec = JSONObject().put("recordType", "Profile").put("recordName", "P$userID").put("fields", fields)
         modify(listOf(JSONObject().put("operationType", if (replace) "forceReplace" else "forceUpdate").put("record", rec)))

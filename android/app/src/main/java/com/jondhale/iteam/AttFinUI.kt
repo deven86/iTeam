@@ -309,6 +309,7 @@ fun FinanceHome(app: AppState, onBack: (() -> Unit)?) {
     val scope = rememberCoroutineScope()
     val comp = if (book == "personal") null else app.sync.attCompany(book)
     val isOwner = comp == null || comp.optString("ownerID") == app.store.me
+    val moduleLines = remember(app.tick) { moduleMoney(app) }
     Scaffold(topBar = { TopAppBar(title = { Text("Finance") }, navigationIcon = { onBack?.let { b -> IconButton(b) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back") } } }) },
         floatingActionButton = { Row {
             ExtendedFloatingActionButton(onClick = { adding = true }, icon = { Icon(Icons.Default.ArrowDownward, null) }, text = { Text("Income") }, containerColor = Color(0xFFD7F5DD))
@@ -340,7 +341,7 @@ fun FinanceHome(app: AppState, onBack: (() -> Unit)?) {
             if (list.isEmpty()) item { Empty("No entries yet. Add income or an expense.") }
             items(list.take(200), key = { it.id }) { r -> FinRow(r) { editing = r } }
             if (book == "personal") {
-                val lines = remember(app.tick) { moduleMoney(app) }
+                val lines = moduleLines
                 if (lines.isNotEmpty()) {
                     item { SectionHeader("From your modules") }
                     items(lines.take(60), key = { "m" + it.first.id }) { (r, isIn) ->

@@ -159,7 +159,7 @@ fun App(store: Store, openConv: MutableState<String?>, pastedInvite: MutableStat
             val now = System.currentTimeMillis()
             if (active && (!wasActive || now >= app.nextPoll.longValue)) {
                 val wait = try {
-                    val n = withContext(Dispatchers.IO) { sync.poll().also { runCatching { ITeamWidget.update(ctx) } } }
+                    val n = withContext(Dispatchers.IO) { sync.poll().also { runCatching { ITeamWidget.update(ctx) }; runCatching { Reminders.reschedule(ctx) } } }
                     Notify.show(ctx, n)
                     if (sync.changed) app.tick++
                     if (now - roomsAt > 30_000) { roomsAt = now; if (withContext(Dispatchers.IO) { runCatching { app.rooms.pollDMs() }.getOrDefault(0) } > 0) app.tick++ }
@@ -210,6 +210,14 @@ sealed class Page {
     object Finance : Page()
     object CRM : Page()
     object Views : Page()
+    data class MeetingPage(val id: String) : Page()
+    object Meetings : Page()
+    object Doctor : Page()
+    object Survey : Page()
+    data class Album(val owner: String, val conv: String, val title: String) : Page()
+    object Wallet : Page()
+    object Mind : Page()
+    object MyDay : Page()
     object Events : Page()
     object Safety : Page()
     object Care : Page()
@@ -256,7 +264,15 @@ fun Home(app: AppState, status: StatusInfo, openConv: MutableState<String?>, pas
             is Page.AttCompany -> AttCompanyScreen(app, top.id, onBack = { pop() })
             Page.Finance -> FinanceHome(app, onBack = { pop() })
             Page.Views -> ViewsScreen(app, onBack = { pop() })
-            Page.Events -> EventsScreen(app, onBack = { pop() })
+            Page.Events -> EventsScreen(app, onBack = { pop() }, open = { push(it) })
+            is Page.MeetingPage -> MeetingScreen(app, top.id, onBack = { pop() })
+            Page.Meetings -> MeetingsScreen(app, onBack = { pop() }, open = { push(it) })
+            Page.Doctor -> DoctorScreen(app, onBack = { pop() })
+            Page.Survey -> SurveyScreen(app, onBack = { pop() })
+            is Page.Album -> AlbumScreen(app, top.owner, top.conv, top.title, onBack = { pop() })
+            Page.Wallet -> WalletScreen(app, onBack = { pop() })
+            Page.Mind -> MindScreen(app, onBack = { pop() })
+            Page.MyDay -> MyDayScreen(app, onBack = { pop() }, open = { push(it) })
             Page.Safety -> SafetyScreen(app, onBack = { pop() })
             Page.Care -> CareScreen(app, onBack = { pop() })
             Page.Fight -> FightPractice(onBack = { pop() })
@@ -308,7 +324,10 @@ fun Home(app: AppState, status: StatusInfo, openConv: MutableState<String?>, pas
                 "finance" -> FinanceHome(app, onBack = null)
                 "crm" -> CRMHome(app, onBack = null, open = go)
                 "views" -> ViewsScreen(app, onBack = null)
-                "events" -> EventsScreen(app, onBack = null)
+                "events" -> EventsScreen(app, onBack = null, open = go)
+                "myday" -> MyDayScreen(app, onBack = null, open = go)
+                "meetings" -> MeetingsScreen(app, onBack = null, open = go)
+                "wallet" -> WalletScreen(app, onBack = null)
                 "safety" -> SafetyScreen(app, onBack = null)
                 "care" -> CareScreen(app, onBack = null)
                 "society" -> SocietyHome(app, onBack = null, open = go)

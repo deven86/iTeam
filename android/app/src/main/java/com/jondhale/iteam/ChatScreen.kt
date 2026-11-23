@@ -65,6 +65,7 @@ fun ChatScreen(app: AppState, convID: String, onBack: () -> Unit, open: (Page) -
     var pickOpponent by remember { mutableStateOf(false) }
     var openGame by remember { mutableStateOf<String?>(null) }
     var viewer by remember { mutableStateOf<File?>(null) }
+    var extra by remember { mutableStateOf("") }
     var sending by remember { mutableStateOf(0) }
     var recording by remember { mutableStateOf(false) }
     val recorder = remember { VoiceRecorder(ctx) }
@@ -112,6 +113,7 @@ fun ChatScreen(app: AppState, convID: String, onBack: () -> Unit, open: (Page) -
                 Text(if (conv.isGroup) "${conv.members.size} members · tap for info" else "🔒 End-to-end encrypted", style = MaterialTheme.typography.labelSmall)
             }
         }, navigationIcon = { IconButton(onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back") } }, actions = {
+            IconButton({ extra = "timer" }) { Icon(if (conv.timer > 0) Icons.Default.TimerOff else Icons.Default.Timer, "Disappearing messages") }
             IconButton({ newTask = true }) { Icon(Icons.Default.AddTask, "New task") }
             IconButton({ if (conv.isGroup) pickOpponent = true else app.sync.peerOf(convID)?.let { o -> app.run(scope) { app.sync.gameInvite(convID, o) } } }) {
                 Icon(Icons.Default.Grid3x3, "X and O")
@@ -147,6 +149,11 @@ fun ChatScreen(app: AppState, convID: String, onBack: () -> Unit, open: (Page) -
                             leadingIcon = { Icon(Icons.Default.Photo, null) })
                         DropdownMenuItem({ Text("Document") }, { attachMenu = false; pickFile.launch(arrayOf("*/*")) }, leadingIcon = { Icon(Icons.Default.Description, null) })
                         DropdownMenuItem({ Text("Task") }, { attachMenu = false; newTask = true }, leadingIcon = { Icon(Icons.Default.AddTask, null) })
+                        DropdownMenuItem({ Text("View-once photo") }, { attachMenu = false; extra = "once" }, leadingIcon = { Icon(Icons.Default.VisibilityOff, null) })
+                        DropdownMenuItem({ Text("✨ Magic moment") }, { attachMenu = false; extra = "magic" }, leadingIcon = { Icon(Icons.Default.AutoAwesome, null) })
+                        DropdownMenuItem({ Text("Poll") }, { attachMenu = false; extra = "poll" }, leadingIcon = { Icon(Icons.Default.Poll, null) })
+                        DropdownMenuItem({ Text("Ask for approval") }, { attachMenu = false; extra = "approval" }, leadingIcon = { Icon(Icons.Default.Approval, null) })
+                        DropdownMenuItem({ Text("Meeting") }, { attachMenu = false; extra = "meeting" }, leadingIcon = { Icon(Icons.Default.Event, null) })
                     }
                 }
                 OutlinedTextField(text, { text = it }, placeholder = { Text("Message") }, modifier = Modifier.weight(1f), shape = RoundedCornerShape(24.dp), maxLines = 5)
@@ -171,6 +178,7 @@ fun ChatScreen(app: AppState, convID: String, onBack: () -> Unit, open: (Page) -
                 when {
                     m.card?.startsWith("task:") == true -> TaskCard(app, m, m.card.removePrefix("task:")) { open(Page.Task(it)) }
                     m.card?.startsWith("game:") == true -> SystemLine(m.text) { openGame = m.card.removePrefix("game:") }
+                    m.card != null && m.card.substringBefore(":") in listOf("poll", "approval", "meeting", "rx") -> ChatCard(app, m, open)
                     m.system -> SystemLine(m.text, null)
                     else -> Bubble(app, m, conv, msgs, onLong = { actionsFor = m }, onView = { viewer = it })
                 }
@@ -205,6 +213,7 @@ fun ChatScreen(app: AppState, convID: String, onBack: () -> Unit, open: (Page) -
         })
     }
     if (newTask) TaskEditorDialog(app, conv) { newTask = false }
+    if (extra.isNotEmpty()) ChatExtrasMenu(app, convID, extra) { extra = ""; app.changed() }
     if (pickOpponent) AlertDialog(onDismissRequest = { pickOpponent = false }, title = { Text("Play X and O with…") }, confirmButton = {},
         text = {
             LazyColumn(Modifier.heightIn(max = 400.dp)) {
@@ -251,7 +260,10 @@ fun Bubble(app: AppState, m: Msg, conv: Conv, all: List<Msg>, onLong: () -> Unit
                     }
                 }
             }
-            if (!m.deleted) m.atts.forEach { a -> AttachmentView(app, a, fg, onView) }
+            if (!m.deleted && m.once) ViewOnceBubble(app, m, mine, fg)
+            else if (!m.deleted) m.atts.forEach { a -> AttachmentView(app, a, fg, onView) }
+            m.expires?.let { Text("⏱", style = MaterialTheme.typography.labelSmall, color = fg.copy(alpha = 0.6f)) }
+            m.showAt?.takeIf { mine && it > System.currentTimeMillis() }?.let { Text("✨ shows ${dateText(it)} ${time(it)}", style = MaterialTheme.typography.labelSmall, color = fg.copy(alpha = 0.8f)) }
             if (m.text.isNotBlank() || m.deleted) Text(m.text, color = if (m.deleted) fg.copy(alpha = 0.6f) else fg)
             Row(Modifier.align(Alignment.End), verticalAlignment = Alignment.CenterVertically) {
                 if (m.edited) Text("edited · ", style = MaterialTheme.typography.labelSmall, color = fg.copy(alpha = 0.75f))

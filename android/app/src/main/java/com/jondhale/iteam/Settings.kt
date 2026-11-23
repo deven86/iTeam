@@ -58,7 +58,10 @@ object LookState {
 /** Tabs that can sit in the bottom bar between Chats and Modules. */
 data class TabOption(val id: String, val title: String, val icon: ImageVector)
 val tabOptions: List<TabOption> get() = listOf(
+    TabOption("myday", "My Day", Icons.Default.WbSunny),
     TabOption("views", "mini", Icons.Default.PlayCircle),
+    TabOption("meetings", "Meetings", Icons.Default.Groups),
+    TabOption("wallet", "Wallet", Icons.Default.Wallet),
     TabOption("tasks", "Tasks", Icons.Default.Checklist),
     TabOption("events", "Events", Icons.Default.Celebration),
     TabOption("safety", "Safety", Icons.Default.Sos),
@@ -210,6 +213,9 @@ fun PrivacyScreen(app: AppState, onBack: () -> Unit) {
         }
         Toggle("Show my About to contacts", null, aboutContacts) { aboutContacts = it; s.setPref("aboutContacts", it); app.run(scope) { app.sync.sendAbout() } }
         Toggle("Read receipts", "Off = others don't see blue ticks from you", receipts) { receipts = it; s.setPref("readReceipts", it) }
+        var rem by remember { mutableStateOf(s.prefBool("reminders", true)) }
+        val ctx = androidx.compose.ui.platform.LocalContext.current
+        Toggle("Reminders on this phone", "Medicines, punch-in, bills, events, meetings, tasks", rem) { rem = it; s.setPref("reminders", it); Reminders.reschedule(ctx) }
         var lock by remember { mutableStateOf(s.prefBool("appLock", false)) }
         Toggle("Lock with fingerprint / face / PIN", "Asks when you open iTeam after 30 seconds away", lock) { lock = it; s.setPref("appLock", it) }
     }

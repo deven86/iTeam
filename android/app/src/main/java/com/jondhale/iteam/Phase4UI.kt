@@ -144,7 +144,7 @@ private fun PostComposer(app: AppState, status: Boolean, onDone: () -> Unit) {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun EventsScreen(app: AppState, onBack: (() -> Unit)?) {
+fun EventsScreen(app: AppState, onBack: (() -> Unit)?, open: (Page) -> Unit = {}) {
     val now = System.currentTimeMillis()
     val all = remember(app.tick) { app.store.miscList("event").filter { !it.deleted }.sortedBy { it.p.optDouble("start") } }
     val upcoming = all.filter { SwiftDate.toMillis(it.p.optDouble("end", it.p.optDouble("start"))) >= now - 3_600_000 }
@@ -165,6 +165,7 @@ fun EventsScreen(app: AppState, onBack: (() -> Unit)?) {
                 Text("✅ ${counts["going"]}  🤔 ${counts["maybe"]}  ✋ ${counts["no"]}", style = MaterialTheme.typography.labelMedium, modifier = Modifier.padding(top = 4.dp))
                 Row {
                     listOf("going" to "Going", "maybe" to "Maybe", "no" to "Can't").forEach { (k, t) -> FilterChip(mine == k, { app.run(scope) { app.sync.rsvp(e, k) } }, { Text(t) }, Modifier.padding(end = 4.dp)) }
+                    TextButton({ open(Page.Album(e.id, e.conv, e.s("title"))) }) { Text("📸 Album") }
                     if (e.owner == app.store.me) TextButton({ app.run(scope) { app.sync.saveEvent(e.conv, e, e.s("title"), e.s("place"), start, SwiftDate.toMillis(e.p.optDouble("end")), e.s("notes"), true) } }) { Text("Cancel", color = MaterialTheme.colorScheme.error) }
                 }
             } }
@@ -312,6 +313,7 @@ fun CareScreen(app: AppState, onBack: (() -> Unit)?) {
                     p.s("emergencyContact").takeIf { it.isNotEmpty() }?.let { "Emergency: $it" }).filterNotNull().forEach { Text(it, style = MaterialTheme.typography.bodySmall) }
                 meds.filter { it.s("profileID") == p.id }.forEach { m -> Text("💊 ${m.s("name")} ${m.s("dose")} — ${(m.p.optJSONArray("times")?.let { a -> (0 until a.length()).map { AttData.clock(a.optInt(it)) } } ?: emptyList()).joinToString()}", style = MaterialTheme.typography.bodySmall) }
                 TextButton({ addMed = p }) { Text("Add medicine") }
+                CareExtras(app, p)
             } }
         }
         item { Spacer(Modifier.height(90.dp)) }

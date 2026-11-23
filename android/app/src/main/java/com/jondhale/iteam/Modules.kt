@@ -89,6 +89,12 @@ fun ModulesHub(app: AppState, onBack: (() -> Unit)?, open: (Page) -> Unit) {
                 Text("All modules are free on Android. They sync with iPhone and iPad through your chats.", Modifier.padding(16.dp),
                     style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 ModuleTile("Module Store", "Add Builder, Khata, Tuition, Rent, Legal, Clinic and more — free", listOf(Color(0xFF5B5BF7), Color(0xFF00B4D8)), Icons.Default.Storefront) { open(Page.ModuleStore) }
+                ModuleTile("My Day", "Everything due today in one list", listOf(Color(0xFFF7971E), Color(0xFFFFD200)), Icons.Default.WbSunny) { open(Page.MyDay) }
+                ModuleTile("Meetings", "Agenda, attendance, polls, minutes", listOf(Color(0xFF3D6AE0), Color(0xFF00B4D8)), Icons.Default.Groups) { open(Page.Meetings) }
+                ModuleTile("Doctor & Patient", "Prescriptions the patient accepts into Care", listOf(Color(0xFF11998E), Color(0xFF38EF7D)), Icons.Default.LocalHospital) { open(Page.Doctor) }
+                ModuleTile("Survey", "Land, building, online and poll surveys", listOf(Color(0xFF8E2DE2), Color(0xFF4A00E0)), Icons.Default.Assignment) { open(Page.Survey) }
+                ModuleTile("Wallet", "Your documents, only on this phone", listOf(Color(0xFF232526), Color(0xFF414345)), Icons.Default.Wallet) { open(Page.Wallet) }
+                ModuleTile("Mindfulness", "Breathing timer and mindful minutes", listOf(Color(0xFF9C7CF4), Color(0xFF4F7A68)), Icons.Default.SelfImprovement) { open(Page.Mind) }
                 ModuleTile("mini", "Posts and 24-hour updates from your people", listOf(Color(0xFFF7971E), Color(0xFFE0507F)), Icons.Default.PlayCircle) { open(Page.Views) }
                 ModuleTile("Events", "Invite, RSVP Going / Maybe / Can't", listOf(Color(0xFFFDC830), Color(0xFFF37335)), Icons.Default.Celebration) { open(Page.Events) }
                 ModuleTile("Family Safety", "SOS with location, I'm safe, Check In", listOf(Color(0xFFFF416C), Color(0xFFB31217)), Icons.Default.Sos) { open(Page.Safety) }

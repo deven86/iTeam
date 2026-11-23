@@ -36,6 +36,8 @@ data class Conv(
     var owner: String = "", var admins: List<String> = emptyList(), var left: Boolean = false,
     /** member → [delivered, read] (iPhone time: seconds since 2001). */
     var receipts: MutableMap<String, DoubleArray> = mutableMapOf(),
+    /** Disappearing messages for this chat, seconds (0 = off). */
+    var timer: Int = 0,
 ) {
     val isGroup get() = id.startsWith("g_")
     fun canManage(me: String) = owner == me || admins.contains(me)
@@ -46,6 +48,8 @@ data class Msg(
     val atts: List<Att> = emptyList(), val replyTo: String? = null, var reactions: MutableMap<String, String> = mutableMapOf(),
     /** "task:<id>" or "game:<id>" for cards in the chat. */
     val card: String? = null, var edited: Boolean = false,
+    /** View-once media; disappearing time (ms); Magic moment: hidden until (ms). */
+    val once: Boolean = false, val expires: Long? = null, val showAt: Long? = null, var opened: Boolean = false,
 )
 
 /** Business Tasks: the iPhone's TaskPayload kept as JSON, plus acceptance, parts and comments. */
@@ -153,13 +157,14 @@ class Store private constructor(ctx: Context) {
             val rec = mutableMapOf<String, DoubleArray>()
             c.optJSONObject("rc")?.let { r -> r.keys().forEach { k -> r.optJSONArray(k)?.let { a -> rec[k] = doubleArrayOf(a.optDouble(0, 0.0), a.optDouble(1, 0.0)) } } }
             convs[c.getString("id")] = Conv(c.getString("id"), c.getString("t"), c.getJSONArray("m").strings(), c.optInt("v"), c.optLong("up"), c.optInt("un"),
-                c.optString("o"), c.optJSONArray("a")?.strings() ?: emptyList(), c.optBoolean("l"), rec)
+                c.optString("o"), c.optJSONArray("a")?.strings() ?: emptyList(), c.optBoolean("l"), rec, c.optInt("tm"))
         }
         o.optJSONArray("msgs")?.forEachObj { m ->
             val r = mutableMapOf<String, String>()
             m.optJSONObject("r")?.let { x -> x.keys().forEach { k -> r[k] = x.getString(k) } }
             msgs += Msg(m.getString("id"), m.getString("c"), m.getString("f"), m.getString("t"), m.getLong("at"), m.optBoolean("s"), m.optBoolean("d"),
-                Att.list(m.optJSONArray("a")), m.optStringOrNull("re"), r, m.optStringOrNull("card"), m.optBoolean("e"))
+                Att.list(m.optJSONArray("a")), m.optStringOrNull("re"), r, m.optStringOrNull("card"), m.optBoolean("e"),
+                m.optBoolean("o1"), if (m.has("x")) m.optLong("x") else null, if (m.has("sa")) m.optLong("sa") else null, m.optBoolean("op"))
         }
         o.optJSONArray("tasks")?.forEachObj { t ->
             val acc = mutableMapOf<String, String>(); t.optJSONObject("acc")?.let { x -> x.keys().forEach { acc[it] = x.getString(it) } }
@@ -188,14 +193,17 @@ class Store private constructor(ctx: Context) {
         o.put("convs", JSONArray(convs.values.map { c ->
             val rc = JSONObject(); c.receipts.forEach { (k, v) -> rc.put(k, JSONArray().put(v[0]).put(v[1])) }
             JSONObject().put("id", c.id).put("t", c.title).put("m", JSONArray(c.members)).put("v", c.keyVersion).put("up", c.updated)
-                .put("un", c.unread).put("o", c.owner).put("a", JSONArray(c.admins)).put("l", c.left).put("rc", rc)
+                .put("un", c.unread).put("o", c.owner).put("a", JSONArray(c.admins)).put("l", c.left).put("rc", rc).put("tm", c.timer)
         }))
+        val nowMs = System.currentTimeMillis()
+        msgs.removeAll { it.expires != null && it.expires < nowMs }
         o.put("msgs", JSONArray(msgs.takeLast(8000).map { m ->
             val j = JSONObject().put("id", m.id).put("c", m.conv).put("f", m.from).put("t", m.text).put("at", m.at).put("s", m.system).put("d", m.deleted)
             if (m.atts.isNotEmpty()) j.put("a", JSONArray(m.atts.map { it.json() }))
             m.replyTo?.let { j.put("re", it) }; m.card?.let { j.put("card", it) }
             if (m.reactions.isNotEmpty()) j.put("r", JSONObject(m.reactions as Map<*, *>))
             if (m.edited) j.put("e", true)
+            if (m.once) j.put("o1", true); m.expires?.let { j.put("x", it) }; m.showAt?.let { j.put("sa", it) }; if (m.opened) j.put("op", true)
             j
         }))
         o.put("tasks", JSONArray(tasks.values.map { t ->
@@ -221,7 +229,7 @@ class Store private constructor(ctx: Context) {
     /** Safe copies for the screen while the background check may be writing. */
     @Synchronized fun convList(): List<Conv> = convs.values.filter { !it.left || it.isGroup }.map { it.copy() }.sortedByDescending { it.updated }
     @Synchronized fun lastMessages(): Map<String, Msg> { val m = HashMap<String, Msg>(); for (x in msgs) m[x.conv] = x; return m }
-    @Synchronized fun messages(conv: String): List<Msg> = msgs.filter { it.conv == conv }.sortedBy { it.at }.map { it.copy(reactions = it.reactions.toMutableMap()) }
+    @Synchronized fun messages(conv: String): List<Msg> = System.currentTimeMillis().let { now -> msgs.filter { it.conv == conv && (it.expires == null || it.expires > now) && (it.showAt == null || it.showAt <= now || it.from == me) } }.sortedBy { it.at }.map { it.copy(reactions = it.reactions.toMutableMap()) }
     @Synchronized fun message(id: String): Msg? = msgs.firstOrNull { it.id == id }?.copy()
     @Synchronized fun conv(id: String): Conv? = convs[id]?.copy()
     @Synchronized fun markRead(id: String) { convs[id]?.let { if (it.unread > 0) { it.unread = 0; save() } } }

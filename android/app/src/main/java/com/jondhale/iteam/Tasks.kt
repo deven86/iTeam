@@ -133,6 +133,8 @@ fun TaskScreen(app: AppState, id: String, onBack: () -> Unit, open: (Page) -> Un
                 Text("• ${app.store.name(u)}$state${if (t.doneBy.containsKey(u)) " · part done ✅" else ""}")
             }
 
+            TaskExtras(app, t)
+
             Text("Comments", style = MaterialTheme.typography.titleSmall, modifier = Modifier.padding(top = 16.dp))
             if (t.comments.isEmpty()) Text("No comments yet.", color = MaterialTheme.colorScheme.onSurfaceVariant)
             t.comments.sortedBy { it.optLong("at") }.forEach { c ->

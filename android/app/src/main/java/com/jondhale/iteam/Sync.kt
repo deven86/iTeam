@@ -193,14 +193,21 @@ class Sync(internal val store: Store, private val cloud: CloudKit = CloudKit(sto
         synchronized(store) { store.convs[convID]?.left = true; store.save() }
     }
 
-    fun sendText(convID: String, text: String, replyTo: String? = null, atts: List<Att> = emptyList(), files: Map<String, ByteArray> = emptyMap()) {
+    fun sendText(convID: String, text: String, replyTo: String? = null, atts: List<Att> = emptyList(), files: Map<String, ByteArray> = emptyMap(),
+                 once: Boolean = false, showAt: Long? = null) {
         val p = JSONObject().put("id", newID()).put("text", text).put("attachments", JSONArray(atts.map { it.json() }))
         if (replyTo != null) p.put("replyTo", replyTo)
+        if (once) p.put("once", true)
+        if (showAt != null) p.put("at", SwiftDate.from(showAt))
+        store.conv(convID)?.timer?.takeIf { it > 0 }?.let { p.put("ttl", it) }
         val preview = text.ifBlank {
             when (atts.firstOrNull()?.kind) { "image" -> "📷 Photo"; "video" -> "🎬 Video"; "audio" -> "🎤 Voice note"; null -> ""; else -> "📎 File" }
         }
-        send(convID, ev("message", p), loud = true, hintText = preview, files = files)
+        send(convID, ev("message", p), loud = showAt == null, hintText = if (once) "👁 View-once photo" else preview, files = files)
     }
+
+    fun setTimer(convID: String, seconds: Int) = send(convID, evNamed("chatTimer", JSONObject().put("seconds", seconds)))
+    fun markOpened(msgID: String) = synchronized(store) { store.msgs.firstOrNull { it.id == msgID }?.opened = true; store.save() }
 
     fun react(convID: String, msgID: String, emoji: String?) {
         val v = JSONObject().put("id", msgID); if (emoji != null) v.put("emoji", emoji)
@@ -369,9 +376,11 @@ class Sync(internal val store: Store, private val cloud: CloudKit = CloudKit(sto
         when (case) {
             "message" -> if (p != null) {
                 val atts = Att.list(p.optJSONArray("attachments"))
-                var text = p.optString("text")
-                if (p.optBoolean("once")) text = "👁 View-once media — open on iPhone/iPad"
-                line(text, false, p.getString("id"), if (p.optBoolean("once")) emptyList() else atts, p.optStringOrNull("replyTo"))
+                val showAt = p.optDoubleOrNull("at")?.let { SwiftDate.toMillis(it) }?.takeIf { it > System.currentTimeMillis() }
+                val ttl = p.optInt("ttl", 0)
+                line(p.optString("text"), false, p.getString("id"), atts, p.optStringOrNull("replyTo"), notify = showAt == null || from == me)
+                val i = store.msgs.indexOfLast { it.id == p.getString("id") }
+                if (i >= 0) store.msgs[i] = store.msgs[i].copy(once = p.optBoolean("once"), expires = if (ttl > 0) at + ttl * 1000L else null, showAt = showAt)
             }
             "edit" -> store.msgs.firstOrNull { it.id == v.optString("id") && it.from == from }?.let { it.text = v.optString("text"); it.edited = true }
             "unsend" -> store.msgs.firstOrNull { it.id == v.optString("id") && it.from == from }?.let { it.text = "This message was deleted"; it.deleted = true }
@@ -433,6 +442,10 @@ class Sync(internal val store: Store, private val cloud: CloudKit = CloudKit(sto
             "post", "postReact", "postComment", "invite", "rsvp", "checkIn", "care", "medicine", "dose" -> applyMisc(case, v, p, from, convID, atSwift) { t, n -> line(t, true, notify = n && from != me) }
             "crmGroup", "crmLead", "crmActivity", "crmQuoteAnswer", "society", "gymMember", "gymTrainerAnswer", "gymPlan", "gymSession", "gymPayment" ->
                 applyPhase3b(case, v, p, from, convID, atSwift) { t -> line(t, true, notify = from != me) }
+            "chatTimer" -> { conv.timer = v.optInt("seconds"); val s = conv.timer
+                line(if (s == 0) "⏱ $who turned off disappearing messages" else "⏱ $who turned on disappearing messages — new messages disappear after ${timerName(s)}", true, notify = false) }
+            "checklist", "taskFile", "expense", "approval", "decision", "poll", "vote", "meeting", "meetingVote", "meetingAttend", "prescription", "rxAnswer", "vault", "healthEvent", "survey", "album" ->
+                applyExtras(case, v, p, from, convID, atSwift) { t, card, n -> line(t, card == null, card = card, notify = n && from != me) }
             "postSeen", "facetime", "nowPlaying" -> {}
             else -> {}
         }

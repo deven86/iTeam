@@ -115,6 +115,48 @@ final class ModuleRegistry: ObservableObject {
                    problems: problems, benefits: benefits, previews: [.bizDashboard(spec.module), .bizForm(spec.module)], note: note)
     }
 
+    static let admissions = biz("admissions", BizSpecs.admissions, tagline: "Every enquiry to admission: stages, tests, documents, fees and follow-ups.",
+        product: Store.admissionsProductID,
+        problems: ["Enquiries in registers and WhatsApp get forgotten", "Nobody knows which documents are still pending", "Fees, seats and follow-ups tracked on paper"],
+        benefits: ["Applicants by stage — enquiry, applied, test, selected, admitted — with a dashboard", "Follow-up calls with reminders; tests and interviews with results",
+                   "Document checklist per student (parents can add papers)", "Admission fees and payments flow into Finance", "Parents on iTeam see only their child's application",
+                   "✨ Scan application forms to fill details; PDF register with charts"],
+        note: "Professional module for schools, colleges and coaching classes — free for your first year. Parents never pay.")
+
+    static let vendors = biz("vendors", BizSpecs.vendors, tagline: "Suppliers, AMC contracts, rate cards, work orders, challans and bills — renewals never missed.",
+        product: Store.vendorsProductID,
+        problems: ["AMC and contract renewals missed", "Rate revisions forgotten; old quotes lost", "Bills paid twice or late"],
+        benefits: ["Vendor directory with GSTIN, contacts and rating", "Rate cards and quotations with validity", "Contracts and AMCs: renewal dates go to Bills & Renewals automatically",
+                   "Work orders, delivery challans, bills and payments with what's payable", "Payments flow into Finance; ✨ scan bills and challans"],
+        note: "Professional module for businesses and trusts — free for your first year. Vendors linked on iTeam see only their own orders and bills.")
+
+    static let procurement = biz("procurement", BizSpecs.procurement, tagline: "Requisition → quotations → approval → purchase order → delivery → bill.",
+        product: Store.procurementProductID,
+        problems: ["Purchases without approval", "Only one quote taken", "Deliveries short or late with no record"],
+        benefits: ["Purchase requisitions with budget and needed-by date", "Several supplier quotations side by side (✨ compare)", "Approvals answered by the approver in the chat",
+                   "Purchase orders, deliveries (GRN) and supplier bills", "Supplier performance history and ratings", "Bills flow into Finance; works with Stock & Inventory and Vendors"],
+        note: "Professional module — free for your first year. Requesters linked on iTeam see only their own requisitions.")
+
+    static let home = biz("home", BizSpecs.home, tagline: "Bills, appliances, warranties, repairs, society maintenance and papers for your home.",
+        product: nil,
+        problems: ["Warranty cards lost when the AC breaks", "Bills paid late", "No record of who repaired what"],
+        benefits: ["Electricity, water, gas, internet and society maintenance with due dates", "Appliances with warranty / AMC end dates", "Repairs and services with cost, phone and next service",
+                   "Home insurance and property papers in folders", "Share with family; costs flow into Finance"],
+        note: "Free for everyone.")
+
+    static let lostfound = biz("lostfound", BizSpecs.lostfound, tagline: "Post lost or found phones, documents, pets and belongings to your groups.",
+        product: nil,
+        problems: ["Lost items posted once and forgotten", "Finders can't reach the owner"],
+        benefits: ["Post in a group (society, office, college) with photos", "Lost / found, where and when, reward", "Mark returned; share to Views to reach more people"],
+        note: "Free for everyone.")
+
+    static let grievance = biz("grievance", BizSpecs.grievance, tagline: "Raise a private grievance from any group; the admin resolves it, or the owner if it's about an admin.",
+        product: nil,
+        problems: ["Complaints made in front of the whole group", "Issues about an admin have nowhere to go"],
+        benefits: ["Raised from the group chat, kept private between you and the person who handles it", "About an admin? It goes to the group owner instead",
+                   "Status, resolution and documents; every change logged in your private chat"],
+        note: "Free for everyone.")
+
     static let petCare = biz("petcare", BizSpecs.petcare, tagline: "Vaccinations, deworming, feeding, medicines, vet visits and grooming — synced to iLife Care.",
         product: Store.petCareProductID,
         problems: ["Missed boosters and deworming dates", "Who fed the dog? Did anyone give the medicine?", "Vet papers scattered everywhere"],
@@ -388,7 +430,7 @@ final class ModuleRegistry: ObservableObject {
         benefits: ["“What did I miss?” summaries", "Suggested tasks from messages", "Runs on-device with Apple Intelligence (iPhone 15 Pro and newer)"],
         previews: [.assistant], note: "In development.")
 
-    static let all: [ModuleInfo] = [businessTasks, businessPro, iLifeCare, travel, events, safety, rooms, bills, kids, khata, tuition, rent, legal, clinic, petCare, survey, crm, society, build, stock, attendance, finance, financePro, gymTraining, mindfulness, teamWorkspace]
+    static let all: [ModuleInfo] = [businessTasks, businessPro, iLifeCare, travel, events, safety, rooms, bills, kids, khata, tuition, rent, legal, clinic, petCare, admissions, vendors, procurement, home, lostfound, grievance, survey, crm, society, build, stock, attendance, finance, financePro, gymTraining, mindfulness, teamWorkspace]
 
     @Published private var enabled: [String: Bool]
     /// Modules the user wants in the iPhone bottom bar, in order (Router.TabID raw values).
@@ -429,7 +471,7 @@ final class ModuleRegistry: ObservableObject {
     /// Shown in the app (paid modules show their store page until subscribed).
     /// Free extras are added from the Module Store ("Get"); core and paid ones start on.
     /// Core modules show for everyone; professional modules start hidden and are added from the Module Store.
-    static let optIn: Set<String> = ["survey", "crm", "society", "build", "petcare", "finance-pro", "business-pro", "gym-training", "mindfulness", "khata", "tuition", "rent", "legal", "clinic", "stock"]
+    static let optIn: Set<String> = ["survey", "crm", "society", "build", "petcare", "finance-pro", "business-pro", "gym-training", "mindfulness", "khata", "tuition", "rent", "legal", "clinic", "stock", "admissions", "vendors", "procurement", "home", "lostfound", "grievance"]
     func isVisible(_ m: ModuleInfo) -> Bool { enabled[m.id] ?? !Self.optIn.contains(m.id) }
 
     func setOn(_ m: ModuleInfo, _ on: Bool) {

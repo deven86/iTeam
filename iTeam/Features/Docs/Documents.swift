@@ -67,6 +67,11 @@ enum DocFolders {
         case "gym": ["Medical & fitness", "Diet plans", "Receipts", "Photos", "Other"]
         case "attendance": ["ID & KYC", "Offer & appointment", "Salary slips", "Leave proofs", "Other"]
         case "task": ["Working files", "Drafts", "Final", "Other"]
+        case "admissions": ["Application form", "Marksheets", "Leaving / transfer certificate", "ID & birth proof", "Photos", "Fee receipts", "Other"]
+        case "vendors": ["Contracts & AMCs", "Quotations & rate cards", "Work orders", "Delivery challans", "Bills & invoices", "KYC & GST", "Other"]
+        case "procurement": ["Requisition", "Quotations", "Approvals", "Purchase orders", "Delivery / GRN", "Bills", "Other"]
+        case "home": ["Bills", "Warranty & invoices", "Insurance", "Property papers", "Society", "Repairs", "Other"]
+        case "grievance": ["Complaint", "Evidence", "Replies", "Resolution", "Other"]
         default: ["Documents", "Photos", "Receipts", "Other"]
         }
     }

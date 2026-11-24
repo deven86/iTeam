@@ -53,6 +53,7 @@ struct RootView: View {
     /// Module tabs the user can open right now.
     private var available: [Router.TabID] {
         var a: [Router.TabID] = [.views]
+        let ownBiz = Set(bizRecords.filter { $0.ownerID == engine.me }.map(\.module))
         let sharedBiz = Set(bizRecords.filter { $0.ownerID != engine.me && ($0.subjectID == engine.me || ($0.subjectID.isEmpty && !$0.convID.isEmpty)) }.map(\.module))
         // Free extras: added from the Module Store — or shown automatically when someone shares something with you.
         if modules.isOn(ModuleRegistry.events) || invitedToEvents { a.append(.events) }
@@ -60,9 +61,13 @@ struct RootView: View {
         if modules.isOn(ModuleRegistry.rooms) { a.append(.rooms) }
         if modules.isOn(ModuleRegistry.safety) { a.append(.safety) }
         if modules.isOn(ModuleRegistry.bills) { a.append(.bills) }
+        // Grievances: anyone who raised one or must handle one sees the module (it's never sold).
+        if modules.isOn(ModuleRegistry.grievance) || sharedBiz.contains("grievance") || ownBiz.contains("grievance") { a.append(.grievance) }
         if modules.isOn(ModuleRegistry.kids) || sharedBiz.contains("kids") { a.append(.kids) }
         for (info, spec) in [(ModuleRegistry.khata, BizSpecs.khata), (ModuleRegistry.tuition, BizSpecs.tuition), (ModuleRegistry.rent, BizSpecs.rent),
-                             (ModuleRegistry.legal, BizSpecs.legal), (ModuleRegistry.clinic, BizSpecs.clinic), (ModuleRegistry.petCare, BizSpecs.petcare)] {
+                             (ModuleRegistry.legal, BizSpecs.legal), (ModuleRegistry.clinic, BizSpecs.clinic), (ModuleRegistry.petCare, BizSpecs.petcare),
+                             (ModuleRegistry.admissions, BizSpecs.admissions), (ModuleRegistry.vendors, BizSpecs.vendors), (ModuleRegistry.home, BizSpecs.home),
+                             (ModuleRegistry.lostfound, BizSpecs.lostfound), (ModuleRegistry.procurement, BizSpecs.procurement)] {
             if modules.isOn(info) || (sharedBiz.contains(spec.module) && modules.isVisible(info)) { a.append(spec.tab) }
         }
         if modules.isOn(ModuleRegistry.businessTasks) { a.append(.tasks); a.append(.meetings) }
@@ -246,7 +251,7 @@ struct RootView: View {
             .onChange(of: inBar) { _, bar in
                 router.barTabs = bar
                 // A tab that just left the bar reopens inside the hub instead of vanishing.
-                if [Router.TabID.views, .events, .rooms, .doctor, .safety, .khata, .tuition, .rent, .legal, .clinic, .bills, .kids, .travel, .petcare, .survey, .crm, .society, .build, .stock, .meetings, .attendance, .finance, .tasks, .care, .gym, .mind, .activity].contains(router.tab), !bar.contains(router.tab) {
+                if [Router.TabID.views, .events, .rooms, .doctor, .safety, .khata, .tuition, .rent, .legal, .clinic, .bills, .kids, .travel, .petcare, .admissions, .vendors, .home, .lostfound, .procurement, .grievance, .survey, .crm, .society, .build, .stock, .meetings, .attendance, .finance, .tasks, .care, .gym, .mind, .activity].contains(router.tab), !bar.contains(router.tab) {
                     router.tab = .chats
                 }
             }
@@ -347,6 +352,8 @@ struct ModulesHubView: View {
         case .kids: BizHomeView(spec: BizSpecs.kids)
         case .travel: BizHomeView(spec: BizSpecs.travel)
         case .petcare: BizHomeView(spec: BizSpecs.petcare)
+        case .admissions, .vendors, .home, .lostfound, .procurement, .grievance:
+            if let s = BizSpecs.all.first(where: { $0.tab == t }) { BizHomeView(spec: s) }
         case .meetings: MeetingsHomeView()
         case .attendance: AttendanceHomeView()
         case .finance: FinanceHomeView()
@@ -373,6 +380,7 @@ struct ModulesHubView: View {
                         Label("Owner — every module is free on your Apple ID", systemImage: "crown.fill")
                             .font(.caption.weight(.semibold)).foregroundStyle(look.accent)
                     }
+                    NavigationLink { MyProgressView() } label: { ProgressCard() }.buttonStyle(.plain)
                     LazyVGrid(columns: columns, spacing: 22) {
                         ForEach(available, id: \.self) { t in
                             Button { open(t) } label: { tile(t) }.buttonStyle(PressStyle())
@@ -445,7 +453,7 @@ struct ModulesHubView: View {
         case .society: ("Society", ModuleRegistry.society.icon, ModuleRegistry.society.colors)
         case .build: ("Builder & Infra", ModuleRegistry.build.icon, ModuleRegistry.build.colors)
         case .stock: ("Stock", ModuleRegistry.stock.icon, ModuleRegistry.stock.colors)
-        case .khata, .tuition, .rent, .legal, .clinic, .bills, .kids, .travel, .petcare:
+        case .khata, .tuition, .rent, .legal, .clinic, .bills, .kids, .travel, .petcare, .admissions, .vendors, .home, .lostfound, .procurement, .grievance:
             BizSpecs.all.first { $0.tab == t }.map { ($0.title, $0.icon, $0.colors) } ?? ("", "square", [0, 0])
         case .tasks: ("Tasks", ModuleRegistry.businessTasks.icon, ModuleRegistry.businessTasks.colors)
         case .care: ("Care", ModuleRegistry.iLifeCare.icon, ModuleRegistry.iLifeCare.colors)

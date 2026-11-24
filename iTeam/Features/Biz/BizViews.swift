@@ -907,6 +907,7 @@ struct BizEditor: View {
         engine.saveBiz(p, convID: parent?.convID ?? r?.convID ?? "", uploads: uploads)
         if spec.module == "petcare" { engine.petBridge(p) }
         if spec.module == "kids" { engine.kidsBridge(p) }
+        if spec.module == "vendors" && kind.id == "contract" { engine.vendorRenewalBridge(p, vendor: parent?.title ?? "") }
         if existing == nil, !linkTo.isEmpty, let c = engine.contact(linkTo),
            let rec = try? engine.context.fetch(FetchDescriptor<BizRecord>(predicate: #Predicate { $0.id == p.id })).first {
             engine.linkBiz(rec, to: c)
@@ -960,6 +961,27 @@ enum BizDemo {
             _ = add("vaccine", parent: k, title: "Typhoid booster", due: day(12), status: "Due")
             _ = add("event", parent: k, title: "Parent-teacher meeting", date: day(4), status: "Upcoming")
             _ = add("timetable", parent: k, title: "Swimming", subtitle: "Saturday", notes: "7 AM, club pool")
+        case "admissions":
+            let a = add("applicant", title: "Aarav Patil (demo)", subtitle: "Class 5", date: day(-5), status: "Documents pending", notes: "Walk-in enquiry")
+            _ = add("followup", parent: a, title: "Call about test date", date: day(1), status: "Planned")
+            _ = add("document", parent: a, title: "Leaving certificate", status: "Pending")
+            _ = add("fee", parent: a, title: "Admission fee", amount: 15000, due: day(7), status: "Due")
+        case "vendors":
+            let v = add("vendor", title: "Cool Air AMC (demo)", subtitle: "AMC / service")
+            _ = add("contract", parent: v, title: "AC AMC — 6 units", amount: 18000, date: day(-340), due: day(25), status: "Active")
+            _ = add("bill", parent: v, title: "Bill 1042 — gas refill", amount: 2400, due: day(3), status: "Due")
+        case "procurement":
+            let r = add("request", title: "20 office chairs (demo)", subtitle: "Admin", amount: 90000, due: day(14), status: "Waiting for approval")
+            _ = add("quote", parent: r, title: "Ergo Seating", amount: 84000, date: day(-1), status: "Received", notes: "Delivery 7 days, 2-year warranty")
+            _ = add("quote", parent: r, title: "Comfy Furniture", amount: 79500, date: day(-1), status: "Received", notes: "Delivery 15 days, 1-year warranty")
+        case "home":
+            let h = add("house", title: "My flat (demo)", subtitle: "Dadar, Mumbai")
+            _ = add("utility", parent: h, title: "Electricity — Nov", subtitle: "Electricity", amount: 2350, due: day(5), status: "Due")
+            _ = add("appliance", parent: h, title: "Split AC (bedroom)", subtitle: "Daikin 1.5 T", amount: 42000, date: day(-300), due: day(65))
+        case "lostfound":
+            _ = add("item", title: "Black wallet (demo)", subtitle: "Lost", date: day(-1), status: "Searching", notes: "Near the gym lift, brown inside")
+        case "grievance":
+            _ = add("grievance", title: "Overtime not counted (demo)", subtitle: "Payment / salary", date: day(-2), status: "Open", notes: "Sunday site visit not added to attendance")
         default:
             _ = add("bill", title: "Electricity (demo)", amount: 1240, due: day(4), status: "Due", notes: "Consumer no. 0001")
             _ = add("bill", title: "Car insurance (demo)", amount: 9800, due: day(25), status: "Due")
@@ -1064,6 +1086,12 @@ enum BizScan {
         case "bills": "a utility bill, insurance or subscription renewal notice"
         case "rent": "a rent agreement, rent receipt, maintenance bill or property paper"
         case "tuition": "an admission form, fee receipt or class timetable"
+        case "admissions": "a school/college admission or enquiry form, marksheet, leaving certificate or fee receipt"
+        case "vendors": "a vendor quotation, rate card, contract/AMC, work order, delivery challan or bill"
+        case "procurement": "a purchase requisition, supplier quotation, purchase order, delivery challan/GRN or supplier bill"
+        case "home": "a utility bill (electricity, water, gas, internet), society maintenance bill, appliance invoice/warranty card or insurance policy"
+        case "lostfound": "a photo or notice about a lost or found item"
+        case "grievance": "a written complaint or letter"
         default: "a bill, receipt or record"
         }
     }
@@ -1141,6 +1169,21 @@ struct BizAISection: View {
         case "rent" where mine:
             return [("How to talk to this client", "You help an Indian property agent / landlord. Write 3 short, polite, persuasive messages for this tenant or client based on the data (rent reminder, renewal, a new property pitch). Give tips on handling objections."),
                     ("Listing description", "Write an attractive property listing (title, 5 bullet highlights, short description) from the property details. Don't invent facts; mark unknowns as [add].")]
+        case "admissions" where mine:
+            return [("Follow-up message to the parent", "Write a short, warm WhatsApp follow-up to this applicant's parent based on the stage, pending documents, fees and tests. Include the next step and date. Same language as the notes."),
+                    ("What's pending for this admission?", "List what's still pending for this applicant to be admitted (documents, fees, test, interview), in order, with dates from the data.")]
+        case "vendors" where mine:
+            return [("Renewal & rate negotiation tips", "From this vendor's contracts, rate cards, bills and challans: which renewals are due, how rates moved, any short/rejected deliveries, and 3 points to negotiate at renewal."),
+                    ("Vendor performance summary", "Summarise this vendor's reliability: on-time work orders, short or damaged challans, payment history. Short bullets with numbers.")]
+        case "procurement" where mine:
+            return [("Compare the quotations", "Compare the supplier quotations for this requisition in a small table (supplier, amount, delivery, warranty, terms) and recommend one with reasons. Mention any past ratings of these suppliers. Advice only."),
+                    ("Draft the purchase order note", "Draft a short purchase order message to the selected supplier: items, quantity, price, delivery date, payment terms — from the data. Mark unknowns as [add].")]
+        case "home" where mine:
+            return [("Home maintenance plan", "From the appliances, warranties, repairs and bills: what's due soon, which warranties end in the next 3 months, and a simple yearly maintenance calendar (AC service, water tank cleaning, pest control…).")]
+        case "lostfound":
+            return [("Write a clear post", "Write a short, clear lost/found post from this item (what, where, when, how to identify, contact). Never include full ID or account numbers. Add one line asking people to share it.")]
+        case "grievance":
+            return [("Suggest a fair resolution", "You help a group admin or owner handle a private grievance fairly. Summarise the issue neutrally, list what to check or ask both sides, and suggest 2–3 fair resolutions. Never take sides without facts; keep it respectful.")]
         case "bills", "khata", "tuition":
             return mine ? [("Summary & what to do next", "Summarise this record: what's due, what's late, and the next 3 actions.")] : []
         default: return []
@@ -1181,3 +1224,25 @@ struct BizAISection: View {
 }
 
 private struct ToolBox: Identifiable { let id: String }
+
+
+// MARK: - Vendors → Bills & Renewals bridge
+
+extension SyncEngine {
+    /// A contract/AMC with an expiry date gets a matching "Renew" entry in core Bills & Renewals (reminders included).
+    func vendorRenewalBridge(_ p: BizPayload, vendor: String) {
+        guard let due = p.due else { return }
+        let id = "b_vc_" + p.id
+        let existing = try? context.fetch(FetchDescriptor<BizRecord>(predicate: #Predicate { $0.id == id })).first
+        var b = BizPayload(existing ?? BizRecord(id: id))
+        b.module = "bills"; b.kind = "bill"; b.parentID = ""
+        b.title = "Renew: \(p.title)" + (vendor.isEmpty ? "" : " — \(vendor)")
+        b.amount = p.amount; b.due = due
+        b.subtitle = ["Yearly": "Yearly", "Monthly": "Monthly"][p.subtitle] ?? "Once"
+        b.status = ["Renewed", "Cancelled", "Expired"].contains(p.status) ? "Paid" : "Due"
+        b.notes = "From Vendors & Contracts"
+        b.deleted = p.deleted
+        b.at = .now
+        saveBiz(b, convID: "")
+    }
+}

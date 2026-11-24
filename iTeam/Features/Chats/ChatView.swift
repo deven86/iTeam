@@ -32,6 +32,7 @@ struct ChatView: View {
     @State private var linkText = ""
     @State private var showApproval = false
     @State private var showPoll = false
+    @State private var showGrievance = false
     @State private var forwarding: Message?
     @State private var shareItems: ShareItems?
     @State private var aiSheet: AISheet?
@@ -264,6 +265,9 @@ struct ChatView: View {
         .sheet(isPresented: $showPoll) {
             NavigationStack { PollComposer(conv: conv) }
         }
+        .sheet(isPresented: $showGrievance) {
+            NavigationStack { RaiseGrievanceView(group: conv) }
+        }
         .alert("Share a link", isPresented: $askLink) {
             TextField("https://…", text: $linkText).keyboardType(.URL).textInputAutocapitalization(.never)
             Button("Send") {
@@ -423,6 +427,9 @@ struct ChatView: View {
                         Button("Poll", systemImage: "chart.bar") { showPoll = true }
                         Button("Meeting", systemImage: "person.3.fill") { showMeeting = true }
                         Button("Request approval", systemImage: "checkmark.seal") { showApproval = true }
+                    }
+                    if conv.isGroup && conv.members.count > 2 {
+                        Button("Raise a grievance (private)", systemImage: "exclamationmark.bubble") { showGrievance = true }
                     }
                     Button("Recommend a contact", systemImage: "person.crop.circle.badge.plus") { showRecommend = true }
                     Button("Play X and O", systemImage: "gamecontroller") { showGames = true }

@@ -14,6 +14,9 @@ final class Store: ObservableObject {
     static let khataProductID = "com.jondhale.iteam.khata.monthly"
     static let tuitionProductID = "com.jondhale.iteam.tuition.monthly"
     static let rentProductID = "com.jondhale.iteam.rent.monthly"
+    static let admissionsProductID = "com.jondhale.iteam.admissions.monthly"
+    static let vendorsProductID = "com.jondhale.iteam.vendors.monthly"
+    static let procurementProductID = "com.jondhale.iteam.procurement.monthly"
     static let legalProductID = "com.jondhale.iteam.legal.monthly"
     static let clinicProductID = "com.jondhale.iteam.clinic.monthly"
     static let attendanceProductID = "com.jondhale.iteam.attendance.monthly"
@@ -24,7 +27,7 @@ final class Store: ObservableObject {
     static let societyProductID = "com.jondhale.iteam.society.monthly"
     static let buildProductID = "com.jondhale.iteam.build.monthly"
     static let allProducts = [careProductID, proProductID, gymProductID, mindProductID, plusProductID,
-                              khataProductID, tuitionProductID, rentProductID, legalProductID, clinicProductID, attendanceProductID, financeProProductID, petCareProductID, surveyProductID, crmProductID, societyProductID, buildProductID]
+                              khataProductID, tuitionProductID, rentProductID, legalProductID, clinicProductID, attendanceProductID, financeProProductID, petCareProductID, surveyProductID, crmProductID, societyProductID, buildProductID, admissionsProductID, vendorsProductID, procurementProductID]
     /// iTeam Plus ✓ supporter badge (the owner has it free).
     var hasPlus: Bool { isOwner || active.contains(Self.plusProductID) }
 

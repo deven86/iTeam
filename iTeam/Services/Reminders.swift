@@ -119,6 +119,24 @@ final class Reminders {
             }
         }
 
+        // My Progress: today's challenges at 9:30, weekly summary on Sunday 19:00.
+        if UserDefaults.standard.object(forKey: "progress.nudges") as? Bool ?? true {
+            let cal = Calendar.current
+            for day in [now, tomorrow] {
+                let s = cal.startOfDay(for: day)
+                let morning = s.addingTimeInterval(9.5 * 3600)
+                if morning > now {
+                    plans.append(Plan(id: "dose.prog.day.\(Int(s.timeIntervalSince1970))", fire: morning, title: "🔥 Today's challenges",
+                                      body: "Three small wins are waiting — keep your streak going in My Progress.", category: "PROG", info: ["open": "hub"]))
+                }
+                if cal.component(.weekday, from: s) == 1 {
+                    let eve = s.addingTimeInterval(19 * 3600)
+                    if eve > now { plans.append(Plan(id: "dose.prog.week.\(Int(s.timeIntervalSince1970))", fire: eve, title: "📊 Your week in iTeam",
+                                                     body: "Tasks, streak and badges from this week — take a look.", category: "PROG", info: ["open": "hub"])) }
+                }
+            }
+        }
+
         // Gym: morning planner and night review nudges (local only).
         if UserDefaults.standard.object(forKey: "fit.planner.on") as? Bool ?? false {
             let cal = Calendar.current

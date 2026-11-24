@@ -14,6 +14,7 @@ struct GroupInfoView: View {
     @State private var newTitle = ""
     @State private var showAdd = false
     @State private var photo: PhotosPickerItem?
+    @State private var handover: Handover?
     @State private var confirmLeave = false
 
     private var myRole: Role? { conv.role(of: engine.me) }
@@ -120,7 +121,18 @@ struct GroupInfoView: View {
             Button("Cancel", role: .cancel) {}
         }
         .confirmationDialog("Leave “\(conv.title)”?", isPresented: $confirmLeave, titleVisibility: .visible) {
-            Button("Leave group", role: .destructive) { engine.leave(conv) }
+            Button("Leave group", role: .destructive) {
+                // Open tasks must be handed over first.
+                if GroupDuties.openTasks(conv, of: engine.me, context: engine.context).isEmpty { engine.leave(conv) }
+                else { handover = Handover(userID: engine.me, leaving: true) }
+            }
+        }
+        .sheet(item: $handover) { h in
+            NavigationStack {
+                TransferDutiesView(conv: conv, userID: h.userID, leaving: h.leaving) {
+                    if h.leaving { engine.leave(conv) } else { engine.removeMember(conv, h.userID) }
+                }
+            }
         }
         .sheet(isPresented: $showAdd) {
             NavigationStack { AddMembersView(conv: conv) }
@@ -153,7 +165,10 @@ struct GroupInfoView: View {
                     } else {
                         Button("Remove admin", systemImage: "star.slash") { engine.setRole(conv, m.id, .member) }
                     }
-                    Button("Remove from group", systemImage: "person.badge.minus", role: .destructive) { engine.removeMember(conv, m.id) }
+                    Button("Remove from group", systemImage: "person.badge.minus", role: .destructive) {
+                        if GroupDuties.openTasks(conv, of: m.id, context: engine.context).isEmpty { engine.removeMember(conv, m.id) }
+                        else { handover = Handover(userID: m.id, leaving: false) }
+                    }
                 } label: {
                     Image(systemName: "ellipsis.circle").font(.title3)
                 }
@@ -436,3 +451,5 @@ struct ChatPrivacyRows: View {
         })) { Label("Lock chat", systemImage: "lock") }
     }
 }
+
+struct Handover: Identifiable { let userID: String; let leaving: Bool; var id: String { userID } }

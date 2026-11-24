@@ -176,12 +176,26 @@ extension SyncEngine {
     func touchLastSeen() async {
         guard MyDetails.lastSeenEveryone else { return }
         let key = "lastSeen.pushed"
-        if Date.now.timeIntervalSince1970 - UserDefaults.standard.double(forKey: key) < 120 { return }
+        if Date.now.timeIntervalSince1970 - UserDefaults.standard.double(forKey: key) < 60 { return }
         UserDefaults.standard.set(Date.now.timeIntervalSince1970, forKey: key)
         await cloud.touchSeen(userID: me, at: .now)
     }
 
     func clearLastSeen() async { await cloud.touchSeen(userID: me, at: nil) }
+
+    /// Who is online / last seen, for everyone I have a direct chat with (refreshed at most every 45 s).
+    /// Like WhatsApp: you see others' last seen only while you share your own.
+    func refreshPresence(force: Bool = false) async {
+        guard MyDetails.lastSeenEveryone else { return }
+        let key = "presence.fetched"
+        if !force && Date.now.timeIntervalSince1970 - UserDefaults.standard.double(forKey: key) < 45 { return }
+        UserDefaults.standard.set(Date.now.timeIntervalSince1970, forKey: key)
+        let convs = (try? context.fetch(FetchDescriptor<Conversation>(predicate: #Predicate { $0.kind == "direct" && !$0.left }))) ?? []
+        let peers = Array(Set(convs.compactMap(\.peerID).filter { $0 != me && !$0.hasPrefix("demo_") }))
+        let seen = await cloud.fetchSeen(Array(peers.prefix(300)))
+        for (id, date) in seen { if let c = contact(id), !c.blocked { c.lastSeen = date } }
+        save()
+    }
 
     func setBlocked(_ c: Contact, _ blocked: Bool) {
         c.blocked = blocked
@@ -373,6 +387,8 @@ extension SyncEngine {
         var sourceMessageID: String?
         var reminderOffset = 60
         var repeatRule = "none"
+        /// People not on iTeam ("personID|Name" per line).
+        var peopleRaw = ""
         /// Shared with everyone in the chat (starts at once) rather than assigned to specific people (they accept first).
         var everyone = false
     }
@@ -387,7 +403,8 @@ extension SyncEngine {
                             priority: d.priority, dueAt: d.dueAt, policy: d.policy, assignees: d.assignees,
                             createdBy: me, createdAt: now, completedAt: nil, completedBy: nil, stamps: stamps, change: nil,
                             repeatRule: d.repeatRule,
-                            needsAcceptance: d.assignees.contains { $0 != me } && !d.everyone ? true : nil)
+                            needsAcceptance: d.assignees.contains { $0 != me } && !d.everyone ? true : nil,
+                            people: d.peopleRaw.isEmpty ? nil : d.peopleRaw)
         if let conv {
             let who = d.assignees.isEmpty ? "the group" : d.assignees.map { name(of: $0) }.joined(separator: ", ")
             send(.task(p), in: conv, loud: true, preview: "📋 New task for \(who): \(d.title)")
@@ -746,21 +763,40 @@ extension SyncEngine {
 
     @discardableResult
     func saveCareProfile(in conv: Conversation, id: String? = nil, name: String, relation: String, bloodGroup: String,
-                         allergies: String, conditions: String, emergencyContact: String, notes: String, avatar: Data?, deleted: Bool = false) -> String {
+                         allergies: String, conditions: String, emergencyContact: String, notes: String, avatar: Data?,
+                         linkedUserID: String? = nil, deleted: Bool = false) -> String {
         let pid = id ?? "c_" + UUID().uuidString
         let p = CareProfilePayload(id: pid, name: name, relation: relation, bloodGroup: bloodGroup, allergies: allergies,
                                    conditions: conditions, emergencyContact: emergencyContact, notes: notes, avatar: avatar,
-                                   deleted: deleted, at: .now)
+                                   deleted: deleted, at: .now, linkedUserID: linkedUserID)
         send(.care(p), in: conv, loud: id == nil, preview: "❤️ Care profile for \(name)")
         return pid
     }
 
+    /// Moves a care profile (with its medicines, injuries and events) into another chat, e.g. when it gets linked to an iTeam user.
+    func moveCareProfile(_ p: CareProfile, to conv: Conversation) {
+        guard p.convID != conv.id, p.createdBy == me else { return }
+        p.convID = conv.id
+        let pid = p.id
+        saveCareProfile(in: conv, id: p.id, name: p.name, relation: p.relation, bloodGroup: p.bloodGroup, allergies: p.allergies,
+                        conditions: p.conditions, emergencyContact: p.emergencyContact, notes: p.notes, avatar: p.avatar)
+        for m in (try? context.fetch(FetchDescriptor<Medicine>(predicate: #Predicate { $0.profileID == pid && !$0.deleted }))) ?? [] {
+            saveMedicine(p, id: m.id, name: m.name, dose: m.dose, form: m.form, times: m.times, instructions: m.instructions,
+                         startDate: m.startDate, endDate: m.endDate, stock: m.stock, active: m.active, extra: m.extra)
+        }
+        for e in (try? context.fetch(FetchDescriptor<HealthEvent>(predicate: #Predicate { $0.profileID == pid && !$0.deleted }))) ?? [] {
+            saveHealthEvent(p, existing: e, kind: e.kind, title: e.title, details: e.details, date: e.date, severity: e.severity,
+                            status: e.status, recovery: e.recovery, attachments: e.attachments, extra: e.extra)
+        }
+    }
+
     func saveMedicine(_ profile: CareProfile, id: String? = nil, name: String, dose: String, form: String, times: [Int],
-                      instructions: String, startDate: Date, endDate: Date?, stock: Int?, active: Bool = true, deleted: Bool = false) {
+                      instructions: String, startDate: Date, endDate: Date?, stock: Int?, active: Bool = true, deleted: Bool = false,
+                      extra: MedExtra? = nil) {
         guard let conv = careConv(profile.convID) else { return }
         let m = MedicinePayload(id: id ?? UUID().uuidString, profileID: profile.id, name: name, dose: dose, form: form, times: times,
                                 instructions: instructions, startDate: startDate, endDate: endDate, stock: stock,
-                                active: active, deleted: deleted, at: .now)
+                                active: active, deleted: deleted, at: .now, medExtra: extra)
         send(.medicine(m), in: conv, loud: id == nil, preview: "💊 \(profile.name): \(name) \(dose)")
         Reminders.shared.reschedule(context: context, me: me)
     }
@@ -776,13 +812,14 @@ extension SyncEngine {
         Reminders.shared.reschedule(context: context, me: me)
     }
 
-    func saveHealthEvent(_ profile: CareProfile, existing: HealthEvent? = nil, kind: String, title: String, details: String, date: Date,
+    func saveHealthEvent(_ profile: CareProfile, existing: HealthEvent? = nil, id: String? = nil, kind: String, title: String, details: String, date: Date,
                          severity: Int, status: String, recovery: Int, update: String? = nil,
-                         attachments: [AttachmentRef] = [], uploads: [String: String] = [:], deleted: Bool = false) {
+                         attachments: [AttachmentRef] = [], uploads: [String: String] = [:], deleted: Bool = false,
+                         extra: HealthExtra? = nil) {
         guard let conv = careConv(profile.convID) else { return }
-        let h = HealthEventPayload(id: existing?.id ?? UUID().uuidString, profileID: profile.id, kind: kind, title: title, details: details,
+        let h = HealthEventPayload(id: existing?.id ?? id ?? UUID().uuidString, profileID: profile.id, kind: kind, title: title, details: details,
                                    date: date, severity: severity, status: status, recovery: recovery, update: update,
-                                   attachments: attachments, deleted: deleted, at: .now)
+                                   attachments: attachments, deleted: deleted, at: .now, extra: extra)
         let label = HealthEventKind(rawValue: kind)?.title ?? "Health"
         let preview = existing == nil ? "🚑 \(label) for \(profile.name): \(title)"
             : "\(profile.name) — \(title): \(status == "recovered" ? "recovered ✅" : "\(recovery)% recovered")\(update.map { " · " + $0 } ?? "")"

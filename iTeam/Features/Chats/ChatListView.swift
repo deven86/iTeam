@@ -20,6 +20,7 @@ struct ChatListView: View {
     @State private var showNewChat = false
     @State private var showAddContact = false
     @State private var editProfile = false
+    @State private var askPresence = false
     @ObservedObject private var backup = Backup.shared
     @Query(filter: #Predicate<Post> { !$0.deleted && $0.isStatus }) private var minis: [Post]
     /// People with a live mini: true = something unseen (coloured ring), false = all seen (grey ring).
@@ -210,7 +211,28 @@ struct ChatListView: View {
         .listStyle(.insetGrouped)
         .lookScreen()
         .searchable(text: $search, prompt: "Search chats")
-        .refreshable { await engine.sync() }
+        .refreshable { await engine.sync(); await engine.refreshPresence(force: true) }
+        .task {
+            // Online dots: refresh who's active while the chat list is on screen.
+            while !Task.isCancelled {
+                await engine.refreshPresence()
+                try? await Task.sleep(for: .seconds(50))
+            }
+        }
+        .onAppear {
+            if !MyDetails.lastSeenEveryone && !UserDefaults.standard.bool(forKey: "presence.asked") { askPresence = true }
+        }
+        .alert("Show when you're online?", isPresented: $askPresence) {
+            Button("Turn on") {
+                UserDefaults.standard.set(true, forKey: "presence.asked")
+                MyDetails.lastSeenEveryone = true
+                UserDefaults.standard.set(0, forKey: "lastSeen.pushed")
+                Task { await engine.touchLastSeen(); await engine.refreshPresence(force: true) }
+            }
+            Button("Not now", role: .cancel) { UserDefaults.standard.set(true, forKey: "presence.asked") }
+        } message: {
+            Text("Your contacts see a green dot when you're online and your last seen time — and you see theirs. You can change this anytime in Settings → Privacy.")
+        }
         .navigationTitle("Chats")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar(removing: .title)
@@ -296,6 +318,13 @@ struct ConversationRow: View {
                 .overlay {
                     if let ring {
                         Circle().stroke(ring ? AnyShapeStyle(look.gradient) : AnyShapeStyle(Color.secondary.opacity(0.45)), lineWidth: 2.5)
+                    }
+                }
+                .overlay(alignment: .bottomTrailing) {
+                    if !conv.isGroup, let p = conv.peerID, p != engine.me, engine.contact(p)?.isOnline == true {
+                        Circle().fill(Color.green).frame(width: 14, height: 14)
+                            .overlay(Circle().stroke(Color(.systemBackground), lineWidth: 2.5))
+                            .accessibilityLabel("Online")
                     }
                 }
             VStack(alignment: .leading, spacing: 3) {

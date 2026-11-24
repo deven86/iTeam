@@ -173,6 +173,11 @@ struct TaskDetailView: View {
                 if notesText != t.notes {
                     Button("Save notes") { saveNotes(t) }
                 }
+                if !t.people.isEmpty {
+                    LabeledContent("Also for") {
+                        Text(t.people.map(\.name).joined(separator: ", ") + " (not on iTeam)").multilineTextAlignment(.trailing)
+                    }
+                }
                 DueRow(task: t, editable: canEdit(t))
                 Picker("Priority", selection: Binding(get: { t.priority }, set: { p in
                     engine.updateTask(t, fields: ["priority"], change: "set priority to \(p.title)") { $0.priority = p }

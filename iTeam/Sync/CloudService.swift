@@ -70,6 +70,19 @@ final class CloudService {
         _ = try? await db.modifyRecords(saving: [record], deleting: [], savePolicy: .changedKeys, atomically: true)
     }
 
+    /// "Last seen" times for many people at once (only the tiny "seen" field is downloaded).
+    func fetchSeen(_ userIDs: [String]) async -> [String: Date] {
+        guard !userIDs.isEmpty else { return [:] }
+        var out: [String: Date] = [:]
+        for chunk in stride(from: 0, to: userIDs.count, by: 100).map({ Array(userIDs[$0..<min($0 + 100, userIDs.count)]) }) {
+            guard let results = try? await db.records(for: chunk.map(profileID), desiredKeys: ["seen"]) else { continue }
+            for (id, r) in results {
+                if case .success(let rec) = r, let seen = rec["seen"] as? Date { out[String(id.recordName.dropFirst())] = seen }
+            }
+        }
+        return out
+    }
+
     func fetchProfile(_ userID: String) async throws -> RemoteProfile? {
         do {
             let r = try await db.record(for: profileID(userID))

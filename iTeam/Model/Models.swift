@@ -10,6 +10,7 @@ enum ITeamSchema {
         ActivityItem.self, OutboxItem.self, PendingEnvelope.self, SentRecord.self,
         TaskFile.self, Approval.self, Expense.self, Poll.self,
         CareProfile.self, Medicine.self, DoseLog.self, HealthEvent.self, VaultItem.self,
+        Person.self,
         GymMember.self, GymPlan.self, GymSession.self, GymPayment.self, GymPhoto.self, CRMGroup.self, CRMLead.self, CRMActivity.self, SocietyRecord.self, BuildRecord.self,
         Post.self, PostReaction.self, PostComment.self, PostSeen.self,
         MeditationLog.self, CustomMeditation.self, FitReview.self,
@@ -50,6 +51,9 @@ enum Packed {
     /// "Song — Artist" they're listening to, if they share it.
     var nowPlaying: String = ""
     var nowPlayingAt: Date? = nil
+    /// When they were last active (from their public profile; only if both of us share last seen).
+    var lastSeen: Date? = nil
+    var isOnline: Bool { Date.now.timeIntervalSince(lastSeen ?? .distantPast) < 180 }
     /// iTeam Plus supporter badge.
     var plus: Bool = false
     var blocked: Bool
@@ -342,6 +346,14 @@ enum WorkPriority: Int, Codable, CaseIterable {
     var repeatRule: String = "none"
     /// Follow-up schedule (Business Tasks Pro): JSON of FollowUp, "" = off.
     var followUpRaw: String = ""
+    /// People not on iTeam this task is also for: "personID|Name" per line.
+    var peopleRaw: String = ""
+    var people: [(id: String, name: String)] {
+        peopleRaw.split(separator: "\n").compactMap { l in
+            let parts = l.split(separator: "|", maxSplits: 1).map(String.init)
+            return parts.count == 2 ? (parts[0], parts[1]) : nil
+        }
+    }
     /// Assigned to specific people: each must accept before it starts.
     var needsAcceptance: Bool = false
     /// userID → "accepted" / "declined" (+ optional note after "|").
@@ -782,6 +794,32 @@ struct VoteRecord: Codable, Hashable {
     var totalVoters: Int { votes.values.filter { !$0.options.isEmpty }.count }
 }
 
+// MARK: - People (not on iTeam yet)
+
+/// Someone you work with who isn't on iTeam (a client, a helper, a vendor). Add them once, pick them anywhere;
+/// when they join iTeam you invite them to "claim" the name and everything under it is shared with them.
+@Model final class Person {
+    @Attribute(.unique) var id: String
+    var name: String = ""
+    var phone: String = ""
+    var note: String = ""
+    /// Who made this name (me for my people; the other person for a claim request sent to me).
+    var ownerID: String = ""
+    /// The iTeam user it belongs to once linked ("" = not yet).
+    var linkedUserID: String = ""
+    /// "", "invited", "accepted", "declined"
+    var state: String = ""
+    var createdAt: Date = Date.now
+    var updatedAt: Date = Date.distantPast
+    var deleted: Bool = false
+
+    init(id: String, name: String, ownerID: String) {
+        self.id = id
+        self.name = name
+        self.ownerID = ownerID
+    }
+}
+
 // MARK: - iLife Care
 
 @Model final class CareProfile {
@@ -800,6 +838,8 @@ struct VoteRecord: Codable, Hashable {
     var createdAt: Date
     var updatedAt: Date
     var deleted: Bool
+    /// The iTeam user this profile is for ("" = not on iTeam).
+    var linkedUserID: String = ""
 
     init(id: String, convID: String, name: String, createdBy: String) {
         self.id = id
@@ -833,6 +873,12 @@ struct VoteRecord: Codable, Hashable {
     var deleted: Bool
     var updatedAt: Date
     var addedBy: String
+    /// Strength, brand, photo, prescribed-for, link to an injury/event (iLife Medical).
+    var extraData: Data? = nil
+    var extra: MedExtra {
+        get { Packed.decode(MedExtra.self, extraData) ?? MedExtra() }
+        set { extraData = Packed.encode(newValue) }
+    }
 
     init(id: String, profileID: String, name: String, addedBy: String) {
         self.id = id
@@ -922,6 +968,42 @@ enum HealthEventKind: String, CaseIterable {
     }
 }
 
+/// Extra details for an injury or a major health event (all optional; older versions ignore them).
+struct HealthExtra: Codable, Hashable {
+    var bodyPart = ""
+    var treatments: [String] = []
+    var restrictions = ""
+    var doctor = ""
+    var speciality = ""
+    var hospital = ""
+    var hospitalised = false
+    var diagnosis = ""
+    var procedure = ""
+    var followUp: Date? = nil
+    var ended: Date? = nil
+    /// Medical bills for this event (₹).
+    var bill: Double = 0
+
+    static let treatmentOptions = ["First aid", "Ice / rest", "Dressing", "Stitches", "Plaster / cast", "Splint / brace",
+                                   "X-ray", "MRI / CT scan", "Injection", "Surgery / operation", "Physiotherapy", "Other"]
+    static let bodyParts = ["Head", "Neck", "Shoulder", "Arm", "Elbow", "Wrist", "Hand", "Back", "Chest", "Hip",
+                            "Knee", "Leg", "Ankle", "Foot"]
+}
+
+/// Extra details for a medicine (all optional; older versions ignore them).
+struct MedExtra: Codable, Hashable {
+    var strength = ""
+    var brand = ""
+    var cause = ""
+    var doctor = ""
+    var doctorPhone = ""
+    /// HealthEvent id this medicine is for ("" = nothing).
+    var linkedEventID = ""
+    /// Small photo of the strip or box.
+    var photo: Data? = nil
+    var bill: Double = 0
+}
+
 struct HealthUpdate: Codable, Hashable {
     var text: String
     var by: String
@@ -944,6 +1026,14 @@ struct HealthUpdate: Codable, Hashable {
     var createdBy: String
     var deleted: Bool
     var updatedAt: Date
+    /// Body part, treatment, doctor, hospital, follow-up, bill (iLife Medical).
+    var extraData: Data? = nil
+    var extra: HealthExtra {
+        get { Packed.decode(HealthExtra.self, extraData) ?? HealthExtra() }
+        set { extraData = Packed.encode(newValue) }
+    }
+    /// Injuries vs major health events (illness, surgery, hospital stay…).
+    var isInjury: Bool { kind == HealthEventKind.injury.rawValue }
 
     init(id: String, profileID: String, kind: String, title: String, createdBy: String) {
         self.id = id

@@ -1,6 +1,11 @@
 Big update — new modules, smarter tools and many fixes.
 
 NEW
+• iLife Care Medical: injuries with body part, treatment and restrictions; major health events with diagnosis, doctor, hospital and follow-up; medicines with photo, strength and "prescribed for"; bills total
+• Add a family member who is on iTeam directly — they see and update their own care profile
+• People not on iTeam: add clients, helpers or vendors once and pick them in any module or task; when they join, they claim their name and everything under it is shared with them
+• Green online dot, last seen and what someone is listening to (Apple Music), with privacy controls
+• Faster sending: messages, photos and files go out instantly and in parallel
 • Documents in every module: a proper case file with folders, numbering, index PDF and safe open/share
 • Scan & fill: scan a bill, prescription, visiting card or form and iTeam fills the fields for you (Apple Intelligence, on device)
 • New modules: Stock & Inventory (QR labels), Admissions, Vendors & Contracts, Procurement, My Home, Lost & Found

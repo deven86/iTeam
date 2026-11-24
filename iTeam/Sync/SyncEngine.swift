@@ -230,8 +230,42 @@ final class SyncEngine: ObservableObject {
         context.insert(item)
         save()
         refreshCounts()
-        Task { await sync() }
+        // Fast path: upload this right away (in parallel), without waiting for the full sync round (inbox, profiles…).
+        Task { await quickFlush(); await sync() }
         return event
+    }
+
+    /// Outbox items being uploaded right now (so the normal flush never sends one twice).
+    private var inFlight = Set<String>()
+
+    /// Sends what's waiting in the outbox immediately, up to 4 at a time.
+    func quickFlush() async {
+        guard isSetUp, context != nil, !ScreenshotMode.on else { return }
+        let items = ((try? context.fetch(FetchDescriptor<OutboxItem>(sortBy: [SortDescriptor(\.createdAt)]))) ?? [])
+            .filter { $0.attempts == 0 && !inFlight.contains($0.id) }
+        guard !items.isEmpty else { return }
+        for batch in stride(from: 0, to: items.count, by: 4).map({ Array(items[$0..<min($0 + 4, items.count)]) }) {
+            await withTaskGroup(of: Void.self) { group in
+                for item in batch {
+                    let id = item.id
+                    inFlight.insert(id)
+                    group.addTask { @MainActor in
+                        defer { self.inFlight.remove(id) }
+                        guard let live = try? self.context.fetch(FetchDescriptor<OutboxItem>(predicate: #Predicate { $0.id == id })).first else { return }
+                        do {
+                            try await self.upload(live)
+                            self.markSent(live)
+                            self.context.delete(live)
+                        } catch {
+                            live.attempts += 1
+                            live.lastError = error.cloudMessage
+                        }
+                    }
+                }
+            }
+            save()
+        }
+        refreshCounts()
     }
 
     /// Sends an event to everyone in a conversation.
@@ -277,11 +311,13 @@ final class SyncEngine: ObservableObject {
 
     private func flush() async throws {
         let items = try context.fetch(FetchDescriptor<OutboxItem>(sortBy: [SortDescriptor(\.createdAt)]))
-        for item in items where item.attempts < 5 {
+        for item in items where item.attempts < 5 && !inFlight.contains(item.id) {
             // A chat whose key never arrived (deleted/unknown chat): drop it after a day so it can't sit in the queue forever.
             if item.lastError == SyncError.noKey.errorDescription, item.createdAt < .now.addingTimeInterval(-86400), conversation(item.convID) == nil {
                 context.delete(item); save(); continue
             }
+            inFlight.insert(item.id)
+            defer { inFlight.remove(item.id) }
             do {
                 try await upload(item)
                 markSent(item)

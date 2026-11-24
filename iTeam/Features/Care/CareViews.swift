@@ -225,6 +225,7 @@ struct CareProfileView: View {
     @State private var addMed = false
     @State private var editEvent: HealthEvent?
     @State private var addEvent = false
+    @State private var newKind = HealthEventKind.injury
     @State private var addVault = false
     @State private var preview: URL?
     @State private var remindMe = true
@@ -256,6 +257,11 @@ struct CareProfileView: View {
                         if !p.relation.isEmpty { Text(p.relation).foregroundStyle(look.textSecondary) }
                         Text(p.createdBy == engine.me ? "Managed by you" : "Managed by \(engine.name(of: p.createdBy))")
                             .font(.caption2).foregroundStyle(look.textSecondary)
+                        if p.linkedUserID == engine.me {
+                            Label("This is your profile", systemImage: "person.crop.circle.badge.checkmark").font(.caption2).foregroundStyle(look.success)
+                        } else if !p.linkedUserID.isEmpty {
+                            Label("On iTeam: \(engine.name(of: p.linkedUserID))", systemImage: "checkmark.seal.fill").font(.caption2).foregroundStyle(look.success)
+                        }
                         if let conv = engine.conversation(p.convID) {
                             Button { router.show(conversation: conv.id) } label: {
                                 Label("Shared in \(conv.title)", systemImage: conv.isGroup ? "person.3" : "bubble.left").font(.caption)
@@ -275,6 +281,8 @@ struct CareProfileView: View {
             }
             .lookRows()
 
+            Section { medicalCard.listRowBackground(Color.clear).listRowInsets(EdgeInsets()) }
+
             let todays = meds.flatMap { m in m.schedule(on: .now).map { (m, $0) } }.sorted { $0.1 < $1.1 }
             if !todays.isEmpty {
                 Section("Today") {
@@ -287,9 +295,13 @@ struct CareProfileView: View {
                 ForEach(meds) { m in
                     Button { editMed = m } label: {
                         HStack {
-                            Image(systemName: "pills.fill").foregroundStyle(m.active ? look.accent : look.textSecondary)
+                            if let d = m.extra.photo, let img = UIImage(data: d) {
+                                Image(uiImage: img).resizable().scaledToFill().frame(width: 32, height: 32).clipShape(RoundedRectangle(cornerRadius: 8))
+                            } else {
+                                Image(systemName: "pills.fill").foregroundStyle(m.active ? look.accent : look.textSecondary)
+                            }
                             VStack(alignment: .leading, spacing: 2) {
-                                Text("\(m.name) \(m.dose)").font(.subheadline.weight(.semibold)).strikethrough(!m.active)
+                                Text("\(m.name) \(m.extra.strength.isEmpty ? m.dose : m.extra.strength)").font(.subheadline.weight(.semibold)).strikethrough(!m.active)
                                 Text(m.times.map(Medicine.timeLabel).joined(separator: ", ") + (m.instructions.isEmpty ? "" : " · \(m.instructions)"))
                                     .font(.caption).foregroundStyle(look.textSecondary)
                             }
@@ -304,11 +316,19 @@ struct CareProfileView: View {
             .lookRows()
 
             Section {
-                ForEach(events) { ev in
+                ForEach(events.filter(\.isInjury)) { ev in
                     Button { editEvent = ev } label: { eventRow(ev) }.buttonStyle(.plain)
                 }
-                Button { addEvent = true } label: { Label("Log injury or health event", systemImage: "plus.circle") }
-            } header: { Text("Injuries & health events") }
+                Button { newKind = .injury; addEvent = true } label: { Label("Log injury", systemImage: "plus.circle") }
+            } header: { Text("Injuries") }
+            .lookRows()
+
+            Section {
+                ForEach(events.filter { !$0.isInjury }) { ev in
+                    Button { editEvent = ev } label: { eventRow(ev) }.buttonStyle(.plain)
+                }
+                Button { newKind = .illness; addEvent = true } label: { Label("Add health event", systemImage: "plus.circle") }
+            } header: { Text("Major health events") } footer: { Text("Illness, surgery, hospital stays and emergencies — with diagnosis, doctor, hospital and follow-up.") }
             .lookRows()
 
             Section {
@@ -376,7 +396,7 @@ struct CareProfileView: View {
         .sheet(isPresented: $editProfile) { NavigationStack { CareProfileEditor(profile: p) { _ in } } }
         .sheet(isPresented: $addMed) { NavigationStack { MedicineEditor(profile: p, med: nil) } }
         .sheet(item: $editMed) { m in NavigationStack { MedicineEditor(profile: p, med: m) } }
-        .sheet(isPresented: $addEvent) { NavigationStack { HealthEventEditor(profile: p, event: nil) } }
+        .sheet(isPresented: $addEvent) { NavigationStack { HealthEventEditor(profile: p, event: nil, presetKind: newKind) } }
         .sheet(item: $editEvent) { ev in NavigationStack { HealthEventEditor(profile: p, event: ev) } }
         .sheet(isPresented: $addVault) { NavigationStack { VaultAddView(profile: p) } }
         .confirmationDialog("Delete \(p.name)'s care profile for everyone?", isPresented: $confirmDelete, titleVisibility: .visible) {
@@ -388,6 +408,39 @@ struct CareProfileView: View {
                 }
                 dismiss()
             }
+        }
+    }
+
+    private var billsTotal: Double {
+        events.reduce(0) { $0 + $1.extra.bill } + meds.filter { !$0.deleted }.reduce(0) { $0 + $1.extra.bill }
+    }
+
+    private var medicalCard: some View {
+        let current = meds.filter { $0.active && ($0.endDate.map { $0 >= Calendar.current.startOfDay(for: .now) } ?? true) }.count
+        let healing = events.filter { $0.isInjury && $0.status != "recovered" }.count
+        let major = events.filter { !$0.isInjury }.count
+        return VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                Text("Medical").font(.title3.bold())
+                Spacer()
+                if billsTotal > 0 { Text("Bills ₹\(Int(billsTotal).formatted())").font(.subheadline).foregroundStyle(look.textSecondary) }
+            }
+            medRow("cross.case.fill", [.red.opacity(0.8), .pink], "Medicines", "\(current) current")
+            medRow("bandage.fill", [.orange, .orange.opacity(0.7)], "Injuries", "\(healing) healing")
+            medRow("heart.text.square.fill", [.purple, .pink], "Major health events", "\(major) recorded")
+        }
+        .lookCard()
+        .padding(.vertical, 4)
+    }
+
+    private func medRow(_ icon: String, _ colors: [Color], _ title: String, _ value: String) -> some View {
+        HStack(spacing: 12) {
+            Image(systemName: icon).font(.headline).foregroundStyle(.white)
+                .frame(width: 38, height: 38)
+                .background(LinearGradient(colors: colors, startPoint: .topLeading, endPoint: .bottomTrailing), in: RoundedRectangle(cornerRadius: 10))
+            Text(title).font(.headline)
+            Spacer()
+            Text(value).font(.subheadline).foregroundStyle(look.textSecondary)
         }
     }
 
@@ -412,6 +465,13 @@ struct CareProfileView: View {
                 if ev.status != "recovered" {
                     ProgressView(value: Double(ev.recovery), total: 100).tint(color)
                     Text("\(ev.recovery)% recovered").font(.caption2).foregroundStyle(look.textSecondary)
+                }
+                let x = ev.extra
+                let facts = [x.bodyPart, x.treatments.prefix(3).joined(separator: ", "), x.doctor.isEmpty ? "" : "Dr. " + x.doctor,
+                             x.hospital, x.hospitalised ? "Hospitalised" : "", x.restrictions].filter { !$0.isEmpty }
+                if !facts.isEmpty { Text(facts.joined(separator: " · ")).font(.caption2).foregroundStyle(look.textSecondary).lineLimit(2) }
+                if let f = x.followUp, f > .now {
+                    Label("Follow-up \(f.formatted(date: .abbreviated, time: .shortened))", systemImage: "calendar.badge.clock").font(.caption2).foregroundStyle(look.accent)
                 }
                 if let last = ev.updates.last {
                     Text("“\(last.text)” — \(engine.name(of: last.by))").font(.caption2).italic().foregroundStyle(look.textSecondary)
@@ -442,6 +502,8 @@ struct CareProfileEditor: View {
     @State private var notes = ""
     @State private var avatar: Data?
     @State private var photo: PhotosPickerItem?
+    @State private var linkTo = ""
+    @Query(filter: #Predicate<Contact> { $0.saved && !$0.blocked }, sort: \Contact.name) private var contacts: [Contact]
 
     private let bloodGroups = ["", "A+", "A-", "B+", "B-", "AB+", "AB-", "O+", "O-"]
 
@@ -457,10 +519,31 @@ struct CareProfileEditor: View {
                 RelationPicker(relation: $relation)
             }
             .lookRows()
+            if presetRelation != "Pet" && relation != "Pet" {
+                Section {
+                    Picker("Pick an iTeam user", selection: $linkTo) {
+                        Text("Not on iTeam / later").tag("")
+                        ForEach(contacts.filter { !$0.userID.hasPrefix("demo_") && $0.userID != engine.me }, id: \.userID) { c in Text(c.name).tag(c.userID) }
+                    }
+                    .onChange(of: linkTo) { _, id in
+                        guard let c = contacts.first(where: { $0.userID == id }) else { return }
+                        if name.trimmingCharacters(in: .whitespaces).isEmpty { name = c.name }
+                        if avatar == nil { avatar = c.avatar }
+                        if profile == nil { chatID = SyncEngine.directID(engine.me, c.userID) }
+                    }
+                } header: { Text("Family member on iTeam") } footer: {
+                    Text(linkTo.isEmpty ? "Link them to share their medicines, injuries and reports with them — they get reminders and can mark doses themselves."
+                         : "Shared in your chat with \(contacts.first { $0.userID == linkTo }?.name ?? "them"). They see and update it, and get the alerts.")
+                }
+                .lookRows()
+            }
             if profile == nil {
                 Section {
                     Picker("Share in", selection: $chatID) {
                         Text("Only me (Notes to self)").tag("")
+                        if !linkTo.isEmpty, conversations.first(where: { $0.id == SyncEngine.directID(engine.me, linkTo) }) == nil {
+                            Text("Chat with \(contacts.first { $0.userID == linkTo }?.name ?? "them")").tag(SyncEngine.directID(engine.me, linkTo))
+                        }
                         ForEach(conversations.filter { !$0.left && !$0.id.hasPrefix("s_") }) { c in Text(c.title).tag(c.id) }
                     }
                 } header: {
@@ -486,12 +569,21 @@ struct CareProfileEditor: View {
             ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
             ToolbarItem(placement: .confirmationAction) {
                 Button("Save") {
-                    let conv = profile.flatMap { engine.conversation($0.convID) }
-                        ?? (chatID.isEmpty ? DemoChats.notesToSelf(engine) : engine.conversation(chatID))
+                    let linked = contacts.first { $0.userID == linkTo }
+                    var conv = profile.flatMap { engine.conversation($0.convID) }
+                        ?? (chatID.isEmpty ? DemoChats.notesToSelf(engine)
+                            : (engine.conversation(chatID) ?? (chatID == linked.map { SyncEngine.directID(engine.me, $0.userID) } ? linked.map { engine.directConversation(with: $0) } : nil)))
+                    // Linking a profile that was only on my phone: move it (and its history) into the chat with that person.
+                    if let p = profile, let linked, p.linkedUserID != linked.userID, let cur = conv, cur.id == engine.selfConversationID {
+                        let target = engine.directConversation(with: linked)
+                        engine.moveCareProfile(p, to: target)
+                        conv = target
+                    }
                     guard let conv else { return }
                     let id = engine.saveCareProfile(in: conv, id: profile?.id, name: name.trimmingCharacters(in: .whitespaces), relation: relation,
                                                     bloodGroup: bloodGroup, allergies: allergies, conditions: conditions,
-                                                    emergencyContact: emergency, notes: notes, avatar: avatar)
+                                                    emergencyContact: emergency, notes: notes, avatar: avatar,
+                                                    linkedUserID: linkTo.isEmpty ? (profile?.linkedUserID.isEmpty == false ? "" : nil) : linkTo)
                     Haptics.success()
                     dismiss()
                     onSaved(id)
@@ -505,6 +597,7 @@ struct CareProfileEditor: View {
             guard let p = profile else { return }
             name = p.name; relation = p.relation; bloodGroup = p.bloodGroup; allergies = p.allergies
             conditions = p.conditions; emergency = p.emergencyContact; notes = p.notes; avatar = p.avatar
+            linkTo = p.linkedUserID
         }
         .onChange(of: photo) { _, item in
             Task { if let d = try? await item?.loadTransferable(type: Data.self) { avatar = OnboardingView.avatarData(d) } }
@@ -515,7 +608,14 @@ struct CareProfileEditor: View {
 struct MedicineEditor: View {
     let profile: CareProfile
     let med: Medicine?
+    var linkedEventID: String = ""
+    var presetCause: String = ""
     @EnvironmentObject var engine: SyncEngine
+    @State private var mx = MedExtra()
+    @State private var medPhoto: PhotosPickerItem?
+    @State private var courseDays = 7
+    @State private var billText = ""
+    @Query private var profileEvents: [HealthEvent]
     @Environment(\.dismiss) private var dismiss
     @State private var name = ""
     @State private var dose = ""
@@ -548,15 +648,54 @@ struct MedicineEditor: View {
         if let v = o.str("duration"), let n = RxTiming.days(v) { hasEnd = true; end = Calendar.current.date(byAdding: .day, value: n, to: start) ?? end }
     }
 
+    private var events: [HealthEvent] { profileEvents.filter { $0.profileID == profile.id && !$0.deleted } }
+
+    private var summary: String {
+        let n = times.count
+        let freq = n == 1 ? "once a day" : n == 2 ? "twice a day" : "\(n) times a day"
+        let course = hasEnd ? "for \(max(1, (Calendar.current.dateComponents([.day], from: Calendar.current.startOfDay(for: start), to: Calendar.current.startOfDay(for: end)).day ?? 0) + 1)) days" : "ongoing"
+        return "\(name.isEmpty ? "Medicine" : name): \(freq), every day \(course)."
+    }
+
     var body: some View {
         Form {
             AIScanSection(spec: scanSpec, onApply: applyScan)
             Section {
-                TextField("Medicine name", text: $name).font(.title3)
-                TextField("Dose (e.g. 500 mg, 1 tablet, 5 ml)", text: $dose)
-                Picker("Form", selection: $form) { ForEach(forms, id: \.self) { Text($0).tag($0) } }
-                TextField("Instructions (e.g. After food)", text: $instructions)
+                HStack(spacing: 14) {
+                    Group {
+                        if let d = mx.photo, let img = UIImage(data: d) {
+                            Image(uiImage: img).resizable().scaledToFill()
+                        } else {
+                            Image(systemName: "pills.fill").font(.title).foregroundStyle(.white)
+                                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                                .background(LinearGradient(colors: [.red.opacity(0.75), .pink], startPoint: .topLeading, endPoint: .bottomTrailing))
+                        }
+                    }
+                    .frame(width: 64, height: 64).clipShape(RoundedRectangle(cornerRadius: 14))
+                    PhotosPicker(selection: $medPhoto, matching: .images) { Label("Photo of the medicine", systemImage: "camera.fill") }
+                }
+                Text(summary).font(.subheadline).foregroundStyle(.tint)
             }
+            .lookRows()
+            Section {
+                TextField("Name (e.g. Augmentin, Pan-D)", text: $name).font(.title3)
+                TextField("Strength (e.g. 625 mg, 40 mg)", text: $mx.strength)
+                TextField("Company / brand", text: $mx.brand)
+                Picker("Type", selection: $form) { ForEach(forms, id: \.self) { Text($0).tag($0) } }
+                TextField("Dose each time (e.g. 1 tablet)", text: $dose)
+                TextField("Instructions (e.g. after food, with water)", text: $instructions)
+            } header: { Text("Medicine") }
+            .lookRows()
+            Section {
+                TextField("Cause / condition (e.g. throat infection)", text: $mx.cause)
+                TextField("Doctor's name", text: $mx.doctor)
+                TextField("Doctor's phone (optional)", text: $mx.doctorPhone).keyboardType(.phonePad)
+                Picker("Linked to", selection: $mx.linkedEventID) {
+                    Text("Nothing").tag("")
+                    ForEach(events) { e in Text(e.title).tag(e.id) }
+                }
+                TextField("Cost ₹ (optional)", text: $billText).keyboardType(.decimalPad)
+            } header: { Text("Prescribed for") }
             .lookRows()
             Section {
                 ForEach(times.indices, id: \.self) { i in
@@ -576,8 +715,12 @@ struct MedicineEditor: View {
             .lookRows()
             Section {
                 DatePicker("Start", selection: $start, displayedComponents: .date)
-                Toggle("End date", isOn: $hasEnd.animation())
-                if hasEnd { DatePicker("Last day", selection: $end, in: start..., displayedComponents: .date) }
+                Toggle("Ongoing (no end date)", isOn: Binding(get: { !hasEnd }, set: { hasEnd = !$0 }).animation())
+                if hasEnd {
+                    Stepper("For \(courseDays) days", value: $courseDays, in: 1...365)
+                        .onChange(of: courseDays) { _, n in end = Calendar.current.date(byAdding: .day, value: n - 1, to: start) ?? end }
+                    DatePicker("Last day", selection: $end, in: start..., displayedComponents: .date)
+                }
                 TextField("Tablets / doses in stock (optional)", text: $stockText).keyboardType(.numberPad)
                 if med != nil { Toggle("Active", isOn: $active) }
             }
@@ -605,9 +748,11 @@ struct MedicineEditor: View {
                         let c = Calendar.current.dateComponents([.hour, .minute], from: d)
                         return (c.hour ?? 0) * 60 + (c.minute ?? 0)
                     }
+                    var extra = mx
+                    extra.bill = Double(billText.replacingOccurrences(of: ",", with: "")) ?? 0
                     engine.saveMedicine(profile, id: med?.id, name: name.trimmingCharacters(in: .whitespaces), dose: dose, form: form,
                                         times: Array(Set(minutes)), instructions: instructions, startDate: start,
-                                        endDate: hasEnd ? end : nil, stock: Int(stockText), active: active)
+                                        endDate: hasEnd ? end : nil, stock: Int(stockText), active: active, extra: extra)
                     Haptics.success()
                     dismiss()
                 }
@@ -619,10 +764,26 @@ struct MedicineEditor: View {
             if let m = med {
                 name = m.name; dose = m.dose; form = m.form; instructions = m.instructions; start = m.startDate
                 times = m.times.map(date); active = m.active
-                if let e = m.endDate { hasEnd = true; end = e }
+                if let e = m.endDate {
+                    hasEnd = true; end = e
+                    courseDays = max(1, (Calendar.current.dateComponents([.day], from: Calendar.current.startOfDay(for: m.startDate), to: Calendar.current.startOfDay(for: e)).day ?? 6) + 1)
+                }
                 if let s = m.stock { stockText = "\(s)" }
+                mx = m.extra
+                if mx.bill > 0 { billText = String(format: "%.0f", mx.bill) }
             } else if times.isEmpty {
                 times = [date(540)]
+                hasEnd = true
+                end = Calendar.current.date(byAdding: .day, value: courseDays - 1, to: start) ?? end
+                mx.linkedEventID = linkedEventID
+                mx.cause = presetCause
+            }
+        }
+        .onChange(of: medPhoto) { _, item in
+            Task {
+                if let d = try? await item?.loadTransferable(type: Data.self), let img = UIImage(data: d) {
+                    mx.photo = img.scaled(maxSide: 360).jpegData(compressionQuality: 0.6)
+                }
             }
         }
     }
@@ -635,7 +796,16 @@ struct MedicineEditor: View {
 struct HealthEventEditor: View {
     let profile: CareProfile
     let event: HealthEvent?
+    var presetKind: HealthEventKind? = nil
     @EnvironmentObject var engine: SyncEngine
+    @State private var x = HealthExtra()
+    @State private var eventID = UUID().uuidString
+    @State private var hasEnded = false
+    @State private var hasFollowUp = false
+    @State private var billText = ""
+    @State private var addMed = false
+    @State private var editMed: Medicine?
+    @Query private var allMeds: [Medicine]
     @Environment(\.dismiss) private var dismiss
     @Environment(\.look) private var look
     @State private var kind = HealthEventKind.injury
@@ -663,25 +833,92 @@ struct HealthEventEditor: View {
         for p in o.files { pending.add(p) }
     }
 
+    private var linkedMeds: [Medicine] {
+        allMeds.filter { !$0.deleted && $0.extra.linkedEventID == eventID }
+    }
+
     var body: some View {
         Form {
             AIScanSection(spec: scanSpec, onApply: applyScan)
             Section {
+                TextField(kind == .injury ? "Title (e.g. Sprained right ankle)" : "Name (e.g. Appendix surgery, Dengue)", text: $title, axis: .vertical)
                 Picker("Type", selection: $kind) {
                     ForEach(HealthEventKind.allCases, id: \.self) { Label($0.title, systemImage: $0.icon).tag($0) }
                 }
-                TextField("What happened? (e.g. Fractured left wrist)", text: $title, axis: .vertical)
-                TextField("Details, doctor, hospital…", text: $details, axis: .vertical).lineLimit(2...6)
-                DatePicker("When", selection: $date)
+                if kind == .injury {
+                    TextField("Body part", text: $x.bodyPart)
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        HStack {
+                            ForEach(HealthExtra.bodyParts, id: \.self) { part in
+                                Button(part) { x.bodyPart = part; Haptics.tap() }
+                                    .buttonStyle(.bordered).tint(x.bodyPart == part ? .accentColor : .gray)
+                            }
+                        }
+                    }
+                }
+                DatePicker(kind == .injury ? "When" : "Started / date", selection: $date)
+                TextField(kind == .injury ? "How it happened (e.g. during squats at the gym)" : "Details", text: $details, axis: .vertical).lineLimit(2...6)
+                if kind != .injury {
+                    Toggle("Has ended", isOn: $hasEnded.animation())
+                    if hasEnded { DatePicker("Ended", selection: Binding(get: { x.ended ?? .now }, set: { x.ended = $0 }), displayedComponents: .date) }
+                }
                 Picker("Severity", selection: $severity) {
-                    Text("Mild").tag(1); Text("Moderate").tag(2); Text("Severe").tag(3)
+                    Text("Minor").tag(1); Text("Moderate").tag(2); Text("Severe").tag(3)
                 }
                 .pickerStyle(.segmented)
+            } header: { Text(kind == .injury ? "What happened" : "Event") }
+            .lookRows()
+            if kind == .injury {
+                Section {
+                    LazyVGrid(columns: [GridItem(.flexible(), alignment: .leading), GridItem(.flexible(), alignment: .leading)], spacing: 10) {
+                        ForEach(HealthExtra.treatmentOptions, id: \.self) { t in
+                            Button {
+                                if let i = x.treatments.firstIndex(of: t) { x.treatments.remove(at: i) } else { x.treatments.append(t) }
+                                Haptics.tap()
+                            } label: {
+                                Label(t, systemImage: x.treatments.contains(t) ? "checkmark.circle.fill" : "circle")
+                                    .font(.subheadline).foregroundStyle(.primary)
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+                    .padding(.vertical, 4)
+                    TextField("Doctor", text: $x.doctor)
+                    TextField("Hospital / clinic", text: $x.hospital)
+                    Toggle("Hospitalised", isOn: $x.hospitalised)
+                } header: { Text("Treatment") }
+                .lookRows()
+            } else {
+                Section {
+                    TextField("Diagnosis", text: $x.diagnosis, axis: .vertical)
+                    TextField("Procedure (e.g. laparoscopic appendectomy)", text: $x.procedure, axis: .vertical)
+                    TextField("Doctor's name", text: $x.doctor)
+                    TextField("Speciality (e.g. orthopaedic surgeon)", text: $x.speciality)
+                    TextField("Hospital", text: $x.hospital)
+                    Toggle("Hospitalised", isOn: $x.hospitalised)
+                    Toggle("Follow-up appointment", isOn: $hasFollowUp.animation())
+                    if hasFollowUp { DatePicker("Follow-up", selection: Binding(get: { x.followUp ?? .now.addingTimeInterval(7 * 86400) }, set: { x.followUp = $0 })) }
+                } header: { Text("Medical details") }
+                .lookRows()
+            }
+            Section {
+                TextField("Medical bills ₹ (optional)", text: $billText).keyboardType(.decimalPad)
+            } footer: { Text("Bills add up in the Medical card on the profile.") }
+            .lookRows()
+            Section {
+                ForEach(linkedMeds) { m in
+                    Button { editMed = m } label: {
+                        Label("\(m.name) \(m.extra.strength.isEmpty ? m.dose : m.extra.strength)", systemImage: "pills.fill")
+                    }
+                }
+                Button { addMed = true } label: { Label("Add a medicine for this", systemImage: "plus.circle.fill") }
+            } header: { Text("Medicines (\(linkedMeds.count))") } footer: {
+                Text("Medicines added here also appear in Medicines, with reminders and dose tracking.")
             }
             .lookRows()
             Section {
                 Picker("Status", selection: $status) {
-                    Text("Ongoing").tag("ongoing"); Text("Recovering").tag("recovering"); Text("Recovered").tag("recovered")
+                    Text(kind == .injury ? "Active" : "Under treatment").tag("ongoing"); Text("Recovering").tag("recovering"); Text(kind == .injury ? "Healed" : "Recovered").tag("recovered")
                 }
                 .pickerStyle(.segmented)
                 if status != "recovered" {
@@ -692,6 +929,9 @@ struct HealthEventEditor: View {
                 }
                 if event != nil {
                     TextField("Progress update for everyone (e.g. Plaster removed)", text: $update, axis: .vertical)
+                }
+                if kind == .injury {
+                    TextField("Restrictions (e.g. no running for 3 weeks)", text: $x.restrictions, axis: .vertical)
                 }
             } header: { Text("Recovery") }
             .lookRows()
@@ -710,7 +950,7 @@ struct HealthEventEditor: View {
                 if let event, !event.attachments.isEmpty {
                     ScrollView(.horizontal) { HStack { ForEach(event.attachments) { AttachmentThumb(ref: $0) } } }
                 }
-                AttachmentAdder(pending: $pending, title: "Add photo, X-ray or report")
+                AttachmentAdder(pending: $pending, title: "Add photo, report or bill")
             }
             .lookRows()
             if let event {
@@ -732,18 +972,30 @@ struct HealthEventEditor: View {
             }
         }
         .onAppear {
-            guard let e = event else { return }
+            guard let e = event else { if let k = presetKind { kind = k }; return }
             kind = e.kindValue; title = e.title; details = e.details; date = e.date
             severity = e.severity; status = e.status; recovery = Double(e.recovery)
+            eventID = e.id
+            x = e.extra
+            hasEnded = x.ended != nil
+            hasFollowUp = x.followUp != nil
+            if x.bill > 0 { billText = String(format: "%.0f", x.bill) }
         }
+        .sheet(isPresented: $addMed) { NavigationStack { MedicineEditor(profile: profile, med: nil, linkedEventID: eventID, presetCause: title) } }
+        .sheet(item: $editMed) { m in NavigationStack { MedicineEditor(profile: profile, med: m) } }
     }
 
     private func save(event: HealthEvent?, deleted: Bool) {
         let rec = status == "recovered" ? 100 : Int(recovery)
-        engine.saveHealthEvent(profile, existing: event, kind: kind.rawValue, title: title.trimmingCharacters(in: .whitespaces),
+        var extra = x
+        if !hasEnded { extra.ended = nil }
+        if !hasFollowUp { extra.followUp = nil }
+        extra.bill = Double(billText.replacingOccurrences(of: ",", with: "")) ?? 0
+        engine.saveHealthEvent(profile, existing: event, id: eventID, kind: kind.rawValue, title: title.trimmingCharacters(in: .whitespaces),
                                details: details, date: date, severity: severity, status: status, recovery: rec,
                                update: update.trimmingCharacters(in: .whitespaces).isEmpty ? nil : update,
-                               attachments: (event?.attachments ?? []) + pending.refs, uploads: pending.uploads, deleted: deleted)
+                               attachments: (event?.attachments ?? []) + pending.refs, uploads: pending.uploads, deleted: deleted,
+                               extra: extra)
         Haptics.success()
         dismiss()
     }

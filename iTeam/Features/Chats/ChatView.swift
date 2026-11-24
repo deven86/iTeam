@@ -302,9 +302,14 @@ struct ChatView: View {
         }
         .onReceive(ticker) { _ in MagicMoments.tick(engine) }
         .task {
-            if !conv.isGroup, let peer = conv.peerID, peer != engine.me, !conv.isDemo {
-                let profile = try? await engine.cloud.fetchProfile(peer)
-                lastSeen = profile.flatMap { $0 }?.seen
+            // Live "online / last seen" while the chat is open (only when I share mine too).
+            while !Task.isCancelled, !conv.isGroup, let peer = conv.peerID, peer != engine.me, !conv.isDemo {
+                if MyDetails.lastSeenEveryone {
+                    let seen = await engine.cloud.fetchSeen([peer])[peer]
+                    lastSeen = seen
+                    if let seen, let c = engine.contact(peer) { c.lastSeen = seen }
+                }
+                try? await Task.sleep(for: .seconds(40))
             }
         }
         .sheet(isPresented: $showCheckIn) { NavigationStack { CheckInSheet(conv: conv) } }
@@ -359,15 +364,23 @@ struct ChatView: View {
         default:
             let timer = conv.timer > 0 ? "⏱ \(MyDetails.timerName(conv.timer)) · " : ""
             if conv.isGroup { return timer + "\(conv.members.count) members · tap for info" }
-            if let p = conv.peerID, let c = engine.contact(p), !c.nowPlaying.isEmpty,
-               Date.now.timeIntervalSince(c.nowPlayingAt ?? .distantPast) < 15 * 60 {
-                return timer + "🎵 " + c.nowPlaying
+            let contact = conv.peerID.flatMap { engine.contact($0) }
+            var music = ""
+            if let c = contact, !c.nowPlaying.isEmpty, Date.now.timeIntervalSince(c.nowPlayingAt ?? .distantPast) < 15 * 60 {
+                music = "🎵 " + c.nowPlaying
             }
-            if let seen = lastSeen {
-                if Date.now.timeIntervalSince(seen) < 180 { return timer + "online" }
-                return timer + "last seen " + (Calendar.current.isDateInToday(seen) ? "today at \(seen.formatted(date: .omitted, time: .shortened))"
+            let seenAt = [lastSeen, contact?.lastSeen].compactMap { $0 }.max()
+            var presence = ""
+            if let seen = seenAt {
+                if Date.now.timeIntervalSince(seen) < 180 { presence = "online" }
+                else {
+                    presence = "last seen " + (Calendar.current.isDateInToday(seen) ? "today at \(seen.formatted(date: .omitted, time: .shortened))"
+                                               : Calendar.current.isDateInYesterday(seen) ? "yesterday at \(seen.formatted(date: .omitted, time: .shortened))"
                                                : seen.formatted(date: .abbreviated, time: .shortened))
+                }
             }
+            let line = [presence, music].filter { !$0.isEmpty }.joined(separator: " · ")
+            if !line.isEmpty { return timer + line }
             return timer + "End-to-end encrypted · tap for info"
         }
     }
@@ -536,7 +549,7 @@ struct ChatView: View {
             }
             guard let data = try? await item.loadTransferable(type: Data.self) else { continue }
             do {
-                let p = try Attachments.prepareImage(data, original: Attachments.sendOriginal)
+                let p = try await Attachments.prepareImageAsync(data, original: Attachments.sendOriginal)
                 refs.append(p.ref)
                 uploads[p.upload.0] = p.upload.1
             } catch {

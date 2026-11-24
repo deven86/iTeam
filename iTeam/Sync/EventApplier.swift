@@ -312,6 +312,7 @@ struct EventApplier {
             if let prof = try? ctx.fetch(FetchDescriptor<CareProfile>(predicate: #Predicate { $0.id == cid })).first {
                 guard c.at > prof.updatedAt else { return .ignored }
                 if c.deleted && !prof.deleted && e.from != prof.createdBy { return .ignored }   // only the creator deletes
+                if e.from == prof.createdBy, prof.convID != conv.id { prof.convID = conv.id }   // moved into another chat
                 fillProfile(prof, c)
             } else {
                 let prof = CareProfile(id: c.id, convID: conv.id, name: c.name, createdBy: e.from)
@@ -811,6 +812,41 @@ struct EventApplier {
         case .nowPlaying(let text):
             if e.from != me, let c = engine.contact(e.from), !c.blocked { c.nowPlaying = text; c.nowPlayingAt = e.at }
 
+        case .person(let p):
+            guard e.from == me else { return .ignored }   // my own People list only
+            let pid = p.id
+            let person = (try? ctx.fetch(FetchDescriptor<Person>(predicate: #Predicate { $0.id == pid })).first) ?? {
+                let n = Person(id: p.id, name: p.name, ownerID: me); ctx.insert(n); return n
+            }()
+            guard p.at > person.updatedAt else { return .ignored }
+            person.name = p.name; person.phone = p.phone; person.note = p.note
+            person.linkedUserID = p.linkedUserID; person.state = p.state
+            person.deleted = p.deleted; person.updatedAt = p.at
+
+        case .personClaim(let c):
+            guard e.from != me else { break }
+            let pid = c.id
+            let person = (try? ctx.fetch(FetchDescriptor<Person>(predicate: #Predicate { $0.id == pid })).first) ?? {
+                let n = Person(id: c.id, name: c.name, ownerID: e.from); ctx.insert(n); return n
+            }()
+            person.name = c.name; person.note = c.note; person.linkedUserID = me
+            if person.state != "accepted" { person.state = "invited" }
+            person.updatedAt = e.at
+            if !local {
+                ctx.insert(ActivityItem(kind: .taskAssigned, text: "🪪 \(engine.name(of: e.from)) added you as “\(c.name)” — accept to see everything under that name",
+                                        convID: conv?.id, actorID: e.from, date: e.at))
+            }
+
+        case .personClaimAnswer(let pid, let accept):
+            guard let person = try? ctx.fetch(FetchDescriptor<Person>(predicate: #Predicate { $0.id == pid })).first else { return .ignored }
+            // Only the invited person can answer; both phones record it.
+            guard e.from == person.linkedUserID || (e.from == me && person.linkedUserID == me) else { return .ignored }
+            person.state = accept ? "accepted" : "declined"
+            person.updatedAt = e.at
+            if person.ownerID == me && e.from != me && accept && !local {
+                Task { @MainActor in engine.completeClaim(person) }
+            }
+
         case .chatTimer(let seconds):
             guard let conv else { return .ignored }
             conv.timer = seconds
@@ -912,6 +948,7 @@ struct EventApplier {
         t.repeatRule = p.repeatRule ?? "none"
         t.needsAcceptance = p.needsAcceptance ?? false
         if let fu = p.followUp { t.followUpRaw = fu }
+        if let pp = p.people { t.peopleRaw = pp }
         ctx.insert(t)
         if let src = p.sourceMessageID, let m = engine.message(src) { m.taskID = t.id }
         if let convID, let conv = engine.conversation(convID) {
@@ -957,6 +994,7 @@ struct EventApplier {
         p.notes = c.notes
         if let a = c.avatar { p.avatar = a }
         p.deleted = c.deleted
+        if let u = c.linkedUserID { p.linkedUserID = u }
         p.updatedAt = c.at
     }
 
@@ -972,6 +1010,7 @@ struct EventApplier {
         med.active = m.active
         med.deleted = m.deleted
         med.updatedAt = m.at
+        if let x = m.medExtra { med.extra = x }
     }
 
     private func fillEvent(_ ev: HealthEvent, _ h: HealthEventPayload, from: String) {
@@ -983,6 +1022,7 @@ struct EventApplier {
         ev.status = h.status
         ev.recovery = h.recovery
         ev.deleted = h.deleted
+        if let x = h.extra { ev.extra = x }
         if !h.attachments.isEmpty { ev.attachments = h.attachments }
         if let u = h.update, !u.isEmpty {
             var list = ev.updates
@@ -1016,6 +1056,11 @@ struct EventApplier {
             task = engine.task(c.taskID)
             // Only ticks are worth a line; adding or renaming steps would flood the chat.
             if !c.deleted && c.done, let t = task { line = "☑︎ \(who) ticked “\(c.title)” in “\(t.title)”" }
+        case .personClaim(let c):
+            line = "🪪 \(who) invited \(e.from == me ? "them" : "you") to claim “\(c.name)”"
+        case .personClaimAnswer(let pid, let accept):
+            let n = (try? ctx.fetch(FetchDescriptor<Person>(predicate: #Predicate { $0.id == pid })).first)?.name ?? "the name"
+            line = "🪪 \(who) \(accept ? "accepted" : "declined") “\(n)”"
         case .taskAccept(let taskID, let accept, let note):
             task = engine.task(taskID)
             if let t = task { line = "\(accept ? "🤝" : "✋") \(who) \(accept ? "accepted" : "declined") the task “\(t.title)”\(note.isEmpty ? "" : " — " + note)" }

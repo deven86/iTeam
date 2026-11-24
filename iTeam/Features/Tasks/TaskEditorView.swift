@@ -23,6 +23,14 @@ struct TaskEditorView: View {
 
     private var chat: Conversation? { conversations.first { $0.id == chatID } }
 
+    private var draftPeople: [(String, String)] {
+        draft.peopleRaw.split(separator: "\n").compactMap { l in
+            let p = l.split(separator: "|", maxSplits: 1).map(String.init)
+            return p.count == 2 ? (p[0], p[1]) : nil
+        }
+    }
+    private func setPeople(_ list: [(String, String)]) { draft.peopleRaw = list.map { "\($0.0)|\($0.1)" }.joined(separator: "\n") }
+
     var body: some View {
         Form {
             Section {
@@ -103,6 +111,23 @@ struct TaskEditorView: View {
                 }
                 .lookRows()
             }
+
+            Section {
+                ForEach(draftPeople, id: \.0) { item in
+                    HStack {
+                        Label(item.1, systemImage: "person.crop.rectangle")
+                        Spacer()
+                        Button { setPeople(draftPeople.filter { $0.0 != item.0 }) } label: { Image(systemName: "minus.circle.fill").foregroundStyle(.red) }
+                            .buttonStyle(.plain)
+                    }
+                }
+                PersonPickerMenu(title: "Add someone not on iTeam") { _, id, name in
+                    if !draftPeople.contains(where: { $0.0 == id }) { setPeople(draftPeople + [(id, name)]) }
+                }
+            } header: { Text("Also for (not on iTeam)") } footer: {
+                Text("E.g. a driver or a client without iTeam. When they join and claim their name, the task is assigned to them.")
+            }
+            .lookRows()
 
             Section("When") {
                 Toggle("Due date", isOn: $hasDue.animation())

@@ -31,20 +31,20 @@ enum Attachments {
         var upload: (String, String)
     }
 
-    private static func dir(_ name: String) -> URL {
+    nonisolated private static func dir(_ name: String) -> URL {
         let d = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
             .appendingPathComponent(name, isDirectory: true)
         try? FileManager.default.createDirectory(at: d, withIntermediateDirectories: true)
         return d
     }
 
-    static func outgoingURL(_ name: String) -> URL { dir("Outgoing").appendingPathComponent(name) }
-    static func cacheURL(_ ref: AttachmentRef) -> URL {
+    nonisolated static func outgoingURL(_ name: String) -> URL { dir("Outgoing").appendingPathComponent(name) }
+    nonisolated static func cacheURL(_ ref: AttachmentRef) -> URL {
         let ext = (ref.name as NSString).pathExtension
         return dir("Attachments").appendingPathComponent(ext.isEmpty ? ref.id : "\(ref.id).\(ext)")
     }
 
-    static func prepareImage(_ data: Data, original: Bool = false) throws -> Prepared {
+    nonisolated static func prepareImage(_ data: Data, original: Bool = false) throws -> Prepared {
         guard let img = UIImage(data: data) else { throw Failure.unreadable }
         if original {
             // Untouched file: full resolution, EXIF date/location/camera kept.
@@ -66,8 +66,13 @@ enum Attachments {
         return p
     }
 
+    /// Same as prepareImage, but scaled, compressed and encrypted off the main thread so the chat never freezes.
+    static func prepareImageAsync(_ data: Data, original: Bool = false) async throws -> Prepared {
+        try await Task.detached(priority: .userInitiated) { try Attachments.prepareImage(data, original: original) }.value
+    }
+
     /// Recognises the real format of an image file from its first bytes.
-    static func imageType(_ d: Data) -> (String, String) {
+    nonisolated static func imageType(_ d: Data) -> (String, String) {
         let b = [UInt8](d.prefix(16))
         if b.count >= 4, b[0] == 0x89, b[1] == 0x50, b[2] == 0x4E, b[3] == 0x47 { return ("png", "image/png") }
         if b.count >= 3, b[0] == 0xFF, b[1] == 0xD8, b[2] == 0xFF { return ("jpg", "image/jpeg") }
@@ -88,7 +93,7 @@ enum Attachments {
         return try prepare(data, name: url.lastPathComponent, mime: mime, kind: "file")
     }
 
-    static func prepare(_ plain: Data, name: String, mime: String, kind: String) throws -> Prepared {
+    nonisolated static func prepare(_ plain: Data, name: String, mime: String, kind: String) throws -> Prepared {
         guard plain.count <= maxFileBytes else { throw Failure.tooLarge }
         let key = SymmetricKey(size: .bits256)
         let sealed = try E2E.seal(plain, key: key)

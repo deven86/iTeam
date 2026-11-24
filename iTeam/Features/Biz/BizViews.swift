@@ -758,8 +758,17 @@ struct BizEditor: View {
                         Text("Not on iTeam / later").tag("")
                         ForEach(contacts.filter { !$0.userID.hasPrefix("demo_") }, id: \.userID) { c in Text(c.name).tag(c.userID) }
                     }
+                    if linkTo.isEmpty {
+                        PersonPickerMenu(title: extra["personID"].map { _ in "Change person" } ?? "Not on iTeam? Pick from People") { person, id, name in
+                            extra["personID"] = id
+                            if title.trimmingCharacters(in: .whitespaces).isEmpty || title == extra["personName"] { title = name }
+                            extra["personName"] = name
+                            if let ph = person?.phone, !ph.isEmpty, phone.isEmpty { phone = ph }
+                        }
+                        if let n = extra["personName"] { Label("Filed under \(n) (People)", systemImage: "person.crop.rectangle").font(.caption) }
+                    }
                 } footer: {
-                    Text("A linked \(spec.clientWord) sees only their own records and gets notifications — they never pay for the module.")
+                    Text("A linked \(spec.clientWord) sees only their own records and gets notifications — they never pay for the module. Not on iTeam yet? Pick them from People — when they join and accept, these records are shared with them.")
                 }
             }
             Section(kind.label) {
@@ -1128,7 +1137,7 @@ struct BizAISection: View {
             if let d = r.due { bits.append("due " + d.formatted(date: .abbreviated, time: .omitted)) }
             if !r.status.isEmpty { bits.append(r.status) }
             if !r.notes.isEmpty { bits.append("notes: " + String(r.notes.prefix(600))) }
-            for (k, v) in r.extra where !v.isEmpty { bits.append("\(k): \(v)") }
+            for (k, v) in r.extra where !v.isEmpty && k != "personID" && k != "personName" { bits.append("\(k): \(v)") }
             return bits.joined(separator: " · ")
         }
         let kids = children.sorted { ($0.date ?? $0.due ?? $0.createdAt) < ($1.date ?? $1.due ?? $1.createdAt) }.suffix(40)

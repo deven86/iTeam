@@ -93,7 +93,29 @@ struct Event: Codable {
         /// Surveys and responses.
         case survey(SurveyPayload)
         case doc(DocPayload)
+        /// My People list (names not on iTeam) — only to my own devices.
+        case person(PersonPayload)
+        /// "X added you as <name>" — accept to receive everything under that name.
+        case personClaim(PersonClaimPayload)
+        case personClaimAnswer(personID: String, accept: Bool)
     }
+}
+
+struct PersonPayload: Codable {
+    var id: String
+    var name: String
+    var phone: String
+    var note: String
+    var linkedUserID: String
+    var state: String
+    var deleted: Bool
+    var at: Date
+}
+
+struct PersonClaimPayload: Codable {
+    var id: String
+    var name: String
+    var note: String
 }
 
 struct MessagePayload: Codable {
@@ -143,6 +165,8 @@ struct TaskPayload: Codable {
     var followUp: String? = nil
     /// Set at creation: assigned to specific people, who must accept.
     var needsAcceptance: Bool? = nil
+    /// People not on iTeam ("personID|Name" per line). nil from older versions = unchanged.
+    var people: String? = nil
 }
 
 struct ChecklistPayload: Codable {
@@ -243,6 +267,8 @@ struct CareProfilePayload: Codable {
     var avatar: Data?
     var deleted: Bool
     var at: Date
+    /// The iTeam user this profile belongs to (they see and update it).
+    var linkedUserID: String? = nil
 }
 
 struct MedicinePayload: Codable {
@@ -260,6 +286,7 @@ struct MedicinePayload: Codable {
     var active: Bool
     var deleted: Bool
     var at: Date
+    var medExtra: MedExtra? = nil
 }
 
 struct DosePayload: Codable {
@@ -289,6 +316,7 @@ struct HealthEventPayload: Codable {
     var attachments: [AttachmentRef]
     var deleted: Bool
     var at: Date
+    var extra: HealthExtra? = nil
 }
 
 struct VaultPayload: Codable {
@@ -311,13 +339,13 @@ struct KeyShare: Codable {
 
 extension TaskItem {
     /// Shared fields that take part in last-writer-wins merging.
-    static let sharedFields = ["title", "notes", "status", "priority", "dueAt", "policy", "assignees", "repeat", "followUp"]
+    static let sharedFields = ["title", "notes", "status", "priority", "dueAt", "policy", "assignees", "repeat", "followUp", "people"]
 
     var payload: TaskPayload {
         TaskPayload(id: id, sourceMessageID: sourceMessageID, title: title, notes: notes, status: status, priority: priority,
                     dueAt: dueAt, policy: policy, assignees: assignees, createdBy: createdBy, createdAt: createdAt,
                     completedAt: completedAt, completedBy: completedBy, stamps: stamps, change: nil, repeatRule: repeatRule,
-                    followUp: followUpRaw, needsAcceptance: needsAcceptance ? true : nil)
+                    followUp: followUpRaw, needsAcceptance: needsAcceptance ? true : nil, people: peopleRaw)
     }
 
     /// Takes each field from `p` when its stamp is newer than ours. Returns the names of fields that changed.
@@ -348,6 +376,9 @@ extension TaskItem {
                 // Older versions don't send it; never let their silence switch a follow-up off.
                 guard let fu = p.followUp else { break }
                 if followUpRaw != fu { followUpRaw = fu; changed.append(f) }
+            case "people":
+                guard let pp = p.people else { break }
+                if peopleRaw != pp { peopleRaw = pp; changed.append(f) }
             default: break
             }
         }

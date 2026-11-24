@@ -150,6 +150,7 @@ struct SettingsView: View {
                     Toggle(isOn: $lock.lockEnabled) { Label("Lock with \(lock.biometryName)", systemImage: "faceid") }
                     LabeledContent("Your security code", value: E2E.fingerprint(engine.myPublicKey)).font(.callout)
                     NavigationLink { ContactsListView() } label: { Label("Contacts (\(contacts.count))", systemImage: "person.2") }
+                    NavigationLink { PeopleView() } label: { Label("People not on iTeam", systemImage: "person.crop.rectangle.stack") }
                     if !blocked.isEmpty {
                         NavigationLink { BlockedView() } label: { Label("Blocked (\(blocked.count))", systemImage: "hand.raised") }
                     }

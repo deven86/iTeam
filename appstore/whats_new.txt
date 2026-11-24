@@ -1,0 +1,16 @@
+Big update — new modules, smarter tools and many fixes.
+
+NEW
+• Documents in every module: a proper case file with folders, numbering, index PDF and safe open/share
+• Scan & fill: scan a bill, prescription, visiting card or form and iTeam fills the fields for you (Apple Intelligence, on device)
+• New modules: Stock & Inventory (QR labels), Admissions, Vendors & Contracts, Procurement, My Home, Lost & Found
+• Private grievances to admins and Transfer duties before leaving a group
+• My Progress: daily challenges, badges and a productivity score
+• Gym: iLife-style daily and weekly reports, morning planner and night review
+• Business Autopilot (optional, off by default): an AI assistant that answers client questions from your module records, clearly marked as the assistant
+
+FIXED
+• Gym workout no longer freezes or crashes
+• File screens no longer close on their own; tapping a file no longer crashes the app
+• Demo entries now delete completely
+• Clearer help when Apple Health shows no data

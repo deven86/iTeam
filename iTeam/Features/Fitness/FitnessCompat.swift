@@ -116,11 +116,14 @@ struct HealthStrip: View {
     var body: some View {
         Group {
             if connected {
-                HStack {
-                    item("figure.walk", "\(Int(health.steps))", "steps")
-                    item("flame.fill", "\(Int(health.activeCalories))", "kcal")
-                    item("bed.double.fill", String(format: "%.1f", health.sleepHours), "h sleep")
-                    item("heart.fill", health.restingHeartRate > 0 ? "\(Int(health.restingHeartRate))" : "–", "rest bpm")
+                VStack(spacing: 6) {
+                    HStack {
+                        item("figure.walk", "\(Int(health.steps))", "steps")
+                        item("flame.fill", "\(Int(health.activeCalories))", "kcal")
+                        item("bed.double.fill", String(format: "%.1f", health.sleepHours), "h sleep")
+                        item("heart.fill", health.restingHeartRate > 0 ? "\(Int(health.restingHeartRate))" : "–", "rest bpm")
+                    }
+                    if noData { noDataHelp }
                 }
             } else {
                 Button {
@@ -137,6 +140,27 @@ struct HealthStrip: View {
     private func refresh() async {
         await health.refreshToday()
         await health.importWorkouts(into: context, notify: false)
+    }
+
+    /// All zeros usually means Health access was refused (iOS never tells the app).
+    private var noData: Bool {
+        health.steps == 0 && health.activeCalories == 0 && health.sleepHours == 0 && health.restingHeartRate == 0
+    }
+
+    private var noDataHelp: some View {
+        VStack(spacing: 4) {
+            Text("Seeing zeros? Allow iTeam in Health: Health app → your photo → Apps → iTeam Chat → Turn On All.")
+                .font(.caption2).foregroundStyle(.secondary).multilineTextAlignment(.center)
+            HStack(spacing: 10) {
+                Button("Open Health") {
+                    if let u = URL(string: "x-apple-health://") { UIApplication.shared.open(u) }
+                }
+                Button("Ask again") {
+                    Task { await health.requestAuthorization(); await refresh() }
+                }
+            }
+            .font(.caption.weight(.semibold)).buttonStyle(.glass)
+        }
     }
 
     private func item(_ icon: String, _ value: String, _ label: String) -> some View {

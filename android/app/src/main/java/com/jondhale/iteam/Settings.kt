@@ -127,7 +127,7 @@ fun SettingsTab(app: AppState, open: (Page) -> Unit) {
                 HorizontalDivider()
                 Row1(Icons.Default.Share, "Invite friends", "One link for iPhone and Android") {
                     val i = android.content.Intent(android.content.Intent.ACTION_SEND).setType("text/plain").putExtra(android.content.Intent.EXTRA_TEXT,
-                        "Join me on iTeam — chat, tasks and business in one app 🚀\n\nDownload (iPhone & Android): https://deven86.github.io/iTeam/\n\nThen add me: ${app.sync.inviteLink()}")
+                        "Join me on iTeam — chat, tasks and business in one app 🚀\n\nDownload (iPhone & Android): https://deven86.github.io/iteam-web/\n\nThen add me: ${app.sync.inviteLink()}")
                     ctx.startActivity(android.content.Intent.createChooser(i, "Invite friends"))
                 }
                 Row1(Icons.Default.NearMe, "People & businesses nearby") { open(Page.Nearby) }

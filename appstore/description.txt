@@ -21,7 +21,15 @@ CORE MODULES (FREE FOR LIFE)
 PROFESSIONAL MODULES (FREE FOR THE FIRST YEAR)
 • Finance Pro: approvals, recurring payments, bank CSV import, Tally export
 • Legal practice, Clinic, Tuition, Rent, Khata, Gym & Training, Survey and more
+• Stock & Inventory with QR labels, Admissions, Vendors & Contracts, Procurement
+• My Home, Lost & Found and private grievances
 • Every module opens on a dashboard and exports branded PDF reports with charts
+
+SMART TOOLS
+• Documents: a case file in every module with folders, numbering and an index PDF
+• Scan & fill: scan a bill, prescription or visiting card and the fields fill themselves
+• My Progress: daily challenges, badges and a productivity score
+• Optional AI assistant that answers clients from your records, always marked as the assistant
 
 BUILT FOR TEAMS
 • Assignments need the person's acceptance

@@ -131,6 +131,8 @@ vl = call("GET", f"/appStoreVersions/{vid}/appStoreVersionLocalizations")["data"
 en = next((l for l in vl if l["attributes"]["locale"].startswith("en")), None)
 la = {"description": text("description"), "keywords": text("keywords"), "promotionalText": text("promo"),
       "supportUrl": E["SUPPORT_URL"], "marketingUrl": E["SUPPORT_URL"]}
+if VERSION != "1.0.0" and os.path.exists("appstore/whats_new.txt"):
+    la["whatsNew"] = text("whats_new")
 if en:
     call("PATCH", f"/appStoreVersionLocalizations/{en['id']}", {"data": {"type": "appStoreVersionLocalizations", "id": en["id"], "attributes": la}})
     lid = en["id"]

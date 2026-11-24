@@ -7,3 +7,6 @@ There is no server. Messages and records are end-to-end encrypted on the device 
 User-generated content: Rooms messages have Report, and chat or contact info has "Report and block"; blocked users can no longer message the user, and reports reach the developer through Settings > Help & complaints.
 
 All modules are free during the first year; there are no in-app purchases in this version. AI features are optional (Settings > AI & My Day), use Apple Intelligence on the device by default, and never give medical advice.
+
+
+New in 1.0.1: Business Autopilot (Settings > AI > Autopilot) is OFF by default. When an owner turns it on, replies are generated from that module's records and always start with "🤖 <name>'s assistant:" so recipients know it is automated; it is limited to 12 replies per chat per day. Scan & fill reads documents on the device. Documents are kept on the device and shared only inside the record's chat.

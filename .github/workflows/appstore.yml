@@ -5,7 +5,7 @@ on:
     inputs:
       version:
         description: "Version to release (must match an uploaded build)"
-        default: "1.0.0"
+        default: "1.0.1"
       phone:
         description: "Reviewer contact phone (masked in logs)"
         required: true
@@ -62,8 +62,8 @@ jobs:
           FIRST: Devendra
           LAST: Jondhale
           APP_NAME: iTeam Chat
-          PRIVACY_URL: ${{ vars.PRIVACY_URL || 'https://github.com/deven86/iTeam/blob/main/PRIVACY.md' }}
-          SUPPORT_URL: ${{ vars.SUPPORT_URL || 'https://github.com/deven86/iTeam/blob/main/SUPPORT.md' }}
+          PRIVACY_URL: ${{ vars.PRIVACY_URL || 'https://deven86.github.io/iteam-web/privacy.html' }}
+          SUPPORT_URL: ${{ vars.SUPPORT_URL || 'https://deven86.github.io/iteam-web/' }}
         run: |
           pip install --quiet pyjwt cryptography requests
           python3 ci/appstore_release.py

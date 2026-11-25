@@ -21,9 +21,16 @@ final class NotificationService: UNNotificationServiceExtension {
             }
             return
         }
-        guard let note = CKNotification(fromRemoteNotificationDictionary: request.content.userInfo) as? CKQueryNotification,
-              let fields = note.recordFields,
-              let conv = fields["conv"] as? String else { return }
+        // Two sources: iCloud (CloudKit query notification) or the iTeam relay (Android contacts).
+        let conv: String
+        let hintField: String?
+        if let note = CKNotification(fromRemoteNotificationDictionary: request.content.userInfo) as? CKQueryNotification,
+           let fields = note.recordFields, let c = fields["conv"] as? String {
+            conv = c; hintField = fields["hint"] as? String
+        } else if let c = request.content.userInfo["conv"] as? String {
+            conv = c
+            hintField = (request.content.userInfo["hint"] as? String).flatMap { Data(base64Encoded: $0) }.flatMap { String(data: $0, encoding: .utf8) }
+        } else { return }
 
         content.threadIdentifier = conv
         var info = content.userInfo
@@ -39,7 +46,7 @@ final class NotificationService: UNNotificationServiceExtension {
             content.badge = NSNumber(value: AppGroup.badge)
         }
 
-        guard let hintString = fields["hint"] as? String,
+        guard let hintString = hintField,
               let blob = Data(base64Encoded: hintString),
               let parts = E2E.splitVersioned(blob),
               let key = E2E.conversationKey(conv: conv, version: parts.0),

@@ -217,6 +217,9 @@ final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCent
 
     func application(_ application: UIApplication, didRegisterForRemoteNotificationsWithDeviceToken deviceToken: Data) {
         UserDefaults.standard.removeObject(forKey: "push.registrationError")
+        let hex = deviceToken.map { String(format: "%02x", $0) }.joined()
+        UserDefaults.standard.set(hex, forKey: "relay.push")
+        Task { @MainActor in await RelayClient.shared.setPush(hex) }
     }
 
     // Banner while the app is open — except for the chat already on screen.

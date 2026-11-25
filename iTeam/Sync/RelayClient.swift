@@ -104,6 +104,12 @@ final class RelayClient {
         _ = try await URLSession.shared.data(for: req)
     }
 
+    /// Sends this iPhone's push token to the relay so Android messages notify instantly.
+    func setPush(_ hex: String) async {
+        guard isOn else { return }
+        _ = try? await call("PUT", "v1/me/device", json: ["pushToken": hex, "sandbox": false])
+    }
+
     // MARK: Profiles & presence
 
     func profiles(_ ids: [String], seenOnly: Bool = false) async throws -> [CloudService.RemoteProfile] {

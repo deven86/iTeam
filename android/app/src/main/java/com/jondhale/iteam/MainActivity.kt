@@ -68,7 +68,7 @@ class MainActivity : androidx.fragment.app.FragmentActivity() {
         LookState.load(Store.get(this))
         setContent {
             val dark = when (LookState.mode) { "dark" -> true; "light" -> false; else -> isSystemInDarkTheme() }
-            MaterialTheme(colorScheme = LookState.scheme(dark)) {
+            MaterialTheme(colorScheme = LookState.scheme(dark), shapes = LookState.shapes) {
                 Surface(Modifier.fillMaxSize()) {
                     if (locked.value) Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.Center, horizontalAlignment = Alignment.CenterHorizontally) {
                         Logo(); Spacer(Modifier.height(16.dp)); Button({ unlock() }) { Text("Unlock") }
@@ -345,12 +345,18 @@ fun Home(app: AppState, status: StatusInfo, openConv: MutableState<String?>, pas
     val tabs = listOf(TabOption("chats", "Chats", Icons.Default.Chat)) + pinned + listOf(TabOption("modules", "Modules", Icons.Default.GridView), TabOption("settings", "Settings", Icons.Default.Settings))
     if (tab >= tabs.size) tab = 0
     Scaffold(bottomBar = {
-        NavigationBar {
-            val unread = remember(app.tick) { app.store.unreadTotal() }
-            tabs.forEachIndexed { i, t ->
-                NavigationBarItem(tab == i, { tab = i }, {
-                    if (t.id == "chats") BadgedBox({ if (unread > 0) Badge { Text("$unread") } }) { Icon(t.icon, null) } else Icon(t.icon, null)
-                }, label = { Text(t.title, maxLines = 1) })
+        // Floating rounded bar, like the reference designs.
+        Surface(Modifier.fillMaxWidth().navigationBarsPadding().padding(horizontal = 14.dp, vertical = 8.dp),
+            shape = RoundedCornerShape(28.dp), color = MaterialTheme.colorScheme.surfaceContainer, shadowElevation = 10.dp) {
+            NavigationBar(containerColor = Color.Transparent, tonalElevation = 0.dp, windowInsets = WindowInsets(0, 0, 0, 0)) {
+                val unread = remember(app.tick) { app.store.unreadTotal() }
+                tabs.forEachIndexed { i, t ->
+                    NavigationBarItem(tab == i, { tab = i }, {
+                        if (t.id == "chats") BadgedBox({ if (unread > 0) Badge(containerColor = Brand) { Text("$unread", color = Color.White) } }) { Icon(t.icon, null) } else Icon(t.icon, null)
+                    }, label = { Text(t.title, maxLines = 1, style = MaterialTheme.typography.labelSmall) },
+                    colors = NavigationBarItemDefaults.colors(selectedIconColor = Color.White, indicatorColor = Brand,
+                        selectedTextColor = Brand, unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant))
+                }
             }
         }
     }) { pad ->
@@ -457,16 +463,20 @@ fun SignInScreen(store: Store, sync: Sync, onAuth: (String) -> Unit, onDone: () 
     }
     LaunchedEffect(tick) { if (store.webToken.isNotEmpty() && !busy) go(false) }
     Column(Modifier.fillMaxSize().padding(28.dp), verticalArrangement = Arrangement.Center, horizontalAlignment = Alignment.CenterHorizontally) {
-        Logo(); Spacer(Modifier.height(16.dp))
-        Text("iTeam Chat", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
-        Text("Private, end-to-end encrypted. Talks to iPhone and iPad users.", textAlign = TextAlign.Center, style = MaterialTheme.typography.bodyMedium)
+        Box(Modifier.size(132.dp).clip(CircleShape).background(Brand.copy(alpha = 0.12f)), contentAlignment = Alignment.Center) { Logo(84) }
+        Spacer(Modifier.height(22.dp))
+        Text("Connect with your team", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center)
+        Text("easily & privately", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold, color = Brand, textAlign = TextAlign.Center)
+        Spacer(Modifier.height(8.dp))
+        Text("Chat, tasks and business tools in one app — end-to-end encrypted, and works with iPhone users too.",
+            textAlign = TextAlign.Center, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
         Spacer(Modifier.height(24.dp))
         OutlinedTextField(name, { name = it }, label = { Text("Your name") }, singleLine = true, modifier = Modifier.fillMaxWidth())
         Spacer(Modifier.height(12.dp))
         if (BuildConfig.RELAY) {
             OutlinedTextField(moveCode, { moveCode = it }, label = { Text("Move code from your old phone (optional)") }, singleLine = true, modifier = Modifier.fillMaxWidth())
             Spacer(Modifier.height(12.dp))
-            Button({ google() }, enabled = !busy && name.isNotBlank(), modifier = Modifier.fillMaxWidth()) { Text(if (busy) "Connecting…" else "Continue with Google") }
+            Button({ google() }, enabled = !busy && name.isNotBlank(), modifier = Modifier.fillMaxWidth().height(54.dp), shape = RoundedCornerShape(27.dp)) { Text(if (busy) "Connecting…" else "Continue with Google") }
             Text("Google only confirms it's you. Messages are end-to-end encrypted — Google and iTeam can't read them.",
                 style = MaterialTheme.typography.bodySmall, textAlign = TextAlign.Center, modifier = Modifier.padding(top = 10.dp))
         } else Button({ go(false) }, enabled = !busy && name.isNotBlank(), modifier = Modifier.fillMaxWidth()) { Text(if (busy) "Connecting…" else "Continue with Apple ID") }

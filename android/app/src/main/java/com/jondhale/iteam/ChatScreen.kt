@@ -248,7 +248,7 @@ fun Bubble(app: AppState, m: Msg, conv: Conv, all: List<Msg>, onLong: () -> Unit
     val mine = m.from == me
     Column(Modifier.fillMaxWidth().padding(vertical = 3.dp), horizontalAlignment = if (mine) Alignment.End else Alignment.Start) {
         Column(Modifier.widthIn(max = 300.dp)
-            .clip(RoundedCornerShape(18.dp))
+            .clip(if (mine) RoundedCornerShape(20.dp, 20.dp, 6.dp, 20.dp) else RoundedCornerShape(20.dp, 20.dp, 20.dp, 6.dp))
             .background(bubbleBrush(app, mine))
             .combinedClickable(onClick = {}, onLongClick = onLong)
             .padding(horizontal = 12.dp, vertical = 8.dp)) {

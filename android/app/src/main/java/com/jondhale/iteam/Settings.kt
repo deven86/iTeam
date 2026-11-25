@@ -39,6 +39,7 @@ import kotlinx.coroutines.launch
 object LookState {
     data class Look(val id: String, val name: String, val primary: Color, val secondary: Color, val lightBg: Color, val darkBg: Color)
     val looks = listOf(
+        Look("violet", "Violet (new)", Color(0xFF6C3EF4), Color(0xFFB794F6), Color(0xFFF4F2FC), Color(0xFF121022)),
         Look("prism", "Prism Glass", Color(0xFF5B5BF7), Color(0xFF00B4D8), Color(0xFFF4F5FB), Color(0xFF0E0F1A)),
         Look("zen", "Zen Calm", Color(0xFF4F7A68), Color(0xFFB59A72), Color(0xFFF5F3EE), Color(0xFF151816)),
         Look("pastel", "Pastel Breeze", Color(0xFF9C7CF4), Color(0xFFF28DB2), Color(0xFFFBF6FF), Color(0xFF1A1520)),
@@ -49,11 +50,21 @@ object LookState {
     val secondary get() = look.secondary
 
     fun load(store: Store) {
-        look = looks.firstOrNull { it.id == store.pref("look", "prism") } ?: looks[0]
+        look = looks.firstOrNull { it.id == store.pref("look", "violet") } ?: looks[0]
         mode = store.pref("mode", "system")
     }
-    fun scheme(dark: Boolean) = if (dark) darkColorScheme(primary = look.primary, secondary = look.secondary, background = look.darkBg, surface = look.darkBg)
-        else lightColorScheme(primary = look.primary, secondary = look.secondary, background = look.lightBg, surface = look.lightBg)
+    fun scheme(dark: Boolean) = if (dark) darkColorScheme(primary = look.primary, secondary = look.secondary, background = look.darkBg, surface = look.darkBg,
+            surfaceVariant = Color(0xFF221E36), primaryContainer = look.primary.copy(alpha = 0.25f), surfaceContainer = Color(0xFF1B1830))
+        else lightColorScheme(primary = look.primary, secondary = look.secondary, background = look.lightBg, surface = look.lightBg,
+            surfaceVariant = Color(0xFFECE9F8), primaryContainer = look.primary.copy(alpha = 0.14f), surfaceContainer = Color.White,
+            onSurfaceVariant = Color(0xFF6B6880))
+    /** Soft, rounded shapes used across the app (cards 24dp, buttons/pills 18dp). */
+    val shapes = androidx.compose.material3.Shapes(
+        extraSmall = androidx.compose.foundation.shape.RoundedCornerShape(10.dp),
+        small = androidx.compose.foundation.shape.RoundedCornerShape(14.dp),
+        medium = androidx.compose.foundation.shape.RoundedCornerShape(20.dp),
+        large = androidx.compose.foundation.shape.RoundedCornerShape(24.dp),
+        extraLarge = androidx.compose.foundation.shape.RoundedCornerShape(30.dp))
 }
 
 /** Tabs that can sit in the bottom bar between Chats and Modules. */

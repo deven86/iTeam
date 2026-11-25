@@ -11,6 +11,11 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.border
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.*
@@ -52,45 +57,87 @@ fun ChatList(app: AppState, status: StatusInfo, pastedInvite: MutableState<Strin
     LaunchedEffect(pastedInvite.value) { if (pastedInvite.value != null) adding = true }
     val convs = remember(app.tick) { app.store.convList() }
     val lastMsgs = remember(app.tick) { app.store.lastMessages() }
-    Scaffold(topBar = {
-        TopAppBar(title = { Row(verticalAlignment = Alignment.CenterVertically) {
-            Text("Chats", fontWeight = FontWeight.Bold)
-            Spacer(Modifier.width(10.dp))
-            AssistChip(onClick = { open(Page.RoomsPage) }, label = { Text("Rooms") }, leadingIcon = { Icon(Icons.Default.Groups, null, Modifier.size(18.dp)) })
-        } }, actions = {
-            IconButton({ showInvite = true }) { Icon(Icons.Default.QrCode, "My QR") }
-            Box {
-                IconButton({ menu = true }) { Icon(Icons.Default.Edit, "New") }
-                DropdownMenu(menu, { menu = false }) {
-                    DropdownMenuItem({ Text("Add contact") }, { menu = false; adding = true }, leadingIcon = { Icon(Icons.Default.PersonAdd, null) })
-                    DropdownMenuItem({ Text("New group") }, { menu = false; open(Page.NewGroup) }, leadingIcon = { Icon(Icons.Default.GroupAdd, null) })
-                    DropdownMenuItem({ Text("People nearby") }, { menu = false; open(Page.Nearby) }, leadingIcon = { Icon(Icons.Default.NearMe, null) })
+    var filter by remember { mutableStateOf(0) } // 0 all, 1 direct, 2 groups
+    val unread = convs.sumOf { it.unread }
+    val shown = when (filter) { 1 -> convs.filter { !it.isGroup }; 2 -> convs.filter { it.isGroup }; else -> convs }
+    Scaffold(containerColor = MaterialTheme.colorScheme.background, floatingActionButton = {
+        FloatingActionButton({ adding = true }, containerColor = Brand, contentColor = Color.White, shape = CircleShape) { Icon(Icons.Default.Add, "Add contact") }
+    }) { pad ->
+        LazyColumn(Modifier.padding(pad), contentPadding = PaddingValues(bottom = 96.dp)) {
+            // Header card: greeting, unread count, quick actions, recent people.
+            item {
+                Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(bottomStart = 32.dp, bottomEnd = 32.dp))
+                    .background(Brush.linearGradient(listOf(LookState.primary, LookState.primary.copy(alpha = 0.82f), LookState.secondary)))
+                    .statusBarsPadding().padding(start = 20.dp, end = 8.dp, top = 8.dp, bottom = 18.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Column(Modifier.weight(1f)) {
+                            Text("Hi, " + app.store.myName.substringBefore(' ').ifBlank { "there" }, color = Color.White.copy(alpha = 0.85f))
+                            Text(if (unread > 0) "You have $unread new message${if (unread == 1) "" else "s"}" else "You're all caught up",
+                                color = Color.White, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleLarge)
+                        }
+                        IconButton({ open(Page.RoomsPage) }) { Icon(Icons.Default.Groups, "Rooms", tint = Color.White) }
+                        IconButton({ showInvite = true }) { Icon(Icons.Default.QrCode, "My QR", tint = Color.White) }
+                        Box {
+                            IconButton({ menu = true }) { Icon(Icons.Default.Edit, "New", tint = Color.White) }
+                            DropdownMenu(menu, { menu = false }) {
+                                DropdownMenuItem({ Text("Add contact") }, { menu = false; adding = true }, leadingIcon = { Icon(Icons.Default.PersonAdd, null) })
+                                DropdownMenuItem({ Text("New group") }, { menu = false; open(Page.NewGroup) }, leadingIcon = { Icon(Icons.Default.GroupAdd, null) })
+                                DropdownMenuItem({ Text("People nearby") }, { menu = false; open(Page.Nearby) }, leadingIcon = { Icon(Icons.Default.NearMe, null) })
+                            }
+                        }
+                    }
+                    val people = convs.filter { !it.isGroup }.take(12)
+                    if (people.isNotEmpty()) {
+                        Spacer(Modifier.height(14.dp))
+                        Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+                            people.forEach { c ->
+                                Column(Modifier.width(60.dp).clickable { open(Page.Chat(c.id)) }, horizontalAlignment = Alignment.CenterHorizontally) {
+                                    Box(Modifier.border(2.dp, Color.White, CircleShape).padding(3.dp)) {
+                                        Avatar(c.title, size = 50, photo = app.sync.peerOf(c.id)?.let { app.store.photoOf(it) } ?: "")
+                                    }
+                                    Text(c.title.substringBefore(' '), color = Color.White, style = MaterialTheme.typography.labelSmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                }
+                            }
+                        }
+                    }
                 }
             }
-        })
-    }, floatingActionButton = {
-        FloatingActionButton({ adding = true }, containerColor = Brand, contentColor = Color.White) { Icon(Icons.Default.PersonAdd, "Add contact") }
-    }) { pad ->
-        Column(Modifier.padding(pad)) {
-            StatusBar(status)
-            if (convs.isEmpty()) Centered("No chats yet.\n\nTap ➕ to scan an iTeam QR code or paste an invite link, or find people nearby.")
-            LazyColumn {
-                items(convs, key = { it.id }) { c ->
-                    val last = lastMsgs[c.id]
-                    ListItem(modifier = Modifier.clickable { open(Page.Chat(c.id)) },
-                        leadingContent = { Avatar(c.title, group = c.isGroup, photo = app.sync.peerOf(c.id)?.let { app.store.photoOf(it) } ?: "") },
-                        headlineContent = { Text(c.title, fontWeight = FontWeight.SemiBold, maxLines = 1) },
-                        supportingContent = {
-                            Text(last?.let { (if (c.isGroup && !it.system) app.store.name(it.from) + ": " else "") + preview(it) } ?: "Say hello 👋",
-                                maxLines = 1, overflow = TextOverflow.Ellipsis)
-                        },
-                        trailingContent = {
-                            Column(horizontalAlignment = Alignment.End) {
-                                Text(if (c.updated > 0) time(c.updated) else "", style = MaterialTheme.typography.labelSmall)
-                                if (c.unread > 0) Badge(containerColor = Teal) { Text("${c.unread}") }
-                            }
-                        })
-                    HorizontalDivider()
+            item { StatusBar(status) }
+            // Pill filter: All / Direct / Groups
+            item {
+                Row(Modifier.padding(horizontal = 16.dp, vertical = 12.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    listOf("All", "Direct", "Groups").forEachIndexed { i, t ->
+                        val on = filter == i
+                        Text(t, Modifier.clip(RoundedCornerShape(50)).background(if (on) Brand else MaterialTheme.colorScheme.surfaceVariant)
+                            .clickable { filter = i }.padding(horizontal = 18.dp, vertical = 8.dp),
+                            color = if (on) Color.White else MaterialTheme.colorScheme.onSurfaceVariant, fontWeight = FontWeight.SemiBold)
+                    }
+                }
+            }
+            if (shown.isEmpty()) item {
+                Text(if (convs.isEmpty()) "No chats yet.\n\nTap ＋ to scan an iTeam QR code or paste an invite link, or find people nearby." else "Nothing here yet.",
+                    Modifier.fillMaxWidth().padding(32.dp), textAlign = TextAlign.Center, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+            items(shown, key = { it.id }) { c ->
+                val last = lastMsgs[c.id]
+                Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp).clip(RoundedCornerShape(22.dp))
+                    .background(MaterialTheme.colorScheme.surfaceContainer).clickable { open(Page.Chat(c.id)) }.padding(12.dp),
+                    verticalAlignment = Alignment.CenterVertically) {
+                    Avatar(c.title, size = 50, group = c.isGroup, photo = app.sync.peerOf(c.id)?.let { app.store.photoOf(it) } ?: "")
+                    Spacer(Modifier.width(12.dp))
+                    Column(Modifier.weight(1f)) {
+                        Text(c.title, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        Text(last?.let { (if (c.isGroup && !it.system) app.store.name(it.from) + ": " else "") + preview(it) } ?: "Say hello 👋",
+                            maxLines = 1, overflow = TextOverflow.Ellipsis, color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodyMedium)
+                    }
+                    Column(horizontalAlignment = Alignment.End) {
+                        Text(if (c.updated > 0) time(c.updated) else "", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        if (c.unread > 0) {
+                            Spacer(Modifier.height(4.dp))
+                            Text("${c.unread}", Modifier.clip(CircleShape).background(Brand).padding(horizontal = 7.dp, vertical = 1.dp),
+                                color = Color.White, style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold)
+                        }
+                    }
                 }
             }
         }

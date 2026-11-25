@@ -12,6 +12,12 @@ apt-get update -qq
 DEBIAN_FRONTEND=noninteractive apt-get install -y -qq unattended-upgrades ufw >/dev/null
 dpkg-reconfigure -f noninteractive unattended-upgrades
 
+echo "== 1 GB swap (safety for small plans like 512 MB)"
+if [ ! -f /swapfile ]; then
+  fallocate -l 1G /swapfile && chmod 600 /swapfile && mkswap /swapfile >/dev/null && swapon /swapfile
+  echo '/swapfile none swap sw 0 0' >> /etc/fstab
+fi
+
 echo "== Firewall: only SSH, HTTP (certificate) and HTTPS"
 ufw allow 22/tcp >/dev/null; ufw allow 80/tcp >/dev/null; ufw allow 443/tcp >/dev/null
 ufw --force enable >/dev/null

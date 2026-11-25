@@ -53,7 +53,7 @@ jobs:
           GOOGLE_WEB_CLIENT_ID: ${{ vars.GOOGLE_WEB_CLIENT_ID }}
         run: |
           if [ "$ITEAM_RELAY" = 1 ]; then
-            [ -n "$GOOGLE_WEB_CLIENT_ID" ] || echo "::warning::GOOGLE_WEB_CLIENT_ID variable missing — Google sign-in won't work."
+
             if [ -n "${KEYSTORE_FILE:-}" ]; then
               SHA1=$(keytool -list -v -keystore "$KEYSTORE_FILE" -storepass "$KEYSTORE_PASSWORD" -alias iteam | grep 'SHA1:' | awk '{print $2}')
               echo "::notice title=SHA-1 for Google sign-in::$SHA1"

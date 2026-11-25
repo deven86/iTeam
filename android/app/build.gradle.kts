@@ -14,7 +14,7 @@ android {
         manifestPlaceholders["appLabel"] = if (relay) "iTeam Next" else "iTeam Chat"
         buildConfigField("boolean", "RELAY", relay.toString())
         buildConfigField("String", "RELAY_URL", "\"" + (System.getenv("RELAY_URL") ?: "https://relay.iteamchat.in") + "\"")
-        buildConfigField("String", "GOOGLE_WEB_CLIENT_ID", "\"" + (System.getenv("GOOGLE_WEB_CLIENT_ID") ?: "") + "\"")
+        buildConfigField("String", "GOOGLE_WEB_CLIENT_ID", "\"" + (System.getenv("GOOGLE_WEB_CLIENT_ID")?.takeIf { it.isNotEmpty() } ?: "603856666333-7inq30o6ldtb0ajp0mvuul53ifel8f3i.apps.googleusercontent.com") + "\"")
         minSdk = 28
         targetSdk = 36
         // One rising number for every build (sideload APK and Play bundle): minutes since 1 Jan 2025.

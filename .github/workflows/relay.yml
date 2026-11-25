@@ -1,0 +1,47 @@
+name: Relay server
+
+# Tests and builds the iTeam relay. With deploy=yes it copies the program to the server
+# and restarts it. Needs secrets RELAY_HOST (server IP or domain) and RELAY_SSH_KEY
+# (the Lightsail private key). Nothing is deployed unless asked.
+on:
+  workflow_dispatch:
+    inputs:
+      deploy:
+        description: "Copy to the server and restart? (yes/no)"
+        default: "no"
+
+jobs:
+  relay:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: relay
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.24"
+      - name: Test
+        run: go vet ./... && go test -race -count=1 ./...
+      - name: Build
+        run: |
+          CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath \
+            -ldflags "-s -w -X main.version=$(date -u +%Y%m%d)-${GITHUB_SHA::7}" -o iteam-relay .
+      - uses: actions/upload-artifact@v4
+        with:
+          name: iteam-relay
+          path: relay/iteam-relay
+      - name: Deploy
+        if: ${{ github.event.inputs.deploy == 'yes' }}
+        env:
+          HOST: ${{ secrets.RELAY_HOST }}
+          KEY: ${{ secrets.RELAY_SSH_KEY }}
+        run: |
+          test -n "$HOST" && test -n "$KEY" || { echo "Add RELAY_HOST and RELAY_SSH_KEY secrets first"; exit 1; }
+          install -m 600 /dev/null key && printf '%s\n' "$KEY" > key
+          SSH="ssh -i key -o StrictHostKeyChecking=accept-new ubuntu@$HOST"
+          scp -i key -o StrictHostKeyChecking=accept-new iteam-relay ubuntu@$HOST:/tmp/iteam-relay.new
+          $SSH 'sudo install -m 755 /tmp/iteam-relay.new /opt/iteam-relay/iteam-relay.next &&
+                sudo mv /opt/iteam-relay/iteam-relay.next /opt/iteam-relay/iteam-relay &&
+                sudo systemctl restart iteam-relay && sleep 3 && systemctl is-active iteam-relay'
+          rm -f key

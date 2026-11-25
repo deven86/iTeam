@@ -40,6 +40,9 @@ Before deleting, show: groups where I'm the ONLY admin, and companies I own, eac
   one Linux program (built-in SQLite + auto HTTPS), one setup command, auto-updates from GitHub, status page.
   Apps use the domain only (never the IP) so server moves/upgrades need no app update. Daily encrypted backup
   of the account list stored outside the server. Keep CloudKit working alongside during the switch.
+- **Built 25 Nov: relay server program** in `relay/` (Go, standard library only, tests pass incl. fake Let's Encrypt).
+  Setup script `relay/deploy/install.sh`, workflow `relay.yml` (manual; deploy=yes copies to server).
+  Next: domain + Lightsail, then iPhone app and Android app changes (after 1 Dec).
 - Still to decide: domain, migration of current users, privacy policy + DPDP Act update.
 
 ## 5b. Follow-up reminders — add "Every year"

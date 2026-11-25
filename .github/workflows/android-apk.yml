@@ -51,8 +51,11 @@ jobs:
           KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
           ITEAM_RELAY: ${{ github.event.inputs.next == 'yes' && '1' || '' }}
           GOOGLE_WEB_CLIENT_ID: ${{ vars.GOOGLE_WEB_CLIENT_ID }}
+          GOOGLE_SERVICES_JSON: ${{ secrets.GOOGLE_SERVICES_JSON }}
         run: |
           if [ "$ITEAM_RELAY" = 1 ]; then
+            if [ -n "$GOOGLE_SERVICES_JSON" ]; then printf '%s' "$GOOGLE_SERVICES_JSON" > android/app/google-services.json
+            else echo "::warning::GOOGLE_SERVICES_JSON secret missing — no push notifications in this build."; fi
 
             if [ -n "${KEYSTORE_FILE:-}" ]; then
               SHA1=$(keytool -list -v -keystore "$KEYSTORE_FILE" -storepass "$KEYSTORE_PASSWORD" -alias iteam | grep 'SHA1:' | awk '{print $2}')

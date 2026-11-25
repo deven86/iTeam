@@ -63,6 +63,7 @@ class MainActivity : androidx.fragment.app.FragmentActivity() {
         super.onCreate(savedInstanceState)
         if (Build.VERSION.SDK_INT >= 33) requestPermissions(arrayOf(Manifest.permission.POST_NOTIFICATIONS), 1)
         PollWorker.schedule(this)
+        Push.register(this)
         handle(intent)
         LookState.load(Store.get(this))
         setContent {
@@ -168,7 +169,7 @@ fun App(store: Store, openConv: MutableState<String?>, pastedInvite: MutableStat
         return
     }
     if (!signedIn) {
-        SignInScreen(store, sync, onAuth = { authURL = it }, onDone = { signedIn = true; app.nextPoll.longValue = 0; app.tick++ }, tick = app.tick); return
+        SignInScreen(store, sync, onAuth = { authURL = it }, onDone = { signedIn = true; Push.register(ctx); app.nextPoll.longValue = 0; app.tick++ }, tick = app.tick); return
     }
 
     // Checks the mailbox only while the app is on screen: every 3 s just after you chat, otherwise every 8 s.

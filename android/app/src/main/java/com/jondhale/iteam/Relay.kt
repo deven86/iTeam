@@ -69,8 +69,8 @@ class RelayCloud(private val store: Store) : CloudKit(store) {
     }
 
     /** Signs in with a Google ID token (or a "Move my account" code) and keeps the session token. */
-    fun login(idToken: String, linkCode: String? = null, pushToken: String = "") {
-        val dev = JSONObject().put("id", deviceID).put("platform", "android").put("pushToken", pushToken)
+    fun login(idToken: String, linkCode: String? = null) {
+        val dev = JSONObject().put("id", deviceID).put("platform", "android").put("pushToken", store.secret("relay.push") ?: "")
         val req = JSONObject().put("provider", "google").put("idToken", idToken).put("device", dev)
         if (!linkCode.isNullOrBlank()) req.put("linkCode", linkCode.trim().uppercase())
         val o = call("POST", "/v1/login", req, auth = false)

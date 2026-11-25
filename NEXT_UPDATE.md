@@ -31,7 +31,12 @@ Before deleting, show: groups where I'm the ONLY admin, and companies I own, eac
 - Problem: Android signs in to Apple CloudKit through the web, and that session expires → users get logged out.
 - Idea: a small relay server only for connecting + notifications; data stays on devices and in each user's own
   cloud (iCloud / Google Drive). Server stores only encrypted messages briefly. iPhone ↔ Android talk through it.
-- Needs a decision on: hosting cost, login method (not Apple ID), migration plan, privacy policy + DPDP Act update.
+- Decided so far (25 Nov): own small relay server only (no Firebase/Supabase; Cloudflare optional later);
+  messages held encrypted only until delivered, then deleted; Apple + Google push for notifications.
+- Login decided: **iPhone/iPad = Sign in with Apple only; Android = Sign in with Google only.**
+  Our server verifies the Apple/Google token at login; they never see anything inside iTeam.
+  Moving between iPhone and Android: "Move my account" by scanning a QR from the old phone (links both logins to one iTeam account).
+- Still to decide: hosting provider + domain, migration of current users, privacy policy + DPDP Act update.
 
 ## 6. Already built, waiting for App Store
 - 1.0.2 (build 86) on TestFlight: Care Medical, family on iTeam, People + claim, online dot/last seen/music, faster sending.

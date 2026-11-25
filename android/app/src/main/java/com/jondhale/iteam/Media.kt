@@ -91,7 +91,7 @@ object Media {
         val ext = att.name.substringAfterLast('.', "").ifEmpty { att.mime.substringAfter('/') }
         val named = File(File(ctx.cacheDir, "open").also { it.mkdirs() }, att.id.take(8) + "." + ext)
         f.copyTo(named, overwrite = true)
-        val uri = FileProvider.getUriForFile(ctx, "com.jondhale.iteam.files", named)
+        val uri = FileProvider.getUriForFile(ctx, ctx.packageName + ".files", named)
         ctx.startActivity(Intent.createChooser(Intent(Intent.ACTION_VIEW).setDataAndType(uri, att.mime).addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION), att.name)
             .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
     }

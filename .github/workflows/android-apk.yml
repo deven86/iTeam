@@ -2,6 +2,10 @@ name: Android APK
 # Builds a sideload APK (no Google Play). Download it from the run's "Artifacts" section.
 on:
   workflow_dispatch:
+    inputs:
+      next:
+        description: "Build iTeam Next (relay server, Google sign-in, separate app)? yes/no"
+        default: "no"
   push:
     branches: [main]
     paths: ["android/**", ".github/workflows/android-apk.yml"]
@@ -45,11 +49,20 @@ jobs:
           CK_API_TOKEN: ${{ secrets.CK_API_TOKEN }}
           CK_ENV: ${{ vars.CK_ENV || 'production' }}
           KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ITEAM_RELAY: ${{ github.event.inputs.next == 'yes' && '1' || '' }}
+          GOOGLE_WEB_CLIENT_ID: ${{ vars.GOOGLE_WEB_CLIENT_ID }}
         run: |
+          if [ "$ITEAM_RELAY" = 1 ]; then
+            [ -n "$GOOGLE_WEB_CLIENT_ID" ] || echo "::warning::GOOGLE_WEB_CLIENT_ID variable missing — Google sign-in won't work."
+            if [ -n "${KEYSTORE_FILE:-}" ]; then
+              SHA1=$(keytool -list -v -keystore "$KEYSTORE_FILE" -storepass "$KEYSTORE_PASSWORD" -alias iteam | grep 'SHA1:' | awk '{print $2}')
+              echo "::notice title=SHA-1 for Google sign-in::$SHA1"
+            fi
+          fi
           [ -n "$CK_API_TOKEN" ] || echo "::warning::CK_API_TOKEN secret missing — the app will open but can't connect."
           export VERSION_CODE=$(( ($(date +%s) - 1735689600) / 60 ))
           gradle -p android assembleRelease --no-daemon
-          mkdir -p out && cp android/app/build/outputs/apk/release/*.apk "out/iTeam-${GITHUB_RUN_NUMBER}.apk"
+          mkdir -p out && cp android/app/build/outputs/apk/release/*.apk "out/iTeam${ITEAM_RELAY:+-Next}-${GITHUB_RUN_NUMBER}.apk"
       - uses: actions/upload-artifact@v4
         with:
           name: iTeam-android-apk

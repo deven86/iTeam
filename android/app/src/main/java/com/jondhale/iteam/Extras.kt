@@ -218,7 +218,7 @@ object Reports {
         val f = File(dir, "${module} – ${title}.pdf".replace("/", "-"))
         f.outputStream().use { doc.writeTo(it) }
         doc.close()
-        val uri = FileProvider.getUriForFile(ctx, "com.jondhale.iteam.files", f)
+        val uri = FileProvider.getUriForFile(ctx, ctx.packageName + ".files", f)
         ctx.startActivity(Intent.createChooser(Intent(Intent.ACTION_SEND).setType("application/pdf").putExtra(Intent.EXTRA_STREAM, uri)
             .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION), "Share $module report"))
     }

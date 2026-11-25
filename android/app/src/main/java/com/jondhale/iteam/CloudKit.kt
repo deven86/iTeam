@@ -13,7 +13,7 @@ class AuthNeeded(val redirectURL: String) : Exception("Sign in with your Apple I
 class CloudError(msg: String) : Exception(msg)
 
 /** CloudKit Web Services for the iPhone app's public database — the same encrypted mailbox, no server of ours. */
-class CloudKit(private val store: Store) {
+open class CloudKit(private val store: Store) {
     companion object {
         val http: OkHttpClient = OkHttpClient.Builder().connectTimeout(12, TimeUnit.SECONDS).readTimeout(60, TimeUnit.SECONDS)
             .writeTimeout(120, TimeUnit.SECONDS).retryOnConnectionFailure(true).build()
@@ -21,7 +21,7 @@ class CloudKit(private val store: Store) {
     private val base = "https://api.apple-cloudkit.com/database/1/iCloud.com.jondhale.iteam/${BuildConfig.CK_ENV}/public"
     private val json = "application/json".toMediaType()
 
-    val configured get() = BuildConfig.CK_TOKEN.isNotEmpty()
+    open val configured get() = BuildConfig.CK_TOKEN.isNotEmpty()
 
     private fun url(path: String): String {
         var u = "$base/$path?ckAPIToken=${URLEncoder.encode(BuildConfig.CK_TOKEN, "UTF-8")}"
@@ -47,15 +47,15 @@ class CloudKit(private val store: Store) {
     }
 
     /** A fresh Apple sign-in page (used when the old one expired or was never given). */
-    fun signInURL(): String {
+    open fun signInURL(): String {
         store.webToken = ""
         return try { me(); "" } catch (e: AuthNeeded) { e.redirectURL }
     }
 
     /** My iCloud user record name — the same ID the iPhone app uses for this Apple ID. */
-    fun me(): String = call("users/caller", null).getString("userRecordName")
+    open fun me(): String = call("users/caller", null).getString("userRecordName")
 
-    fun lookup(names: List<String>, keys: List<String>? = null): Map<String, JSONObject> {
+    open fun lookup(names: List<String>, keys: List<String>? = null): Map<String, JSONObject> {
         val recs = JSONArray(); names.forEach { recs.put(JSONObject().put("recordName", it)) }
         val req = JSONObject().put("records", recs)
         if (keys != null) req.put("desiredKeys", JSONArray(keys))
@@ -67,7 +67,7 @@ class CloudKit(private val store: Store) {
 
     data class Profile(val userID: String, val name: String, val pubkey: String, val qr: String, val pic: String = "")
 
-    fun profile(userID: String): Profile? {
+    open fun profile(userID: String): Profile? {
         val r = lookup(listOf("P$userID"))["P$userID"] ?: return null
         val f = r.getJSONObject("fields")
         fun s(k: String) = f.optJSONObject(k)?.optString("value") ?: ""
@@ -75,7 +75,7 @@ class CloudKit(private val store: Store) {
         return Profile(userID, s("name"), s("pubkey"), s("qr"), s("pic"))
     }
 
-    fun saveProfile(userID: String, name: String, pubkey: String, replace: Boolean, pic: ByteArray? = null, clearPic: Boolean = false) {
+    open fun saveProfile(userID: String, name: String, pubkey: String, replace: Boolean, pic: ByteArray? = null, clearPic: Boolean = false) {
         val fields = JSONObject().put("name", v(name))
         if (pic != null) fields.put("pic", bytes(pic)) else if (clearPic) fields.put("pic", JSONObject().put("value", JSONObject.NULL))
         if (replace) fields.put("pubkey", v(pubkey))
@@ -86,7 +86,7 @@ class CloudKit(private val store: Store) {
     fun v(x: Any) = JSONObject().put("value", x)
     fun bytes(b: ByteArray) = JSONObject().put("value", E2E.b64(b)).put("type", "BYTES")
 
-    fun envelope(to: String, from: String, conv: String, kind: Int, loud: Boolean, body: ByteArray, hint: String?): JSONObject {
+    open fun envelope(to: String, from: String, conv: String, kind: Int, loud: Boolean, body: ByteArray, hint: String?): JSONObject {
         val f = JSONObject().put("rcpt", v(to)).put("sndr", v(from)).put("conv", v(conv)).put("kind", v(kind))
             .put("loud", v(if (loud) 1 else 0)).put("body", bytes(body))
         if (hint != null) f.put("hint", v(hint))
@@ -102,7 +102,7 @@ class CloudKit(private val store: Store) {
 
     fun delete(name: String): JSONObject = JSONObject().put("operationType", "forceDelete").put("record", JSONObject().put("recordName", name))
 
-    fun modify(ops: List<JSONObject>) {
+    open fun modify(ops: List<JSONObject>) {
         ops.chunked(200).forEach { chunk ->
             val o = call("records/modify", JSONObject().put("operations", JSONArray(chunk)).put("atomic", false))
             (o.optJSONArray("records") ?: return@forEach).forEachObj { r ->
@@ -112,7 +112,7 @@ class CloudKit(private val store: Store) {
     }
 
     /** Generic query (public database). */
-    fun query(type: String, filters: JSONArray, keys: List<String>? = null, sortByCreated: Boolean = false, limit: Int = 200): List<JSONObject> {
+    open fun query(type: String, filters: JSONArray, keys: List<String>? = null, sortByCreated: Boolean = false, limit: Int = 200): List<JSONObject> {
         val q = JSONObject().put("recordType", type).put("filterBy", filters)
         if (sortByCreated) q.put("sortBy", JSONArray().put(JSONObject().put("systemFieldName", "createdTimestamp").put("ascending", true)))
         val req = JSONObject().put("query", q).put("resultsLimit", limit)
@@ -129,7 +129,7 @@ class CloudKit(private val store: Store) {
     // MARK: Files (Blob records with an encrypted CKAsset, like the iPhone)
 
     /** Uploads already-encrypted bytes as Blob [name]. */
-    fun uploadBlob(name: String, sealed: ByteArray) {
+    open fun uploadBlob(name: String, sealed: ByteArray) {
         val tok = call("assets/upload", JSONObject().put("tokens", JSONArray().put(
             JSONObject().put("recordType", "Blob").put("fieldName", "data").put("recordName", name))))
         val upURL = tok.getJSONArray("tokens").getJSONObject(0).getString("url")
@@ -142,7 +142,7 @@ class CloudKit(private val store: Store) {
     }
 
     /** Downloads the encrypted bytes of Blob [name]. */
-    fun downloadBlob(name: String): ByteArray {
+    open fun downloadBlob(name: String): ByteArray {
         val rec = lookup(listOf(name))[name] ?: throw CloudError("File not found (files are kept 45 days)")
         val url = rec.getJSONObject("fields").getJSONObject("data").getJSONObject("value").getString("downloadURL").replace("\${f}", "file")
         return http.newCall(Request.Builder().url(url).build()).execute().use { r ->
@@ -156,7 +156,7 @@ class CloudKit(private val store: Store) {
     data class Incoming(val name: String, val from: String, val creator: String, val conv: String, val kind: Int, val body: ByteArray, val created: Long)
 
     /** Envelopes addressed to me, newer than [sinceMs], oldest first. */
-    fun inbox(me: String, sinceMs: Long): List<Incoming> {
+    open fun inbox(me: String, sinceMs: Long): List<Incoming> {
         val out = mutableListOf<Incoming>()
         var marker: String? = null
         do {

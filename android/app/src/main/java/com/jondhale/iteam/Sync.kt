@@ -18,7 +18,7 @@ fun ev(case: String, payload: JSONObject) = JSONObject().put(case, JSONObject().
 fun evNamed(case: String, values: JSONObject) = JSONObject().put(case, values)
 fun newID() = UUID.randomUUID().toString().uppercase()
 
-class Sync(internal val store: Store, private val cloud: CloudKit = CloudKit(store)) {
+class Sync(internal val store: Store, private val cloud: CloudKit = newCloud(store)) {
     data class Notice(val conv: String, val title: String, val text: String)
 
     val me get() = store.me

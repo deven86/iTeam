@@ -111,14 +111,14 @@ class AppState(val store: Store, val sync: Sync) {
 fun AppState.run(scope: kotlinx.coroutines.CoroutineScope, block: suspend () -> Unit) {
     scope.launch {
         try { withContext(Dispatchers.IO) { block() }; changed() }
-        catch (e: AuthNeeded) { reconnect = e.redirectURL; toast = "Apple ID sign-in expired — tap “Sign in again” at the top" }
+        catch (e: AuthNeeded) { reconnect = e.redirectURL; toast = if (BuildConfig.RELAY) "Signed out — tap “Sign in again” at the top" else "Apple ID sign-in expired — tap “Sign in again” at the top" }
         catch (e: Exception) { toast = e.message ?: "Something went wrong" }
     }
 }
 
 @Composable
 fun App(store: Store, openConv: MutableState<String?>, pastedInvite: MutableState<String?>, signInTick: MutableIntState, openSignIn: MutableState<Boolean>) {
-    val cloud = remember { CloudKit(store) }
+    val cloud = remember { newCloud(store) }
     val sync = remember { Sync(store, cloud) }
     val app = remember { AppState(store, sync) }
     // Once this phone has its key, chats open straight away — even before iCloud reconnects.
@@ -142,6 +142,15 @@ fun App(store: Store, openConv: MutableState<String?>, pastedInvite: MutableStat
         else scope0.launch {
             val fresh = withContext(Dispatchers.IO) { runCatching { cloud.signInURL() }.getOrDefault("") }
             if (fresh.isNotEmpty()) authURL = fresh else app.toast = "Couldn't reach Apple. Check the internet and try again."
+        }
+    }
+    if (BuildConfig.RELAY) app.signIn = { _ ->
+        scope0.launch {
+            try {
+                val t = googleIdToken(ctx as android.app.Activity)
+                withContext(Dispatchers.IO) { RelayCloud(store).login(t) }
+                app.reconnect = null; error = null; app.nextPoll.longValue = 0; app.tick++
+            } catch (e: Exception) { app.toast = e.message ?: "Google sign-in didn't finish" }
         }
     }
     LaunchedEffect(signInTick.intValue) {
@@ -194,7 +203,7 @@ fun App(store: Store, openConv: MutableState<String?>, pastedInvite: MutableStat
         app.reconnect?.let { r ->
             Surface(color = MaterialTheme.colorScheme.errorContainer, modifier = Modifier.fillMaxWidth()) {
                 Row(Modifier.statusBarsPadding().padding(horizontal = 16.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Text("Apple ID sign-in expired — messages are paused.", style = MaterialTheme.typography.bodySmall, modifier = Modifier.weight(1f))
+                    Text(if (BuildConfig.RELAY) "Signed out — messages are paused." else "Apple ID sign-in expired — messages are paused.", style = MaterialTheme.typography.bodySmall, modifier = Modifier.weight(1f))
                     Button({ app.signIn(r) }) { Text("Sign in again") }
                 }
             }
@@ -420,7 +429,9 @@ fun SignInScreen(store: Store, sync: Sync, onAuth: (String) -> Unit, onDone: () 
     var busy by remember { mutableStateOf(false) }
     var msg by remember { mutableStateOf<String?>(null) }
     var conflict by remember { mutableStateOf(false) }
+    var moveCode by remember { mutableStateOf("") }
     val scope = rememberCoroutineScope()
+    val activity = androidx.compose.ui.platform.LocalContext.current as android.app.Activity
     fun go(replace: Boolean) {
         busy = true; msg = null
         scope.launch {
@@ -428,6 +439,18 @@ fun SignInScreen(store: Store, sync: Sync, onAuth: (String) -> Unit, onDone: () 
                 val r = withContext(Dispatchers.IO) { sync.connect(name, replace) }
                 if (r == "conflict") conflict = true else onDone()
             } catch (e: AuthNeeded) { onAuth(e.redirectURL) } catch (e: Exception) { msg = e.message }
+            busy = false
+        }
+    }
+    // iTeam Next: Sign in with Google, then the same connect step.
+    fun google() {
+        busy = true; msg = null
+        scope.launch {
+            try {
+                val t = googleIdToken(activity)
+                withContext(Dispatchers.IO) { RelayCloud(store).login(t, moveCode.ifBlank { null }) }
+                busy = false; go(false); return@launch
+            } catch (e: Exception) { msg = e.message ?: "Google sign-in didn't finish" }
             busy = false
         }
     }
@@ -439,16 +462,22 @@ fun SignInScreen(store: Store, sync: Sync, onAuth: (String) -> Unit, onDone: () 
         Spacer(Modifier.height(24.dp))
         OutlinedTextField(name, { name = it }, label = { Text("Your name") }, singleLine = true, modifier = Modifier.fillMaxWidth())
         Spacer(Modifier.height(12.dp))
-        Button({ go(false) }, enabled = !busy && name.isNotBlank(), modifier = Modifier.fillMaxWidth()) { Text(if (busy) "Connecting…" else "Continue with Apple ID") }
-        Text("An Apple ID is needed because messages travel through Apple's iCloud. Any Apple ID works — create one free at appleid.apple.com.",
+        if (BuildConfig.RELAY) {
+            OutlinedTextField(moveCode, { moveCode = it }, label = { Text("Move code from your old phone (optional)") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+            Spacer(Modifier.height(12.dp))
+            Button({ google() }, enabled = !busy && name.isNotBlank(), modifier = Modifier.fillMaxWidth()) { Text(if (busy) "Connecting…" else "Continue with Google") }
+            Text("Google only confirms it's you. Messages are end-to-end encrypted — Google and iTeam can't read them.",
+                style = MaterialTheme.typography.bodySmall, textAlign = TextAlign.Center, modifier = Modifier.padding(top = 10.dp))
+        } else Button({ go(false) }, enabled = !busy && name.isNotBlank(), modifier = Modifier.fillMaxWidth()) { Text(if (busy) "Connecting…" else "Continue with Apple ID") }
+        if (!BuildConfig.RELAY) Text("An Apple ID is needed because messages travel through Apple's iCloud. Any Apple ID works — create one free at appleid.apple.com.",
             style = MaterialTheme.typography.bodySmall, textAlign = TextAlign.Center, modifier = Modifier.padding(top = 10.dp))
         msg?.let { Text(it, color = MaterialTheme.colorScheme.error, modifier = Modifier.padding(top = 8.dp)) }
     }
     if (conflict) AlertDialog(onDismissRequest = { conflict = false },
-        title = { Text("Apple ID already used on an iPhone") },
-        text = { Text("This Apple ID already has iTeam on an iPhone or iPad. Using it here gives it a new security key, and that iPhone would stop reading new messages. Best: sign in here with a different Apple ID.") },
+        title = { Text(if (BuildConfig.RELAY) "This account has a key on another phone" else "Apple ID already used on an iPhone") },
+        text = { Text(if (BuildConfig.RELAY) "This account already has iTeam on another phone. Using it here gives it a new security key, and the other phone stops reading new messages. To keep both, use a Move code from the old phone instead." else "This Apple ID already has iTeam on an iPhone or iPad. Using it here gives it a new security key, and that iPhone would stop reading new messages. Best: sign in here with a different Apple ID.") },
         confirmButton = { TextButton({ conflict = false; go(true) }) { Text("Use here anyway") } },
-        dismissButton = { TextButton({ conflict = false; store.signOut() }) { Text("Use another Apple ID") } })
+        dismissButton = { TextButton({ conflict = false; store.signOut() }) { Text(if (BuildConfig.RELAY) "Cancel" else "Use another Apple ID") } })
 }
 
 @OptIn(ExperimentalMaterial3Api::class)

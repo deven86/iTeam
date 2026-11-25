@@ -8,7 +8,13 @@ android {
     namespace = "com.jondhale.iteam"
     compileSdk = 36
     defaultConfig {
-        applicationId = "com.jondhale.iteam"
+        // ITEAM_RELAY=1 builds "iTeam Next": a separate app (installs beside iTeam) that uses our relay server.
+        val relay = System.getenv("ITEAM_RELAY") == "1"
+        applicationId = if (relay) "com.jondhale.iteam.next" else "com.jondhale.iteam"
+        manifestPlaceholders["appLabel"] = if (relay) "iTeam Next" else "iTeam Chat"
+        buildConfigField("boolean", "RELAY", relay.toString())
+        buildConfigField("String", "RELAY_URL", "\"" + (System.getenv("RELAY_URL") ?: "https://relay.iteamchat.in") + "\"")
+        buildConfigField("String", "GOOGLE_WEB_CLIENT_ID", "\"" + (System.getenv("GOOGLE_WEB_CLIENT_ID") ?: "") + "\"")
         minSdk = 28
         targetSdk = 36
         // One rising number for every build (sideload APK and Play bundle): minutes since 1 Jan 2025.
@@ -57,4 +63,7 @@ dependencies {
     implementation("androidx.biometric:biometric:1.1.0")
     implementation("androidx.fragment:fragment-ktx:1.8.5")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.9.0")
+    implementation("androidx.credentials:credentials:1.3.0")
+    implementation("androidx.credentials:credentials-play-services-auth:1.3.0")
+    implementation("com.google.android.libraries.identity.googleid:googleid:1.1.1")
 }

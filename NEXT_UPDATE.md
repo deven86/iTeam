@@ -36,7 +36,19 @@ Before deleting, show: groups where I'm the ONLY admin, and companies I own, eac
 - Login decided: **iPhone/iPad = Sign in with Apple only; Android = Sign in with Google only.**
   Our server verifies the Apple/Google token at login; they never see anything inside iTeam.
   Moving between iPhone and Android: "Move my account" by scanning a QR from the old phone (links both logins to one iTeam account).
-- Still to decide: hosting provider + domain, migration of current users, privacy policy + DPDP Act update.
+- Hosting (25 Nov): online VPS, not home PC — leaning AWS Lightsail Mumbai $12 plan (2 GB/2 vCPU). No .exe:
+  one Linux program (built-in SQLite + auto HTTPS), one setup command, auto-updates from GitHub, status page.
+  Apps use the domain only (never the IP) so server moves/upgrades need no app update. Daily encrypted backup
+  of the account list stored outside the server. Keep CloudKit working alongside during the switch.
+- Still to decide: domain, migration of current users, privacy policy + DPDP Act update.
+
+## 5b. Follow-up reminders — add "Every year"
+- Task follow-up / repeat options today: Never, Every day, Every week, Every month (`RepeatRule`).
+  Add **Every year** (birthdays, renewals, yearly filings). Keep old values working (new case only).
+
+## Marketing note (25 Nov)
+- Meta ads paused (Business paused by Claude; Youth paused by Devendra in Ads Manager).
+  Restart only after the new update is live. Adspirer calls reset 24 Dec — until then restart manually.
 
 ## 6. Already built, waiting for App Store
 - 1.0.2 (build 86) on TestFlight: Care Medical, family on iTeam, People + claim, online dot/last seen/music, faster sending.

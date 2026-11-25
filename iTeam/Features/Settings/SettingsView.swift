@@ -151,6 +151,7 @@ struct SettingsView: View {
                     LabeledContent("Your security code", value: E2E.fingerprint(engine.myPublicKey)).font(.callout)
                     NavigationLink { ContactsListView() } label: { Label("Contacts (\(contacts.count))", systemImage: "person.2") }
                     NavigationLink { PeopleView() } label: { Label("People not on iTeam", systemImage: "person.crop.rectangle.stack") }
+                    NavigationLink { AndroidBridgeView() } label: { Label("Talk to Android users (beta)", systemImage: "candybarphone") }
                     if !blocked.isEmpty {
                         NavigationLink { BlockedView() } label: { Label("Blocked (\(blocked.count))", systemImage: "hand.raised") }
                     }
@@ -489,5 +490,45 @@ enum DataExport {
         let url = FileManager.default.temporaryDirectory.appendingPathComponent("iTeam-export-\(Date.now.formatted(.iso8601.year().month().day())).json")
         do { try data.write(to: url, options: .atomic) } catch { return nil }
         return url
+    }
+}
+
+
+/// Joins this iPhone to iTeam's relay so Android users can chat with it (same iTeam ID).
+struct AndroidBridgeView: View {
+    @EnvironmentObject var engine: SyncEngine
+    @State private var on = RelayClient.shared.isOn
+    @State private var busy = false
+    @State private var error: String?
+
+    var body: some View {
+        Form {
+            Section {
+                Text("Turn this on to chat with people using iTeam on Android. Chats with iPhone and iPad users keep going through iCloud as before.")
+                Text("Messages stay end-to-end encrypted. The iTeam relay only passes them on and deletes them once delivered — it can't read them.")
+                    .font(.footnote).foregroundStyle(.secondary)
+            }
+            Section {
+                if on {
+                    Label("On — Android users can reach you", systemImage: "checkmark.circle.fill").foregroundStyle(.green)
+                    Button("Turn off", role: .destructive) { RelayClient.shared.leave(); on = false }
+                } else {
+                    Button {
+                        busy = true; error = nil
+                        Task {
+                            do { try await RelayClient.shared.join(me: engine.me); on = true; Haptics.success() }
+                            catch { self.error = error.localizedDescription; Haptics.warning() }
+                            busy = false
+                        }
+                    } label: { Label(busy ? "Connecting…" : "Turn on with Apple ID", systemImage: "apple.logo") }
+                    .disabled(busy)
+                }
+                if let error { Text(error).foregroundStyle(.red).font(.footnote) }
+            } footer: {
+                Text("Your Apple ID only confirms it's you. Android contacts add you with your usual invite link or QR code.")
+            }
+        }
+        .navigationTitle("Android users")
+        .lookScreen()
     }
 }

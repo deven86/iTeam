@@ -66,6 +66,9 @@ func main() {
 		statusToken: os.Getenv("STATUS_TOKEN"),
 		links:       map[string]linkCode{},
 		limiter:     newLimiter(20, 120),
+		ck: &CloudKitReader{Token: os.Getenv("CK_API_TOKEN"),
+			Base: env("CK_BASE", "https://api.apple-cloudkit.com/database/1/iCloud.com.jondhale.iteam/production/public")},
+		claims: claims{m: map[string]*claimChallenge{}},
 	}
 	mp := &MultiPusher{}
 	if f := os.Getenv("APNS_KEY_FILE"); f != "" {

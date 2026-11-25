@@ -47,6 +47,9 @@ final class CloudService {
         record["pubkey"] = publicKey as CKRecordValue
         if let avatar { record["pic"] = avatar as CKRecordValue }
         _ = try await db.modifyRecords(saving: [record], deleting: [], savePolicy: .allKeys, atomically: true)
+        var relayFields: [String: Any] = ["name": name, "pubkey": publicKey]
+        if let avatar { relayFields["pic"] = avatar.base64EncodedString() }
+        await RelayClient.shared.updateProfile(relayFields)
     }
 
     /// Updates only the "last seen" time on my public profile (nil removes it).
@@ -54,6 +57,7 @@ final class CloudService {
         let record = CKRecord(recordType: "Profile", recordID: profileID(userID))
         record["seen"] = at as CKRecordValue?
         _ = try? await db.modifyRecords(saving: [record], deleting: [], savePolicy: .changedKeys, atomically: true)
+        await RelayClient.shared.touchSeen(at)
     }
 
     /// Publishes whether I have the iTeam Plus badge.
@@ -61,6 +65,7 @@ final class CloudService {
         let record = CKRecord(recordType: "Profile", recordID: profileID(userID))
         record["plus"] = (on ? 1 : 0) as Int64 as CKRecordValue
         _ = try? await db.modifyRecords(saving: [record], deleting: [], savePolicy: .changedKeys, atomically: true)
+        await RelayClient.shared.updateProfile(["plus": on])
     }
 
     /// Publishes my current QR code; codes made before this stop working.
@@ -68,12 +73,19 @@ final class CloudService {
         let record = CKRecord(recordType: "Profile", recordID: profileID(userID))
         record["qr"] = code as CKRecordValue
         _ = try? await db.modifyRecords(saving: [record], deleting: [], savePolicy: .changedKeys, atomically: true)
+        await RelayClient.shared.updateProfile(["qr": code])
     }
 
     /// "Last seen" times for many people at once (only the tiny "seen" field is downloaded).
-    func fetchSeen(_ userIDs: [String]) async -> [String: Date] {
-        guard !userIDs.isEmpty else { return [:] }
+    func fetchSeen(_ all: [String]) async -> [String: Date] {
+        guard !all.isEmpty else { return [:] }
         var out: [String: Date] = [:]
+        // Android (relay) people
+        let relayIDs = all.filter(RelayClient.isRelayID)
+        if !relayIDs.isEmpty, let ps = try? await RelayClient.shared.profiles(relayIDs, seenOnly: true) {
+            for p in ps { if let s = p.seen { out[p.userID] = s } }
+        }
+        let userIDs = all.filter { !RelayClient.isRelayID($0) }
         for chunk in stride(from: 0, to: userIDs.count, by: 100).map({ Array(userIDs[$0..<min($0 + 100, userIDs.count)]) }) {
             guard let results = try? await db.records(for: chunk.map(profileID), desiredKeys: ["seen"]) else { continue }
             for (id, r) in results {
@@ -84,6 +96,10 @@ final class CloudService {
     }
 
     func fetchProfile(_ userID: String) async throws -> RemoteProfile? {
+        if RelayClient.isRelayID(userID) {
+            guard RelayClient.shared.isOn else { throw RelayClient.RelayError.server("This is an Android user. Turn on Settings → Talk to Android users first.") }
+            return try await RelayClient.shared.profiles([userID]).first
+        }
         do {
             let r = try await db.record(for: profileID(userID))
             guard let name = r["name"] as? String, let key = r["pubkey"] as? String else { return nil }
@@ -120,8 +136,34 @@ final class CloudService {
 
     /// Saves records in batches of up to 300. Throws on the first batch that fails as a whole;
     /// returns the names of records CloudKit rejected individually.
-    func save(_ records: [CKRecord]) async throws -> [String: Error] {
+    func save(_ all: [CKRecord]) async throws -> [String: Error] {
         var failed: [String: Error] = [:]
+        // Envelopes for Android people go through the relay (with any files in the same batch).
+        let relayEnvs = all.filter { $0.recordType == "Envelope" && RelayClient.isRelayID($0["rcpt"] as? String ?? "") }
+        if !relayEnvs.isEmpty {
+            if RelayClient.shared.isOn {
+                var blobFailed = false
+                for b in all where b.recordType == "Blob" {
+                    guard let url = (b["data"] as? CKAsset)?.fileURL else { continue }
+                    do { try await RelayClient.shared.putBlob(b.recordID.recordName, fileURL: url) } catch { blobFailed = true; failed[b.recordID.recordName] = error }
+                }
+                if blobFailed {
+                    for e in relayEnvs { failed[e.recordID.recordName] = RelayClient.RelayError.server("File upload failed") }
+                } else {
+                    let out = relayEnvs.map { r in
+                        RelayClient.OutEnvelope(id: r.recordID.recordName, rcpt: r["rcpt"] as? String ?? "", conv: r["conv"] as? String ?? "",
+                                                kind: r["kind"] as? Int ?? 0, loud: (r["loud"] as? Int ?? 0) == 1,
+                                                body: r["body"] as? Data ?? Data(), hint: r["hint"] as? String)
+                    }
+                    do { failed.merge(try await RelayClient.shared.send(out)) { a, _ in a } }
+                    catch { for e in relayEnvs { failed[e.recordID.recordName] = error } }
+                }
+            } else {
+                for e in relayEnvs { failed[e.recordID.recordName] = RelayClient.RelayError.server("Turn on Settings → Talk to Android users") }
+            }
+        }
+        let relayNames = Set(relayEnvs.map(\.recordID.recordName))
+        let records = all.filter { !relayNames.contains($0.recordID.recordName) }
         var i = 0
         while i < records.count {
             let batch = Array(records[i..<min(i + 300, records.count)])
@@ -136,6 +178,12 @@ final class CloudService {
 
     /// Envelopes addressed to me, newer than `since` (server time), oldest first.
     func inbox(for me: String, since: Date) async throws -> [Incoming] {
+        var fromRelay: [Incoming] = []
+        if RelayClient.shared.isOn { fromRelay = (try? await RelayClient.shared.inbox(me: me)) ?? [] }
+        return try await cloudInbox(for: me, since: since) + fromRelay
+    }
+
+    private func cloudInbox(for me: String, since: Date) async throws -> [Incoming] {
         let predicate = NSPredicate(format: "rcpt == %@ AND creationDate > %@", me, since as NSDate)
         let query = CKQuery(recordType: "Envelope", predicate: predicate)
         query.sortDescriptors = [NSSortDescriptor(key: "creationDate", ascending: true)]
@@ -178,7 +226,11 @@ final class CloudService {
 
     /// Downloads an encrypted file and returns its bytes.
     func fetchBlob(_ id: String) async throws -> Data {
-        let r = try await db.record(for: CKRecord.ID(recordName: id))
+        let r: CKRecord
+        do { r = try await db.record(for: CKRecord.ID(recordName: id)) }
+        catch let e as CKError where e.code == .unknownItem && RelayClient.shared.isOn {
+            return try await RelayClient.shared.getBlob(id) // file sent by an Android user
+        }
         guard let asset = r["data"] as? CKAsset, let url = asset.fileURL else { throw CKError(.unknownItem) }
         return try Data(contentsOf: url)
     }

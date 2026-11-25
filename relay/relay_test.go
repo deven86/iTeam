@@ -46,7 +46,8 @@ func newTestServer(t *testing.T, dir string) (*Server, *httptest.Server, *fakePu
 	}
 	fp := &fakePusher{}
 	s := &Server{st: st, dev: true, started: time.Now(), links: map[string]linkCode{},
-		limiter: newLimiter(1000, 1000), statusToken: "secret", apple: NewApple(nil), google: NewGoogle(nil)}
+		limiter: newLimiter(1000, 1000), statusToken: "secret", apple: NewApple(nil), google: NewGoogle(nil),
+		claims: claims{m: map[string]*claimChallenge{}}}
 	s.pushes = startPushWorkers(fp, 1, func(string) {})
 	hs := httptest.NewServer(s.Routes())
 	t.Cleanup(hs.Close)

@@ -45,6 +45,9 @@ type Server struct {
 	links  map[string]linkCode
 
 	limiter *limiter
+
+	ck     *CloudKitReader
+	claims claims
 }
 
 type linkCode struct {
@@ -85,6 +88,7 @@ func (s *Server) Routes() http.Handler {
 	m.HandleFunc("GET /healthz", func(w http.ResponseWriter, r *http.Request) { w.Write([]byte("ok")) })
 	m.HandleFunc("GET /status", s.status)
 	m.HandleFunc("POST /v1/login", s.login)
+	m.HandleFunc("POST /v1/claim/start", s.claimStart)
 	m.HandleFunc("POST /v1/logout", s.auth(s.logout))
 	m.HandleFunc("POST /v1/link", s.auth(s.link))
 	m.HandleFunc("PUT /v1/me/profile", s.auth(s.putProfile))
@@ -103,7 +107,7 @@ func (s *Server) Routes() http.Handler {
 func (s *Server) limit(h http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		cost := 1.0
-		if r.URL.Path == "/v1/login" {
+		if r.URL.Path == "/v1/login" || r.URL.Path == "/v1/claim/start" {
 			cost = 10
 		}
 		if !s.limiter.allow(clientIP(r), cost) {
@@ -164,6 +168,7 @@ func (s *Server) login(w http.ResponseWriter, r *http.Request) {
 		IDToken  string   `json:"idToken"`
 		LinkCode string   `json:"linkCode"`
 		Device   deviceIn `json:"device"`
+		Claim    *claimIn `json:"claim"`
 	}
 	if err := readJSON(r, 64<<10, &in); err != nil {
 		fail(w, 400, "bad request")
@@ -204,6 +209,18 @@ func (s *Server) login(w http.ResponseWriter, r *http.Request) {
 		in.Device.ID = randID(12)
 	}
 
+	// iPhone bridge: keep the existing iTeam (iCloud) ID, proven with its identity key.
+	var legacyID string
+	var legacyProfile *ckProfile
+	if in.Claim != nil {
+		id, p, err := s.verifyClaim(in.Claim)
+		if err != nil {
+			fail(w, 401, err.Error())
+			return
+		}
+		legacyID, legacyProfile = id, p
+	}
+
 	// Link code (from "Move my account") attaches this new login to an existing account.
 	var linkUser string
 	if in.LinkCode != "" {
@@ -225,7 +242,24 @@ func (s *Server) login(w http.ResponseWriter, r *http.Request) {
 	defer st.mu.Unlock()
 	userID, known := st.idents[key]
 	isNew := false
-	if linkUser != "" {
+	if legacyID != "" {
+		if known && userID != legacyID {
+			fail(w, 409, "this Apple ID is already linked to another iTeam account")
+			return
+		}
+		u := User{ID: legacyID, Created: time.Now().UTC()}
+		if old := st.users[legacyID]; old != nil {
+			u = *old
+		} else {
+			isNew = true
+		}
+		u.Name, u.PubKey, u.Pic = legacyProfile.Name, legacyProfile.PubKey, legacyProfile.Pic
+		st.write("user", u)
+		userID = legacyID
+		if !known {
+			st.write("ident", identOp{Key: key, User: userID})
+		}
+	} else if linkUser != "" {
 		if known && userID != linkUser {
 			fail(w, 409, "this login already belongs to another iTeam account")
 			return

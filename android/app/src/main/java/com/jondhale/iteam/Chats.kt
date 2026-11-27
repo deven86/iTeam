@@ -121,6 +121,28 @@ fun ChatList(app: AppState, status: StatusInfo, pastedInvite: MutableState<Strin
                 }
             }
             item { StatusBar(status) }
+            // Recent activity (like iPhone): newest 10 things from others; opening one dismisses it.
+            item {
+                val seenAct = remember(app.tick) { app.store.prefList("activity.seen", emptyList()).toSet() }
+                val acts = remember(app.tick) {
+                    val since = System.currentTimeMillis() - 7 * 86_400_000L
+                    synchronized(app.store) { app.store.msgs.filter { it.from != app.store.me && !it.deleted && it.at > since && it.id !in seenAct && (it.showAt ?: 0) <= System.currentTimeMillis() }.takeLast(40) }
+                        .sortedByDescending { it.at }.take(10)
+                }
+                if (acts.isNotEmpty()) Row(Modifier.horizontalScroll(rememberScrollState()).padding(horizontal = 12.dp, vertical = 6.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    acts.forEach { m ->
+                        val title = app.store.conv(m.conv)?.title ?: ""
+                        Column(Modifier.width(170.dp).clip(RoundedCornerShape(18.dp)).background(LookState.primary.copy(alpha = 0.10f))
+                            .clickable {
+                                app.store.setPref("activity.seen", (app.store.prefList("activity.seen", emptyList()) + m.id).takeLast(300)); app.changed(); open(Page.Chat(m.conv))
+                            }.padding(horizontal = 12.dp, vertical = 10.dp)) {
+                            Text(if (m.system) preview(m) else "${app.store.name(m.from).substringBefore(' ')} · $title: ${preview(m)}",
+                                style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.SemiBold, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                            Text(android.text.format.DateUtils.getRelativeTimeSpanString(m.at).toString(), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                    }
+                }
+            }
             // Pill filter: All / Direct / Groups
             item {
                 Row(Modifier.padding(horizontal = 16.dp, vertical = 12.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {

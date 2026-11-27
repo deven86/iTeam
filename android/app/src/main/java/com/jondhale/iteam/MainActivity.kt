@@ -181,7 +181,7 @@ fun App(store: Store, openConv: MutableState<String?>, pastedInvite: MutableStat
     LaunchedEffect(signedIn) {
         var wasActive = false
         var roomsAt = 0L
-        withContext(Dispatchers.IO) { app.rooms.loadBans() }
+        withContext(Dispatchers.IO) { app.rooms.loadBans(); runCatching { store.pruneAttPhotos() } }
         while (true) {
             val active = lifecycle.currentState.isAtLeast(androidx.lifecycle.Lifecycle.State.STARTED)
             val now = System.currentTimeMillis()

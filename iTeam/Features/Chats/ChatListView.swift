@@ -105,14 +105,21 @@ struct ChatListView: View {
                     Spacer()
                 }
                 .listRowBackground(Color.clear)
+                .listRowSeparator(.hidden)
                 .listRowInsets(EdgeInsets(top: 0, leading: 4, bottom: 0, trailing: 0))
-            }
-            Section {
+                // mini sits between the title row and the filters.
+                if search.isEmpty {
+                    MiniRow()
+                        .listRowBackground(Color.clear)
+                        .listRowSeparator(.hidden)
+                        .listRowInsets(EdgeInsets(top: 2, leading: 4, bottom: 2, trailing: 4))
+                }
                 Picker("Filter", selection: $filter) {
                     ForEach(Filter.allCases) { Text($0.rawValue).tag($0) }
                 }
                 .pickerStyle(.segmented)
                 .listRowBackground(Color.clear)
+                .listRowSeparator(.hidden)
                 .listRowInsets(EdgeInsets(top: 4, leading: 0, bottom: 4, trailing: 0))
                 syncBanner
                 if backup.iCloudFull {
@@ -136,14 +143,6 @@ struct ChatListView: View {
                         .foregroundStyle(look.warning)
                     }
                 }
-            }
-
-            if filter == .all && search.isEmpty {
-                Section {
-                    MiniRow()
-                        .listRowBackground(Color.clear)
-                        .listRowInsets(EdgeInsets(top: 0, leading: 4, bottom: 0, trailing: 4))
-                } header: { Text("mini") }
             }
 
             let invites = conversations.filter { $0.pendingInvite && !$0.left }
@@ -210,6 +209,8 @@ struct ChatListView: View {
     private func decorated<L: View>(_ list: L) -> some View {
         list
         .listStyle(.insetGrouped)
+        .listSectionSpacing(.compact)
+        .environment(\.defaultMinListRowHeight, 0)
         .lookScreen()
         .searchable(text: $search, prompt: "Search chats")
         .refreshable { await engine.sync(); await engine.refreshPresence(force: true) }
@@ -246,7 +247,7 @@ struct ChatListView: View {
                 .accessibilityLabel("My profile")
             }
             ToolbarItemGroup(placement: .topBarTrailing) {
-                Button { showAddContact = true } label: { Image(systemName: "qrcode.viewfinder") }
+                Button { showAddContact = true } label: { Image(systemName: "person.crop.circle.badge.plus") }
                     .accessibilityLabel("Scan or show QR code")
                 Button { showNewChat = true } label: { Image(systemName: "square.and.pencil") }
                     .accessibilityLabel("New chat")
@@ -274,7 +275,7 @@ struct ChatListView: View {
                                     Text(a.text).font(.footnote.weight(.semibold)).lineLimit(2).multilineTextAlignment(.leading)
                                     Text(a.date, style: .relative).font(.caption2).foregroundStyle(look.textSecondary)
                                 }
-                                .frame(width: 170, alignment: .leading).padding(10)
+                                .frame(width: 160, alignment: .leading).padding(.horizontal, 10).padding(.vertical, 8)
                                 .background(look.accent.opacity(0.10), in: RoundedRectangle(cornerRadius: 16))
                             }
                             .buttonStyle(.plain)
@@ -282,8 +283,10 @@ struct ChatListView: View {
                     }
                     .padding(.vertical, 2)
                 }
+                .contentMargins(.horizontal, 4, for: .scrollContent)
                 .listRowBackground(Color.clear)
-                .listRowInsets(EdgeInsets(top: 4, leading: 12, bottom: 4, trailing: 12))
+                .listRowSeparator(.hidden)
+                .listRowInsets(EdgeInsets(top: 2, leading: 0, bottom: 2, trailing: 0))
             }
         }
     }

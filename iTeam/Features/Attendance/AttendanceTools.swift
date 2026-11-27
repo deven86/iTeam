@@ -859,6 +859,11 @@ struct AttSettingsView: View {
                 if d.selfPunch {
                     Toggle("Require QR scan (rotating code)", isOn: $d.needQR)
                     Toggle("Require selfie", isOn: $d.needPhoto)
+                    if d.needPhoto {
+                        Picker("Keep punch photos", selection: Binding(get: { d.keepPhotoDays }, set: { d.photoDays = $0 })) {
+                            ForEach([15, 30, 45, 60, 90, 180, 365], id: \.self) { Text("\($0) days").tag($0) }
+                        }
+                    }
                     Toggle("Require location", isOn: $d.needGeo)
                 }
                 Toggle("Kiosk on owner/admin phone or iPad", isOn: $d.kiosk)

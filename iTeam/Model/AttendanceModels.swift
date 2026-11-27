@@ -62,7 +62,10 @@ struct AttCompanyData: Codable, Equatable {
     var qrSecret = ""
     var leaveTypes: [String] = ["Casual", "Sick", "Earned"]
     var currency: String? = nil
+    /// Punch photos are kept this many days, then deleted from every phone (nil = 60).
+    var photoDays: Int? = nil
 
+    var keepPhotoDays: Int { photoDays ?? 60 }
     var hasOffice: Bool { lat != 0 || lon != 0 }
     func isStaff(_ user: String) -> Bool { user == ownerID || admins.contains(user) }
 }

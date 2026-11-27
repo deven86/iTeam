@@ -119,6 +119,7 @@ final class SyncEngine: ObservableObject {
         if running { again = true; return }
         running = true
         defer { running = false }
+        prunePunchPhotos()
         repeat {
             again = false
             status = .syncing

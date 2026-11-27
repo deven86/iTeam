@@ -568,3 +568,24 @@ internal fun Sync.applyFinance(payload: JSONObject, from: String, convID: String
         }
     }
 }
+
+
+/** Rolling clean-up, once a day: punch selfies older than the company's limit (default 60 days) are removed from this phone. */
+fun Store.pruneAttPhotos() {
+    val today = AttData.key(System.currentTimeMillis())
+    if (pref("att.photoPrune", "") == today) return
+    setPref("att.photoPrune", today)
+    val fmt = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US)
+    var changed = false
+    synchronized(this) {
+        val limits = att.values.filter { it.ak == "company" }.associate { it.id to (it.d.optInt("photoDays", 0).takeIf { d -> d > 0 } ?: 60) }
+        for (r in att.values) {
+            if (r.ak != "entry") continue
+            val dd = r.p.optJSONObject("d") ?: continue
+            if (!dd.has("photoIn") && !dd.has("photoOut")) continue
+            val day = runCatching { fmt.parse(r.s("day"))?.time }.getOrNull() ?: continue
+            if (System.currentTimeMillis() - day > (limits[r.s("companyID")] ?: 60) * 86_400_000L) { dd.remove("photoIn"); dd.remove("photoOut"); changed = true }
+        }
+    }
+    if (changed) save()
+}

@@ -248,16 +248,24 @@ fun AttCompanyScreen(app: AppState, id: String, onBack: () -> Unit) {
                 if (rules) {
                     var needQR by remember { mutableStateOf(c.optBoolean("needQR")) }
                     var needPhoto by remember { mutableStateOf(c.optBoolean("needPhoto")) }
+                    var photoDays by remember { mutableStateOf(c.optInt("photoDays", 60).takeIf { it > 0 } ?: 60) }
                     val scope2 = rememberCoroutineScope()
                     AlertDialog({ rules = false }, title = { Text("How staff punch in") },
                         text = { Column {
                             Row(verticalAlignment = Alignment.CenterVertically) { Switch(needQR, { needQR = it }); Spacer(Modifier.width(10.dp)); Text("Scan the office QR (show it from the dashboard, or print today's QR)") }
                             Spacer(Modifier.height(10.dp))
                             Row(verticalAlignment = Alignment.CenterVertically) { Switch(needPhoto, { needPhoto = it }); Spacer(Modifier.width(10.dp)); Text("Take a selfie") }
+                            if (needPhoto) {
+                                Text("Keep punch photos for", style = MaterialTheme.typography.labelMedium, modifier = Modifier.padding(top = 8.dp))
+                                Row(Modifier.horizontalScroll(rememberScrollState())) {
+                                    listOf(15, 30, 60, 90, 180, 365).forEach { n -> FilterChip(photoDays == n, { photoDays = n }, label = { Text("$n d") }, modifier = Modifier.padding(end = 4.dp)) }
+                                }
+                                Text("Older photos are deleted automatically from every phone.", style = MaterialTheme.typography.bodySmall)
+                            }
                             Text("\nWith neither, a tap is enough. You and admins can always mark anyone.", style = MaterialTheme.typography.bodySmall)
                         } },
                         confirmButton = { TextButton({
-                            val d = org.json.JSONObject(c.toString()).put("needQR", needQR).put("needPhoto", needPhoto)
+                            val d = org.json.JSONObject(c.toString()).put("needQR", needQR).put("needPhoto", needPhoto).put("photoDays", photoDays)
                             app.run(scope2) { app.sync.attSaveCompany(comp, d) }; rules = false
                         }) { Text("Save") } },
                         dismissButton = { TextButton({ rules = false }) { Text("Cancel") } })

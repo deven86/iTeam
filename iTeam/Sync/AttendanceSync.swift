@@ -523,3 +523,31 @@ enum AttReminders {
         }
     }
 }
+
+
+// MARK: - Punch photo retention (owner sets days in Punch rules; default 60)
+@MainActor
+extension SyncEngine {
+    /// Rolling clean-up, once a day: removes punch selfies older than the company's limit from this phone.
+    func prunePunchPhotos() {
+        let key = "att.photoPrune.day"
+        let today = Calendar.current.startOfDay(for: .now).timeIntervalSince1970
+        guard UserDefaults.standard.double(forKey: key) < today else { return }
+        UserDefaults.standard.set(today, forKey: key)
+        let companies = (try? context.fetch(FetchDescriptor<AttRecord>(predicate: #Predicate { $0.kind == "company" }))) ?? []
+        var limit: [String: Int] = [:]
+        for c in companies { limit[c.id] = c.company.keepPhotoDays }
+        let entries = (try? context.fetch(FetchDescriptor<AttRecord>(predicate: #Predicate { $0.kind == "entry" }))) ?? []
+        let f = DateFormatter(); f.dateFormat = "yyyy-MM-dd"; f.locale = Locale(identifier: "en_US_POSIX")
+        var changed = false
+        for e in entries {
+            guard let d = f.date(from: e.day) else { continue }
+            let days = limit[e.companyID] ?? 60
+            guard Date.now.timeIntervalSince(d) > Double(days) * 86_400 else { continue }
+            var x = e.entry
+            guard x.photoIn != nil || x.photoOut != nil else { continue }
+            x.photoIn = nil; x.photoOut = nil; e.entry = x; changed = true
+        }
+        if changed { try? context.save() }
+    }
+}

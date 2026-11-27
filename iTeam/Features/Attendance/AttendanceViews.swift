@@ -627,8 +627,10 @@ struct AttDayRow: View {
                 if let e = entry?.entry { detail(e) }
             }
             Spacer(minLength: 0)
-            if let p = entry?.entry.photoIn, let img = UIImage(data: p) {
-                Image(uiImage: img).resizable().scaledToFill().frame(width: 30, height: 30).clipShape(Circle())
+            ForEach([entry?.entry.photoIn, entry?.entry.photoOut].compactMap { $0 }, id: \.self) { p in
+                if let img = UIImage(data: p) {
+                    Image(uiImage: img).resizable().scaledToFill().frame(width: 30, height: 30).clipShape(Circle())
+                }
             }
             AttStatusChip(status: status)
         }

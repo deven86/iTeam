@@ -1,10 +1,17 @@
 Big update — new modules, smarter tools and many fixes.
 
 NEW
+• Chat with Android users: turn on Settings → Talk to Android users (beta)
+• Recent activity strip above your chats; tap to open
+• Broadcast a message to up to 200 people privately
+• @mentions in groups, share a contact, clear notice when you're added to a group
+• Attendance: daily QR for the door, punch-in and punch-out selfie, owner sets how long photos are kept
+• Tasks: yearly repeat and extra reminders before and after the due date
+• New setup steps: choose your look and learn how to add people
 • iLife Care Medical: injuries with body part, treatment and restrictions; major health events with diagnosis, doctor, hospital and follow-up; medicines with photo, strength and "prescribed for"; bills total
 • Add a family member who is on iTeam directly — they see and update their own care profile
 • People not on iTeam: add clients, helpers or vendors once and pick them in any module or task; when they join, they claim their name and everything under it is shared with them
-• Green online dot, last seen and what someone is listening to (Apple Music), with privacy controls
+• Red online dot, last seen and what someone is listening to (Apple Music), with privacy controls
 • Faster sending: messages, photos and files go out instantly and in parallel
 • Documents in every module: a proper case file with folders, numbering, index PDF and safe open/share
 • Scan & fill: scan a bill, prescription, visiting card or form and iTeam fills the fields for you (Apple Intelligence, on device)

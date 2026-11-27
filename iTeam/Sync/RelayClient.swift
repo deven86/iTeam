@@ -98,6 +98,14 @@ final class RelayClient {
         Task { _ = try? await callWith(token: t, "POST", "v1/logout") }
     }
 
+    /// Delete my account: removes the relay account and everything it holds.
+    func deleteAccount() async {
+        guard !token.isEmpty else { return }
+        let t = token
+        token = ""
+        _ = try? await callWith(token: t, "DELETE", "v1/me")
+    }
+
     private func callWith(token t: String, _ method: String, _ path: String) async throws {
         var req = URLRequest(url: Self.base.appendingPathComponent(path)); req.httpMethod = method
         req.setValue("Bearer " + t, forHTTPHeaderField: "Authorization")

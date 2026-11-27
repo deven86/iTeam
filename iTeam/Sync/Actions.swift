@@ -586,6 +586,7 @@ extension SyncEngine {
     func deleteAccount() async {
         let id = me
         try? await cloud.delete(["P" + id])
+        await RelayClient.shared.deleteAccount()
         await Nearby.shared.remove(userID: id)
         for (roomID, _) in Rooms.shared.joined { if let r = Rooms.shared.room(roomID) { await Rooms.shared.leave(r) } }
         eraseLocalData()

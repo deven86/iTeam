@@ -111,6 +111,7 @@ fun SettingsTab(app: AppState, open: (Page) -> Unit) {
             scope.launch(kotlinx.coroutines.Dispatchers.IO) {
                 runCatching { app.sync.cloudKit.modify(listOf(app.sync.cloudKit.delete("P" + app.store.me))) }
                 runCatching { app.nearby.remove() }
+                if (BuildConfig.RELAY) runCatching { RelayCloud(app.store).deleteMe() }
                 runCatching { app.rooms.joinedRooms().forEach { app.rooms.leave(it) } }
                 app.store.wipe()
                 kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {

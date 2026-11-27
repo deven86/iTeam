@@ -47,6 +47,9 @@ class RelayCloud(private val store: Store) : CloudKit(store) {
         get() = store.secret("relay.acked")?.toLongOrNull() ?: 0
         set(v) { store.setSecret("relay.acked", v.toString()) }
 
+    /** Delete my account on the relay (and everything it holds). */
+    fun deleteMe() { runCatching { call("DELETE", "v1/me") } }
+
     private fun call(method: String, path: String, body: Any? = null, auth: Boolean = true): JSONObject {
         val b = Request.Builder().url(base + path)
         if (auth) {

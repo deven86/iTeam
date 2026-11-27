@@ -108,6 +108,11 @@ class Store private constructor(private val ctx: Context) {
         secure.edit().putString(k, v).apply()
     }
 
+    /** All keys and settings, for an encrypted backup (session tokens are left out; you sign in again after restoring). */
+    fun exportSecrets(): Map<String, String> = secure.all.mapNotNull { (k, v) ->
+        if (k == "ck.web" || k.startsWith("relay.") || k.startsWith("backup.")) null else (v as? String)?.let { k to it } }.toMap()
+    fun importSecrets(m: Map<String, String>) { cache.clear(); secure.edit().apply { m.forEach { (k, v) -> putString(k, v) } }.commit() }
+
     var webToken: String
         get() = secret("ck.web") ?: ""
         set(v) { setSecret("ck.web", v) }

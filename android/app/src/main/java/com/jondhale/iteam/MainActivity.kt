@@ -270,6 +270,7 @@ sealed class Page {
     object Privacy : Page()
     object BubbleColor : Page()
     object Help : Page()
+    object BackupPage : Page()
     object ModuleRequest : Page()
 }
 
@@ -324,6 +325,7 @@ fun Home(app: AppState, status: StatusInfo, openConv: MutableState<String?>, pas
             Page.Privacy -> PrivacyScreen(app, onBack = { pop() })
             Page.BubbleColor -> BubbleColorScreen(app, onBack = { pop() })
             Page.Help -> HelpScreen(app, onBack = { pop() })
+            Page.BackupPage -> BackupScreen(app, onBack = { pop() })
             Page.ModuleRequest -> ModuleRequestScreen(app, onBack = { pop() })
             Page.Modules -> ModulesHub(app, onBack = { pop() }, open = { push(it) })
             is Page.BizModule -> BizModuleScreen(app, top.module, onBack = { pop() }, open = { push(it) })

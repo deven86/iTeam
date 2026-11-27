@@ -12,7 +12,8 @@ group-task cards (ref: task app), graphs with card effect (ref: Zenvest).
 - [ ] Media: send instantly as a preview, full photo/document downloads only when tapped (both)
 - [ ] Online dot (red, as requested) + last seen + now playing in chat header — Android parity
 
-## Batch 3 — adding people (both)
+## Batch 3 — backup + adding people (both)
+- [x] Android encrypted backup & restore (Google Drive / any "Save to" app), daily auto backup
 - [ ] Paste-link add iPhone⇄Android (fix), Nearby across platforms, QR (works)
 - [ ] Share a contact card
 - [ ] Group join consent: "members can see and add you; private messages only after they're added"

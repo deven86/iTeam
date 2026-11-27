@@ -26,7 +26,7 @@ class PollWorker(ctx: Context, params: WorkerParameters) : CoroutineWorker(ctx, 
         if (store.me.isEmpty() || store.identity == null) return Result.success()
         if (store.webToken.isEmpty()) { Notify.signInNeeded(applicationContext); return Result.success() }
         return try {
-            Notify.show(applicationContext, Sync(store).poll()); ITeamWidget.update(applicationContext); runCatching { Reminders.reschedule(applicationContext) }; Result.success()
+            Notify.show(applicationContext, Sync(store).poll()); runCatching { Backup.autoIfDue(applicationContext) }; ITeamWidget.update(applicationContext); runCatching { Reminders.reschedule(applicationContext) }; Result.success()
         } catch (e: AuthNeeded) { Notify.signInNeeded(applicationContext); Result.success() } catch (e: Exception) { Result.retry() }
     }
 

@@ -143,9 +143,11 @@ fun SettingsTab(app: AppState, open: (Page) -> Unit) {
                 }
                 Row1(Icons.Default.NearMe, "People & businesses nearby") { open(Page.Nearby) }
                 Row1(Icons.Default.GroupAdd, "New group") { open(Page.NewGroup) }
-                Row1(Icons.Default.Refresh, "Sign in with Apple ID again", "Use this if messages stop sending or say “sign in”") { app.signIn(app.reconnect) }
+                Row1(Icons.Default.CloudUpload, "Backup & restore", "Google Drive, OneDrive, phone — encrypted") { open(Page.BackupPage) }
+                if (BuildConfig.RELAY) Row1(Icons.Default.Refresh, "Sign in with Google again", "Use this if messages stop sending") { app.signIn(app.reconnect) }
+                else Row1(Icons.Default.Refresh, "Sign in with Apple ID again", "Use this if messages stop sending or say “sign in”") { app.signIn(app.reconnect) }
                 Row1(Icons.Default.PersonRemove, "Delete my account") { deleteAcc = true }
-                Text("Messages are end-to-end encrypted with a key that lives only on this phone. They travel through Apple's iCloud — there is no iTeam server.\n\nApp version ${BuildConfig.VERSION_NAME}",
+                Text(if (BuildConfig.RELAY) "Messages are end-to-end encrypted with a key that lives only on this phone. The iTeam relay only passes them on and deletes them once delivered — it can't read them.\n\nApp version ${BuildConfig.VERSION_NAME}" else "Messages are end-to-end encrypted with a key that lives only on this phone. They travel through Apple's iCloud — there is no iTeam server.\n\nApp version ${BuildConfig.VERSION_NAME}",
                     Modifier.padding(16.dp), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }
@@ -335,4 +337,76 @@ private fun StoreRow(title: String, sub: String, colors: List<Color>, icon: Imag
         headlineContent = { Text(title, fontWeight = FontWeight.SemiBold) },
         supportingContent = { Text(sub, maxLines = 2) },
         trailingContent = { if (added) OutlinedButton(toggle) { Text("Remove") } else Button(toggle) { Text(if (shown) "Add" else "Get — Free") } })
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+/** Backup & restore: one encrypted file, saved wherever the user picks (Google Drive, OneDrive, phone…). */
+@Composable
+fun BackupScreen(app: AppState, onBack: () -> Unit) {
+    val ctx = androidx.compose.ui.platform.LocalContext.current
+    val scope = rememberCoroutineScope()
+    var pass by remember { mutableStateOf("") }
+    var pass2 by remember { mutableStateOf("") }
+    var busy by remember { mutableStateOf<String?>(null) }
+    var progress by remember { mutableStateOf(0f) }
+    var auto by remember { mutableStateOf(app.store.secret("backup.uri") != null) }
+    val last = app.store.secret("backup.last")?.toLongOrNull()
+    val okPass = pass.length >= 6 && pass == pass2
+    val saveTo = androidx.activity.compose.rememberLauncherForActivityResult(androidx.activity.result.contract.ActivityResultContracts.CreateDocument("application/octet-stream")) { uri ->
+        if (uri == null) return@rememberLauncherForActivityResult
+        busy = "Backing up…"; progress = 0f
+        scope.launch {
+            try {
+                kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                    ctx.contentResolver.openOutputStream(uri, "wt")!!.use { Backup.write(ctx, app.store, it, pass) { p -> progress = p } }
+                }
+                if (auto) {
+                    runCatching { ctx.contentResolver.takePersistableUriPermission(uri, android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION or android.content.Intent.FLAG_GRANT_WRITE_URI_PERMISSION) }
+                    app.store.setSecret("backup.uri", uri.toString()); app.store.setSecret("backup.pass", pass)
+                }
+                app.store.setSecret("backup.last", System.currentTimeMillis().toString())
+                app.toast = "✅ Backup saved"
+            } catch (e: Exception) { app.toast = "Backup failed: ${e.message}" }
+            busy = null
+        }
+    }
+    val openFile = androidx.activity.compose.rememberLauncherForActivityResult(androidx.activity.result.contract.ActivityResultContracts.OpenDocument()) { uri ->
+        if (uri == null) return@rememberLauncherForActivityResult
+        busy = "Restoring…"
+        scope.launch {
+            try {
+                kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                    ctx.contentResolver.openInputStream(uri)!!.use { Backup.restore(ctx, app.store, it, pass) }
+                }
+                app.toast = "✅ Restored — restarting…"
+                kotlinx.coroutines.delay(800)
+                val i = ctx.packageManager.getLaunchIntentForPackage(ctx.packageName)!!.addFlags(android.content.Intent.FLAG_ACTIVITY_CLEAR_TASK or android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+                ctx.startActivity(i); Runtime.getRuntime().exit(0)
+            } catch (e: Exception) { app.toast = e.message ?: "Restore failed" }
+            busy = null
+        }
+    }
+    Scaffold(topBar = { TopAppBar(title = { Text("Backup & restore") }, navigationIcon = { IconButton(onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back") } }) }) { pad ->
+        Column(Modifier.padding(pad).padding(16.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Text("Your chats, tasks, files and keys in one encrypted file. Save it to Google Drive, OneDrive, Dropbox or your phone — you choose on the next screen.",
+                color = MaterialTheme.colorScheme.onSurfaceVariant)
+            if (last != null) Text("Last backup: ${dateText(last)} ${time(last)}", fontWeight = FontWeight.SemiBold)
+            OutlinedTextField(pass, { pass = it }, label = { Text("Backup password (6+ characters)") }, singleLine = true,
+                visualTransformation = androidx.compose.ui.text.input.PasswordVisualTransformation(), modifier = Modifier.fillMaxWidth())
+            OutlinedTextField(pass2, { pass2 = it }, label = { Text("Type it again") }, singleLine = true,
+                visualTransformation = androidx.compose.ui.text.input.PasswordVisualTransformation(), modifier = Modifier.fillMaxWidth())
+            Text("⚠️ Remember this password. Without it the backup can't be opened — not even by iTeam.", style = MaterialTheme.typography.bodySmall)
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Switch(auto, { auto = it; if (!it) { app.store.setSecret("backup.uri", null); app.store.setSecret("backup.pass", null) } })
+                Spacer(Modifier.width(10.dp)); Text("Back up automatically every day")
+            }
+            Button({ saveTo.launch("iTeam-backup-${java.text.SimpleDateFormat("yyyy-MM-dd").format(java.util.Date())}.itb") },
+                enabled = okPass && busy == null, modifier = Modifier.fillMaxWidth().height(52.dp)) { Icon(Icons.Default.CloudUpload, null); Spacer(Modifier.width(8.dp)); Text("Back up now") }
+            OutlinedButton({ openFile.launch(arrayOf("*/*")) }, enabled = pass.length >= 6 && busy == null, modifier = Modifier.fillMaxWidth().height(52.dp)) {
+                Icon(Icons.Default.Restore, null); Spacer(Modifier.width(8.dp)); Text("Restore from a backup")
+            }
+            Text("Restoring replaces everything on this phone with the backup. Enter the backup's password above first.", style = MaterialTheme.typography.bodySmall)
+            busy?.let { Text(it, fontWeight = FontWeight.SemiBold); LinearProgressIndicator({ progress }, Modifier.fillMaxWidth()) }
+        }
+    }
 }

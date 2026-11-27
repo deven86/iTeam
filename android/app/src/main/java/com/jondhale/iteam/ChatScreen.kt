@@ -107,11 +107,33 @@ fun ChatScreen(app: AppState, convID: String, onBack: () -> Unit, open: (Page) -
         } else micPermission.launch(Manifest.permission.RECORD_AUDIO)
     }
 
+    // Presence (iTeam Next): share mine and read theirs every 40 s while the chat is open.
+    var peerSeen by remember { mutableStateOf(0L) }
+    if (BuildConfig.RELAY && !conv.isGroup) LaunchedEffect(convID) {
+        val peer = app.sync.peerOf(convID)
+        while (true) {
+            withContext(Dispatchers.IO) {
+                val rc = RelayCloud(app.store)
+                if (app.store.prefBool("shareSeen", true)) runCatching { rc.touchSeen() }
+                if (peer != null) runCatching { rc.seen(listOf(peer))[peer]?.let { peerSeen = it } }
+            }
+            kotlinx.coroutines.delay(40_000)
+        }
+    }
+    val online = peerSeen > 0 && System.currentTimeMillis() - peerSeen < 180_000
     Scaffold(topBar = {
         TopAppBar(title = {
             Column(Modifier.clickable(enabled = conv.isGroup) { open(Page.GroupInfo(convID)) }) {
                 Text(conv.title, fontWeight = FontWeight.Bold, maxLines = 1)
-                Text(if (conv.isGroup) "${conv.members.size} members · tap for info" else "🔒 End-to-end encrypted", style = MaterialTheme.typography.labelSmall)
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    if (online) { Box(Modifier.size(8.dp).clip(CircleShape).background(Color.Red)); Spacer(Modifier.width(5.dp)) }
+                    Text(when {
+                        conv.isGroup -> "${conv.members.size} members · tap for info"
+                        online -> "online"
+                        peerSeen > 0 -> "last seen " + (if (dateText(peerSeen) == dateText(System.currentTimeMillis())) "today" else dateText(peerSeen)) + " at " + time(peerSeen)
+                        else -> "🔒 End-to-end encrypted"
+                    }, style = MaterialTheme.typography.labelSmall)
+                }
             }
         }, navigationIcon = { IconButton(onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back") } }, actions = {
             IconButton({ extra = "timer" }) { Icon(if (conv.timer > 0) Icons.Default.TimerOff else Icons.Default.Timer, "Disappearing messages") }

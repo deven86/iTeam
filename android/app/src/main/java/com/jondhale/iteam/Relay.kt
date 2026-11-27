@@ -84,6 +84,18 @@ class RelayCloud(private val store: Store) : CloudKit(store) {
 
     fun setPushToken(token: String) { call("PUT", "/v1/me/device", JSONObject().put("pushToken", token)) }
 
+    /** Last-seen times (epoch ms) for these people; only those who share it. */
+    fun seen(ids: List<String>): Map<String, Long> {
+        if (ids.isEmpty() || store.webToken.isEmpty()) return emptyMap()
+        val list = call("POST", "/v1/profiles", JSONObject().put("ids", JSONArray(ids)).put("seenOnly", true)).optJSONArray("profiles") ?: return emptyMap()
+        val out = mutableMapOf<String, Long>()
+        list.forEachObj { p -> p.optString("seen").takeIf { it.isNotEmpty() }?.let { runCatching { out[p.getString("userID")] = java.time.Instant.parse(it).toEpochMilli() } } }
+        return out
+    }
+
+    /** Shares "online now" (the server stamps its own time). */
+    fun touchSeen() { call("PUT", "/v1/me/seen", JSONObject().put("seen", java.time.Instant.now().toString())) }
+
     override fun signInURL(): String = ""
 
     override fun me(): String {

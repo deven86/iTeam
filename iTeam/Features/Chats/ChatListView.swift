@@ -344,7 +344,7 @@ struct ConversationRow: View {
                 }
                 .overlay(alignment: .bottomTrailing) {
                     if !conv.isGroup, let p = conv.peerID, p != engine.me, engine.contact(p)?.isOnline == true {
-                        Circle().fill(Color.green).frame(width: 14, height: 14)
+                        Circle().fill(Color.red).frame(width: 14, height: 14)
                             .overlay(Circle().stroke(Color(.systemBackground), lineWidth: 2.5))
                             .accessibilityLabel("Online")
                     }

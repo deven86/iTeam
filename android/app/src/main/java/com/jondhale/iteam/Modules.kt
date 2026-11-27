@@ -55,15 +55,9 @@ fun ModuleTile(title: String, sub: String, colors: List<Color>, icon: androidx.c
 
 @Composable
 fun StatTiles(vararg tiles: Pair<String, String>) {
-    Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        tiles.forEach { (v, l) ->
-            Card(Modifier.weight(1f)) {
-                Column(Modifier.padding(10.dp)) {
-                    Text(v, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                    Text(l, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 2)
-                }
-            }
-        }
+    // Violet card tiles (Dashboard.kt) — the first tile is highlighted.
+    Row(Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 6.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+        tiles.forEachIndexed { i, (v, l) -> StatTile(l, v, Modifier.weight(1f), highlight = i == 0) }
     }
 }
 

@@ -87,16 +87,33 @@ fun ChatList(app: AppState, status: StatusInfo, pastedInvite: MutableState<Strin
                             }
                         }
                     }
-                    val people = convs.filter { !it.isGroup }.take(12)
+                    val people0 = convs.filter { !it.isGroup }.take(20)
+                    val peers = people0.mapNotNull { c -> app.sync.peerOf(c.id)?.let { c.id to it } }.toMap()
+                    var seenMap by remember { mutableStateOf<Map<String, Long>>(emptyMap()) }
+                    if (BuildConfig.RELAY) LaunchedEffect(peers.values.toList()) {
+                        while (true) {
+                            kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { runCatching { seenMap = RelayCloud(app.store).seen(peers.values.toList()) } }
+                            kotlinx.coroutines.delay(60_000)
+                        }
+                    }
+                    val nowMs = System.currentTimeMillis()
+                    fun ago(id: String): Long = peers[id]?.let { seenMap[it] }?.let { nowMs - it } ?: Long.MAX_VALUE
+                    val people = people0.sortedBy { ago(it.id) }.take(12)
                     if (people.isNotEmpty()) {
                         Spacer(Modifier.height(14.dp))
                         Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(14.dp)) {
                             people.forEach { c ->
                                 Column(Modifier.width(60.dp).clickable { open(Page.Chat(c.id)) }, horizontalAlignment = Alignment.CenterHorizontally) {
-                                    Box(Modifier.border(2.dp, Color.White, CircleShape).padding(3.dp)) {
-                                        Avatar(c.title, size = 50, photo = app.sync.peerOf(c.id)?.let { app.store.photoOf(it) } ?: "")
+                                    val ag = ago(c.id)
+                                    Box {
+                                        Box(Modifier.border(2.dp, Color.White, CircleShape).padding(3.dp)) {
+                                            Avatar(c.title, size = 50, photo = app.sync.peerOf(c.id)?.let { app.store.photoOf(it) } ?: "")
+                                        }
+                                        if (ag < 180_000) Box(Modifier.align(Alignment.BottomEnd).size(14.dp).border(2.dp, Color.White, CircleShape).background(Color(0xFFE53935), CircleShape))
                                     }
                                     Text(c.title.substringBefore(' '), color = Color.White, style = MaterialTheme.typography.labelSmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                    val lbl = when { ag < 180_000 -> "online"; ag < 3_600_000 -> "${ag / 60_000}m"; ag < 86_400_000 -> "${ag / 3_600_000}h"; else -> "" }
+                                    if (lbl.isNotEmpty()) Text(lbl, color = Color.White.copy(alpha = 0.8f), style = MaterialTheme.typography.labelSmall)
                                 }
                             }
                         }

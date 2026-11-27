@@ -400,7 +400,12 @@ fun FinanceHome(app: AppState, onBack: (() -> Unit)?) {
                 Row(Modifier.horizontalScroll(rememberScrollState()).padding(horizontal = 12.dp)) {
                     books.forEach { (id, name) -> FilterChip(book == id, { book = id }, label = { Text(name) }, modifier = Modifier.padding(end = 6.dp)) }
                 }
-                StatTiles(money(income) to "Income this month", money(expense) to "Spent this month", money(income - expense) to "Net")
+                StatRow(Triple("Net this month", money(income - expense), null), Triple("Income", money(income), null), Triple("Spent", money(expense), null))
+            }
+            item {
+                val days = lastDays(7)
+                val spent = days.map { (_, start) -> all.filter { !it.isIn && it.status == "paid" && it.finDate >= start && it.finDate < start + 86_400_000 }.sumOf { it.amount }.toFloat() }
+                BarChartCard("Spending · last 7 days", money(spent.sum().toDouble()), days.map { it.first }, spent)
             }
             items(ModuleCharts.finance(app, book), key = { "ch" + it.title }) { ChartCard(it) }
             if (attention.isNotEmpty()) {

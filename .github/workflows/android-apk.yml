@@ -71,6 +71,14 @@ jobs:
           name: iTeam-android-apk
           path: out/*.apk
           retention-days: 30
+      - name: Publish as release "android-latest" (iTeam Next only) for the install page
+        if: github.event.inputs.next == 'yes'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          cp out/*.apk iTeam-Android.apk
+          gh release view android-latest >/dev/null 2>&1 || gh release create android-latest --title "iTeam for Android (latest)" --notes "Install guide: https://deven86.github.io/iteam-web/get.html" --latest=false
+          gh release upload android-latest iTeam-Android.apk --clobber
       - name: Remove key
         if: always()
         run: rm -f "$RUNNER_TEMP/iteam.jks"

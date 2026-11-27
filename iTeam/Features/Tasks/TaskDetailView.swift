@@ -197,6 +197,17 @@ struct TaskDetailView: View {
                         Text("1 day before").tag(1440)
                     }
                 }
+                if t.dueAt != nil {
+                    Menu {
+                        ForEach(ExtraReminder.options, id: \.0) { o in
+                            let on = t.remindersRaw.split(separator: ",").map(String.init).contains(o.0)
+                            Button { toggleReminder(t, o.0) } label: { Label(o.1, systemImage: on ? "checkmark.circle.fill" : "circle") }
+                        }
+                    } label: {
+                        let n = t.remindersRaw.split(separator: ",").count
+                        LabeledContent("More reminders", value: n == 0 ? "None" : "\(n) set")
+                    }
+                }
                 if store.proUnlocked {
                     Picker("Repeat", selection: Binding(get: { t.repeatRule }, set: { r in
                         engine.updateTask(t, fields: ["repeat"], change: "set it to repeat \(RepeatRule(rawValue: r)?.title.lowercased() ?? r)") { $0.repeatRule = r }
@@ -470,5 +481,17 @@ struct TaskIdeasSection: View {
             s += "- \(t.title) — done by \(who) on \(t.completedAt?.formatted(date: .abbreviated, time: .omitted) ?? "") — notes: \(String(t.notes.prefix(300)))\n"
         }
         return s
+    }
+}
+
+
+extension TaskDetailView {
+    /// Turns one extra reminder on/off (personal, this phone only) and reschedules notifications.
+    func toggleReminder(_ t: TaskItem, _ code: String) {
+        var set = t.remindersRaw.split(separator: ",").map(String.init)
+        if let i = set.firstIndex(of: code) { set.remove(at: i) } else { set.append(code) }
+        t.remindersRaw = set.joined(separator: ",")
+        Reminders.shared.reschedule(context: engine.context, me: engine.me)
+        Haptics.tap()
     }
 }

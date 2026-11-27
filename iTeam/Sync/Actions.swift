@@ -462,6 +462,7 @@ extension SyncEngine {
         case "daily": component = .day
         case "weekly": component = .weekOfYear
         case "monthly": component = .month
+        case "yearly": component = .year
         default: return
         }
         let base = t.dueAt ?? .now

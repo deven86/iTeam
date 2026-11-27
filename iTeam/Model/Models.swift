@@ -337,6 +337,9 @@ enum WorkPriority: Int, Codable, CaseIterable {
     var stampsData: Data?
     /// Minutes before the due time for my reminder (-1 = only at due time). Personal, not shared.
     var reminderOffset: Int
+    /// Extra personal reminders, comma-separated minutes relative to due: positive = before, negative = after,
+    /// "D" = every day after the due date until it's done (renewals). Not shared.
+    var remindersRaw: String = ""
     var deleted: Bool
     var updatedAt: Date
     /// Who deleted it and when — deleted tasks stay visible as "Deleted".

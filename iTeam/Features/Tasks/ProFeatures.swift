@@ -65,15 +65,24 @@ struct ProLockRow: View {
 }
 
 enum RepeatRule: String, CaseIterable {
-    case none, daily, weekly, monthly
+    case none, daily, weekly, monthly, yearly
     var title: String {
         switch self {
         case .none: "Never"
         case .daily: "Every day"
         case .weekly: "Every week"
         case .monthly: "Every month"
+        case .yearly: "Every year"
         }
     }
+}
+
+/// Extra reminders for renewals and deadlines (choose several).
+enum ExtraReminder {
+    static let options: [(String, String)] = [
+        ("43200", "1 month before"), ("21600", "15 days before"), ("10080", "1 week before"), ("1440", "1 day before"), ("60", "1 hour before"),
+        ("-1440", "1 day after"), ("D", "Every day after, until done"), ("-10080", "1 week after"), ("-21600", "15 days after"), ("-43200", "1 month after"),
+    ]
 }
 
 // MARK: - Reports (Business Tasks Pro)

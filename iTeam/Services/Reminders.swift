@@ -59,6 +59,19 @@ final class Reminders {
                 let early = due.addingTimeInterval(-Double(t.reminderOffset) * 60)
                 if early > now { plans.append(Plan(id: prefix + t.id + ".early", fire: early, title: "⏰ Due \(Fmt.due(due))", body: body, category: Self.categoryID, info: info)) }
             }
+            for r in t.remindersRaw.split(separator: ",").map(String.init) {
+                if r == "D" {
+                    // Every day after the due date until done — schedule the next 7 (renewed on each refresh).
+                    for k in 1...7 {
+                        let f = due.addingTimeInterval(Double(k) * 86400)
+                        if f > now { plans.append(Plan(id: prefix + t.id + ".d\(k)", fire: f, title: "🔁 Still pending — \(Fmt.due(due))", body: body, category: Self.categoryID, info: info)) }
+                    }
+                } else if let m = Int(r) {
+                    let f = due.addingTimeInterval(-Double(m) * 60)
+                    let title = m > 0 ? "⏰ Due \(Fmt.due(due))" : "⚠️ Overdue since \(Fmt.due(due))"
+                    if f > now { plans.append(Plan(id: prefix + t.id + ".x\(r)", fire: f, title: title, body: body, category: Self.categoryID, info: info)) }
+                }
+            }
         }
 
         // Follow-ups (Business Tasks Pro): the next 3 days, until the task is done or the end date passes.

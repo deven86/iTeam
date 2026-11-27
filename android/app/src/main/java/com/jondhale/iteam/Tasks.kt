@@ -5,6 +5,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -109,9 +110,10 @@ fun TasksTab(app: AppState, open: (Page) -> Unit) {
 
 fun priorityColor(p: Int) = when (p) { 3 -> Color(0xFFE5484D); 2 -> Color(0xFFF59E0B); 0 -> Color.Gray; else -> Brand }
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 fun TaskScreen(app: AppState, id: String, onBack: () -> Unit, open: (Page) -> Unit) {
+    val ctxR = androidx.compose.ui.platform.LocalContext.current
     val t = remember(app.tick, id) { app.store.task(id) } ?: return
     val me = app.store.me
     val scope = rememberCoroutineScope()
@@ -191,6 +193,27 @@ fun TaskScreen(app: AppState, id: String, onBack: () -> Unit, open: (Page) -> Un
 
             TaskExtras(app, t)
 
+            // Repeat (shared) and extra reminders (just for me) — for renewals and deadlines.
+            Text("Repeat & reminders", style = MaterialTheme.typography.titleSmall, modifier = Modifier.padding(top = 16.dp))
+            val rules = listOf("none" to "Never", "daily" to "Every day", "weekly" to "Every week", "monthly" to "Every month", "yearly" to "Every year")
+            Row(Modifier.horizontalScroll(rememberScrollState())) {
+                rules.forEach { (k, label) ->
+                    FilterChip(t.p.optString("repeatRule", "none") == k, {
+                        app.run(scope) { app.sync.updateTask(id, "set it to repeat ${label.lowercase()}") { p -> p.put("repeatRule", k); listOf("repeat") } }
+                    }, { Text(label) }, modifier = Modifier.padding(end = 6.dp))
+                }
+            }
+            if (t.due != null) {
+                var picked by remember(id) { mutableStateOf(app.store.prefList("task.remind.$id", emptyList()).toSet()) }
+                androidx.compose.foundation.layout.FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    TaskExtraReminders.options.forEach { (code, label) ->
+                        FilterChip(code in picked, {
+                            picked = if (code in picked) picked - code else picked + code
+                            app.store.setPref("task.remind.$id", picked.toList()); Reminders.reschedule(ctxR)
+                        }, { Text(label) })
+                    }
+                }
+            }
             Text("Comments", style = MaterialTheme.typography.titleSmall, modifier = Modifier.padding(top = 16.dp))
             if (t.comments.isEmpty()) Text("No comments yet.", color = MaterialTheme.colorScheme.onSurfaceVariant)
             t.comments.sortedBy { it.optLong("at") }.forEach { c ->
@@ -273,6 +296,12 @@ fun TaskEditorDialog(app: AppState, conv: Conv, onDone: () -> Unit) {
 
 
 /** "10:00 AM, 6:00 PM · Mon–Fri · until done" */
+/** Extra reminders around the due date (same choices as the iPhone). Minutes: + before, - after; "D" daily after until done. */
+object TaskExtraReminders {
+    val options = listOf("43200" to "1 month before", "21600" to "15 days before", "10080" to "1 week before", "1440" to "1 day before", "60" to "1 hour before",
+        "-1440" to "1 day after", "D" to "Every day after, until done", "-10080" to "1 week after", "-21600" to "15 days after", "-43200" to "1 month after")
+}
+
 fun followUpText(f: org.json.JSONObject): String {
     val times = f.optJSONArray("times")?.let { a -> (0 until a.length()).map { AttData.clock(a.optInt(it)) } } ?: emptyList()
     val wd = f.optJSONArray("weekdays")?.let { a -> (0 until a.length()).map { a.optInt(it) } }?.sorted() ?: emptyList()

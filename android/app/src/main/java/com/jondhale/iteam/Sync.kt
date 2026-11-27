@@ -277,6 +277,24 @@ class Sync(internal val store: Store, private val cloud: CloudKit = newCloud(sto
         p.put("status", status)
         if (status == "done") p.put("completedAt", SwiftDate.now()).put("completedBy", me) else { p.remove("completedAt"); p.remove("completedBy") }
         listOf("status")
+    }.also { if (status == "done") spawnNext(id) }
+
+    /** Recurring task finished → the person who finished it creates the next one (same as iPhone). */
+    private fun spawnNext(id: String) {
+        val t = store.task(id) ?: return
+        val rule = t.p.optString("repeatRule", "none"); if (rule == "none") return
+        val c = java.util.Calendar.getInstance().apply { timeInMillis = t.due ?: System.currentTimeMillis() }
+        fun step() = when (rule) { "daily" -> c.add(java.util.Calendar.DAY_OF_YEAR, 1); "weekly" -> c.add(java.util.Calendar.WEEK_OF_YEAR, 1)
+            "monthly" -> c.add(java.util.Calendar.MONTH, 1); "yearly" -> c.add(java.util.Calendar.YEAR, 1); else -> {} }
+        step(); while (c.timeInMillis < System.currentTimeMillis()) step()
+        runCatching {
+            createTask(t.conv ?: return, t.title, t.p.optString("notes"), t.assignees, if (t.due != null) c.timeInMillis else null, t.p.optInt("priority", 1), t.assignees.isEmpty())
+            val newest = store.taskList().filter { it.title == t.title && it.id != id }.maxByOrNull { it.updated }
+            if (newest != null) {
+                updateTask(newest.id, "set it to repeat") { p -> p.put("repeatRule", rule); listOf("repeat") }
+                store.setPref("task.remind.${newest.id}", store.prefList("task.remind.$id", emptyList()))
+            }
+        }
     }
 
     fun answerTask(id: String, accept: Boolean, note: String) {

@@ -322,7 +322,13 @@ object Reminders {
         store.miscList("event").filter { !it.deleted }.forEach { e -> val at = SwiftDate.toMillis(e.p.optDouble("start")) - 3_600_000L; if (at in now..horizon) out += Triple(at, "🎉 In 1 hour: ${e.s("title")}", e.s("place")) }
         store.miscList("meet").filter { !it.deleted && it.s("status") == "scheduled" }.forEach { e -> val at = SwiftDate.toMillis(e.p.optDouble("start")) - 900_000L; if (at in now..horizon) out += Triple(at, "📅 In 15 min: ${e.s("title")}", if (e.p.optBoolean("online")) e.s("link") else e.s("place")) }
         // Tasks due.
-        store.taskList().filter { it.status != "done" && (it.assignees.contains(me) || it.createdBy == me) && it.answer(me) != "declined" }.forEach { t -> t.due?.let { if (it in now..horizon) out += Triple(it, "☑ Task due: ${t.title}", "") } }
+        store.taskList().filter { it.status != "done" && (it.assignees.contains(me) || it.createdBy == me) && it.answer(me) != "declined" }.forEach { t -> t.due?.let { due ->
+            if (due in now..horizon) out += Triple(due, "☑ Task due: ${t.title}", "")
+            for (code in store.prefList("task.remind.${t.id}", emptyList())) {
+                if (code == "D") { for (k in 1..30) { val at = due + k * 86_400_000L; if (at in now..horizon) out += Triple(at, "🔁 Still pending: ${t.title}", "Due ${dateText(due)}") } }
+                else code.toLongOrNull()?.let { m -> val at = due - m * 60_000L; if (at in now..horizon) out += Triple(at, if (m > 0) "⏰ Coming up: ${t.title}" else "⚠️ Overdue: ${t.title}", "Due ${dateText(due)}") }
+            }
+        } }
         // Task follow-ups (1–4 times a day on chosen weekdays, until done or a date).
         store.taskList().filter { it.status != "done" && !it.deleted }.forEach { t ->
             val f = t.p.optJSONObject("followUp") ?: return@forEach

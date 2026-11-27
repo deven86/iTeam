@@ -228,6 +228,22 @@ fun ChatScreen(app: AppState, convID: String, onBack: () -> Unit, open: (Page) -
         }
     }) { pad ->
         LazyColumn(state = list, modifier = Modifier.padding(pad).fillMaxSize().padding(horizontal = 10.dp)) {
+            // First visit to a group someone else added me to: what members can see.
+            val seenGroups = app.store.prefList("groupNotice.seen", emptyList())
+            if (conv.isGroup && conv.owner != me && !conv.left && convID !in seenGroups) item {
+                Card(Modifier.fillMaxWidth().padding(vertical = 8.dp), shape = RoundedCornerShape(18.dp)) {
+                    Column(Modifier.padding(14.dp)) {
+                        Text("You were added to ${conv.title}", fontWeight = FontWeight.Bold)
+                        Text("All members — including people who join later — can see your name and photo and can add you as a contact. They can message you privately only after you add them back.",
+                            style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(vertical = 6.dp))
+                        Row {
+                            Button({ app.store.setPref("groupNotice.seen", seenGroups + convID); app.changed() }) { Text("Got it") }
+                            Spacer(Modifier.width(8.dp))
+                            OutlinedButton({ app.store.setPref("groupNotice.seen", seenGroups + convID); app.run(scope) { app.sync.leave(convID) }; onBack() }) { Text("Leave group") }
+                        }
+                    }
+                }
+            }
             items(msgs, key = { it.id }) { m ->
                 when {
                     m.card?.startsWith("task:") == true -> TaskCard(app, m, m.card.removePrefix("task:")) { open(Page.Task(it)) }

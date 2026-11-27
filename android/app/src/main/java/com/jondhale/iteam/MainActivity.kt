@@ -173,6 +173,8 @@ fun App(store: Store, openConv: MutableState<String?>, pastedInvite: MutableStat
     if (!signedIn) {
         SignInScreen(store, sync, onAuth = { authURL = it }, onDone = { signedIn = true; Push.register(ctx); app.nextPoll.longValue = 0; app.tick++ }, tick = app.tick); return
     }
+    var setupDone by remember { mutableStateOf(store.pref("onboard.done", "") == "1") }
+    if (!setupDone) { WelcomeSetup(store) { store.setPref("onboard.done", "1"); setupDone = true }; return }
 
     // Checks the mailbox only while the app is on screen: every 3 s just after you chat, otherwise every 8 s.
     // In the background Android's worker checks every 15 minutes.
@@ -499,4 +501,56 @@ fun SignInScreen(store: Store, sync: Sync, onAuth: (String) -> Unit, onDone: () 
 @Composable
 fun TopBack(title: String, onBack: () -> Unit) {
     TopAppBar(title = { Text(title) }, navigationIcon = { IconButton(onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back") } })
+}
+
+
+/** After first sign-in: pick a look, then learn how to add people. */
+@Composable
+fun WelcomeSetup(store: Store, onFinish: () -> Unit) {
+    var page by remember { mutableIntStateOf(0) }
+    Column(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(24.dp).systemBarsPadding(),
+        verticalArrangement = Arrangement.spacedBy(14.dp)) {
+        Spacer(Modifier.height(20.dp))
+        if (page == 0) {
+            Text("Make it yours", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
+            Text("Choose a style. You can change it any time in Settings → Appearance.", color = MaterialTheme.colorScheme.onSurfaceVariant)
+            LookState.looks.forEach { l ->
+                val sel = LookState.look.id == l.id
+                Card(onClick = { LookState.look = l; store.setPref("look", l.id) }, shape = RoundedCornerShape(20.dp),
+                    border = if (sel) androidx.compose.foundation.BorderStroke(2.dp, l.primary) else null, modifier = Modifier.fillMaxWidth()) {
+                    Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Box(Modifier.size(44.dp).clip(CircleShape).background(androidx.compose.ui.graphics.Brush.linearGradient(listOf(l.primary, l.secondary))))
+                        Spacer(Modifier.width(14.dp))
+                        Text(l.name, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
+                        if (sel) Text("✓", color = l.primary, fontWeight = FontWeight.Bold)
+                    }
+                }
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                listOf("system" to "Auto", "light" to "Light", "dark" to "Dark").forEach { (id, n) ->
+                    FilterChip(selected = LookState.mode == id, onClick = { LookState.mode = id; store.setPref("mode", id) }, label = { Text(n) })
+                }
+            }
+            Spacer(Modifier.weight(1f))
+            Button(onClick = { page = 1 }, modifier = Modifier.fillMaxWidth().height(52.dp), shape = RoundedCornerShape(16.dp)) { Text("Continue") }
+        } else {
+            Text("Add your people", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
+            Text("iTeam works between Android and iPhone.", color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Card(shape = RoundedCornerShape(20.dp), modifier = Modifier.fillMaxWidth()) {
+                Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    listOf(
+                        "🔳  Show your QR code — they scan it in iTeam (Chats → ＋)",
+                        "🔗  Or share your invite link on WhatsApp, SMS or email",
+                        "📷  Scan their QR, or paste the link they sent you",
+                        "👤  Recommend a contact to a friend from any chat",
+                        "👥  Create a group from Chats → ＋ → New group",
+                        "🍏  iPhone friends: they turn on Settings → Talk to Android users",
+                    ).forEach { Text(it) }
+                }
+            }
+            Spacer(Modifier.weight(1f))
+            Button(onClick = onFinish, modifier = Modifier.fillMaxWidth().height(52.dp), shape = RoundedCornerShape(16.dp)) { Text("Start using iTeam") }
+            TextButton(onClick = { page = 0 }, modifier = Modifier.fillMaxWidth()) { Text("Back") }
+        }
+    }
 }

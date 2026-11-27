@@ -128,6 +128,7 @@ struct ChatView: View {
         .safeAreaInset(edge: .top, spacing: 0) {
             VStack(spacing: 6) {
                 ChatRequestBanner(conv: conv)
+                GroupPrivacyNotice(conv: conv)
                 ChatTasksStrip(convID: conv.id)
             }
         }
@@ -780,6 +781,30 @@ struct RecommendContactView: View {
             .navigationTitle("Recommend a contact")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } } }
+        }
+    }
+}
+
+
+/// First time I open a group someone else added me to: what members can see, and the choice to leave.
+struct GroupPrivacyNotice: View {
+    let conv: Conversation
+    @EnvironmentObject var engine: SyncEngine
+    @AppStorage("groupNotice.seen") private var seenRaw = ""
+    var body: some View {
+        if conv.isGroup, conv.ownerID != engine.me, !conv.left, !seenRaw.split(separator: ",").contains(Substring(conv.id)) {
+            VStack(alignment: .leading, spacing: 8) {
+                Label("You were added to \(conv.title)", systemImage: "person.3.fill").font(.subheadline.weight(.semibold))
+                Text("All members — including people who join later — can see your name and photo and can add you as a contact. They can message you privately only after you add them back.")
+                    .font(.footnote)
+                HStack {
+                    Button("Got it") { seenRaw += (seenRaw.isEmpty ? "" : ",") + conv.id; Haptics.tap() }.buttonStyle(.glassProminent).controlSize(.small)
+                    Button("Leave group", role: .destructive) { engine.leave(conv); seenRaw += (seenRaw.isEmpty ? "" : ",") + conv.id }.buttonStyle(.glass).controlSize(.small)
+                }
+            }
+            .padding(12)
+            .lookFloating(in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+            .padding(.horizontal)
         }
     }
 }

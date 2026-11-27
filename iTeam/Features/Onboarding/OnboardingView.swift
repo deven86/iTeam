@@ -11,7 +11,7 @@ struct OnboardingView: View {
     @Environment(\.look) private var look
     @Environment(\.colorScheme) private var colorScheme
 
-    enum Step { case welcome, icloud, profile, notifications }
+    enum Step { case welcome, icloud, profile, appearance, addPeople, notifications }
     @State private var step: Step = .welcome
     @State private var userID = ""
     @State private var name = ""
@@ -33,6 +33,8 @@ struct OnboardingView: View {
                     case .welcome: welcome
                     case .icloud: icloud
                     case .profile: profile
+                    case .appearance: appearanceStep
+                    case .addPeople: addPeopleStep
                     case .notifications: notifications
                     }
                     if let error {
@@ -169,6 +171,38 @@ struct OnboardingView: View {
         }
     }
 
+    /// Pick a look now (can be changed any time in Settings → Appearance).
+    private var appearanceStep: some View {
+        VStack(spacing: 12) {
+            Text("Make it yours").font(.title.bold()).padding(.top, 30)
+            Text("Choose a style. You can change it any time in Settings → Appearance.")
+                .font(.subheadline).foregroundStyle(look.textSecondary).multilineTextAlignment(.center)
+            AppearanceView().frame(minHeight: 420)
+            Button { withAnimation { step = .addPeople } } label: { Text("Continue").frame(maxWidth: .infinity) }
+                .buttonStyle(.glassProminent).controlSize(.large)
+        }
+    }
+
+    /// How to add people (iPhone and Android).
+    private var addPeopleStep: some View {
+        VStack(spacing: 16) {
+            Image(systemName: "person.badge.plus").font(.system(size: 60)).foregroundStyle(look.gradient).padding(.top, 50)
+            Text("Add your people").font(.title.bold())
+            VStack(alignment: .leading, spacing: 12) {
+                Label("Show your QR code — they scan it in iTeam (Chats → ＋)", systemImage: "qrcode")
+                Label("Or share your invite link on WhatsApp, SMS or email", systemImage: "link")
+                Label("Scan their QR, or paste the link they sent you", systemImage: "qrcode.viewfinder")
+                Label("Find people and businesses nearby", systemImage: "location.fill")
+                Label("Friends on Android: turn on Settings → Talk to Android users", systemImage: "candybarphone")
+                Label("Create a group from Chats → ✏️ → New group", systemImage: "person.3.fill")
+            }
+            .font(.subheadline)
+            .lookCard()
+            Button { withAnimation { step = .notifications } } label: { Text("Continue").frame(maxWidth: .infinity) }
+                .buttonStyle(.glassProminent).controlSize(.large)
+        }
+    }
+
     private var notifications: some View {
         VStack(spacing: 16) {
             Image(systemName: "bell.badge.fill").font(.system(size: 60)).foregroundStyle(look.gradient).padding(.top, 50)
@@ -250,7 +284,7 @@ struct OnboardingView: View {
         do {
             try await engine.cloud.saveProfile(userID: userID, name: clean, publicKey: E2E.publicKeyString(key), avatar: MyDetails.photoContactsOnly ? nil : avatar)
             name = clean
-            step = .notifications
+            step = .appearance
         } catch {
             self.error = "Couldn't save your profile: \(error.cloudMessage)"
         }

@@ -405,8 +405,34 @@ struct ChatView: View {
 
     // MARK: Composer
 
+    /// "@ali" being typed at the end → suggestions from the group's members.
+    private func mentionMatches(_ conv: Conversation) -> [MemberInfo] {
+        guard conv.isGroup, let last = text.split(separator: " ", omittingEmptySubsequences: false).last, last.hasPrefix("@") else { return [] }
+        let q = last.dropFirst().lowercased()
+        return conv.members.filter { $0.id != engine.me && (q.isEmpty || $0.name.lowercased().contains(q)) }.prefix(8).map { $0 }
+    }
+
     private func composer(_ conv: Conversation) -> some View {
         VStack(spacing: 6) {
+            let mentions = mentionMatches(conv)
+            if !mentions.isEmpty {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 8) {
+                        ForEach(mentions) { m in
+                            Button {
+                                var words = text.split(separator: " ", omittingEmptySubsequences: false).map(String.init)
+                                words[words.count - 1] = "@" + m.name.replacingOccurrences(of: " ", with: "_")
+                                text = words.joined(separator: " ") + " "
+                                Haptics.tap()
+                            } label: {
+                                Label(m.name, systemImage: "at").font(.subheadline.weight(.semibold))
+                                    .padding(.horizontal, 12).padding(.vertical, 7)
+                                    .background(look.accent.opacity(0.14), in: Capsule())
+                            }.buttonStyle(.plain)
+                        }
+                    }.padding(.horizontal, 4)
+                }
+            }
             if let r = replyTo ?? editing {
                 HStack(spacing: 8) {
                     Rectangle().fill(look.accent).frame(width: 3)

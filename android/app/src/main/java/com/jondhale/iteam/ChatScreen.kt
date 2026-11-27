@@ -16,6 +16,8 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
@@ -109,6 +111,21 @@ fun ChatScreen(app: AppState, convID: String, onBack: () -> Unit, open: (Page) -
 
     // Presence (iTeam Next): share mine and read theirs every 40 s while the chat is open.
     var peerSeen by remember { mutableStateOf(0L) }
+    var recommend by remember { mutableStateOf(false) }
+    if (recommend) {
+        val people = remember(app.tick) { app.store.contacts.values.filter { it.userID != me && it.userID !in conv.members }.sortedBy { it.name.lowercase() } }
+        AlertDialog({ recommend = false }, confirmButton = { TextButton({ recommend = false }) { Text("Cancel") } },
+            title = { Text("Recommend a contact") },
+            text = {
+                if (people.isEmpty()) Text("No other contacts to recommend yet.")
+                else LazyColumn(Modifier.heightIn(max = 380.dp)) {
+                    items(people, key = { it.userID }) { c ->
+                        ListItem(modifier = Modifier.clickable { recommend = false; app.run(scope) { app.sync.recommend(c.userID, convID) } },
+                            leadingContent = { Avatar(c.name, size = 36, photo = c.photo) }, headlineContent = { Text(c.name) })
+                    }
+                }
+            })
+    }
     if (BuildConfig.RELAY && !conv.isGroup) LaunchedEffect(convID) {
         val peer = app.sync.peerOf(convID)
         while (true) {
@@ -138,6 +155,7 @@ fun ChatScreen(app: AppState, convID: String, onBack: () -> Unit, open: (Page) -
         }, navigationIcon = { IconButton(onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back") } }, actions = {
             IconButton({ extra = "timer" }) { Icon(if (conv.timer > 0) Icons.Default.TimerOff else Icons.Default.Timer, "Disappearing messages") }
             IconButton({ newTask = true }) { Icon(Icons.Default.AddTask, "New task") }
+            IconButton({ recommend = true }) { Icon(Icons.Default.PersonAddAlt, "Recommend a contact") }
             IconButton({ if (conv.isGroup) pickOpponent = true else app.sync.peerOf(convID)?.let { o -> app.run(scope) { app.sync.gameInvite(convID, o) } } }) {
                 Icon(Icons.Default.Grid3x3, "X and O")
             }
@@ -145,6 +163,18 @@ fun ChatScreen(app: AppState, convID: String, onBack: () -> Unit, open: (Page) -
     }, bottomBar = {
         Column(Modifier.fillMaxWidth().navigationBarsPadding().imePadding()) {
             if (sending > 0) LinearProgressIndicator(Modifier.fillMaxWidth())
+            // @mentions: typing "@" in a group suggests members.
+            val lastWord = text.substringAfterLast(' ')
+            if (conv.isGroup && lastWord.startsWith("@")) {
+                val q = lastWord.drop(1).lowercase()
+                val hits = conv.members.filter { it != me && (q.isEmpty() || app.store.name(it).lowercase().contains(q)) }.take(8)
+                if (hits.isNotEmpty()) Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 8.dp, vertical = 4.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    hits.forEach { id ->
+                        AssistChip({ text = text.dropLast(lastWord.length) + "@" + app.store.name(id).replace(' ', '_') + " " }, { Text(app.store.name(id)) },
+                            leadingIcon = { Icon(Icons.Default.AlternateEmail, null, Modifier.size(16.dp)) })
+                    }
+                }
+            }
             (replyTo ?: editing)?.let { r ->
                 Row(Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.surfaceVariant).padding(horizontal = 12.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
                     Column(Modifier.weight(1f)) {
@@ -224,6 +254,10 @@ fun ChatScreen(app: AppState, convID: String, onBack: () -> Unit, open: (Page) -
                 }
                 HorizontalDivider(Modifier.padding(vertical = 8.dp))
                 if (!m.deleted) TextButton({ actionsFor = null; replyTo = m }) { Text("Reply") }
+                if (!m.deleted && m.from != me && m.text.contains("iteam://add?")) TextButton({
+                    actionsFor = null
+                    app.run(scope) { val id = app.sync.addContact(m.text); app.changed(); open(Page.Chat(id)) }
+                }) { Text("➕ Add this contact") }
                 if (m.text.isNotBlank() && !m.deleted) TextButton({
                     actionsFor = null
                     ctx.getSystemService(ClipboardManager::class.java).setPrimaryClip(ClipData.newPlainText("iTeam", m.text))

@@ -76,6 +76,16 @@ class Sync(internal val store: Store, private val cloud: CloudKit = newCloud(sto
         for (c in directs()) runCatching { send(c, JSONObject().put("about", JSONObject().put("_0", text))) }
     }
 
+    /** Shares a contact in a chat (same text as the iPhone), and tells that person they were recommended. */
+    fun recommend(contactID: String, convID: String) {
+        val c = store.contacts[contactID] ?: return
+        fun safe(s: String) = s.replace('+', '-').replace('/', '_').trimEnd('=')
+        val link = "iteam://add?u=${c.userID}&k=${safe(c.pubkey)}&n=" + java.net.URLEncoder.encode(c.name, "UTF-8").replace("+", "%20") + "&r=1"
+        sendText(convID, "👤 I recommend ${c.name} — tap to add: $link")
+        val direct = directID(me, contactID)
+        if (store.convs.containsKey(direct)) runCatching { sendText(direct, "📣 I recommended you to ${store.conv(convID)?.title ?: "a chat"}") }
+    }
+
     fun inviteLink(): String {
         fun safe(s: String) = s.replace('+', '-').replace('/', '_').trimEnd('=')
         return "iteam://add?u=${me}&k=${safe(store.myPublicKey)}&n=" + java.net.URLEncoder.encode(store.myName, "UTF-8").replace("+", "%20")

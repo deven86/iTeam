@@ -7,27 +7,27 @@ group-task cards (ref: task app), graphs with card effect (ref: Zenvest).
 - [x] iOS + Android TestFlight/APK with relay bridge, Violet Android look
 
 ## Batch 2 — notifications & speed (27 Nov: push live, instant media, link fix, presence done)
-- [ ] Apple push from relay (needs APNs .p8 key: Key ID + Team ID) → instant iPhone alerts for Android messages
+- [x] Apple push from relay (needs APNs .p8 key: Key ID + Team ID) → instant iPhone alerts for Android messages
 - [ ] Android: instant FCM (done) — verify on device
-- [ ] Media: send instantly as a preview, full photo/document downloads only when tapped (both)
-- [ ] Online dot (red, as requested) + last seen + now playing in chat header — Android parity
+- [x] Media: send instantly as a preview, full photo/document downloads only when tapped (both)
+- [x] Online dot (red, as requested) + last seen + now playing in chat header — Android parity
 
 ## Batch 3 — backup + adding people (both)
 - [x] Android encrypted backup & restore (Google Drive / any "Save to" app), daily auto backup
-- [ ] Paste-link add iPhone⇄Android (fix), Nearby across platforms, QR (works)
-- [ ] Share a contact card
+- [x] Paste-link add iPhone⇄Android (fix), Nearby across platforms, QR (works)
+- [x] Share a contact (Recommend a contact on Android, tap to add)
 - [ ] Group join consent: "members can see and add you; private messages only after they're added"
-- [ ] @username mentions
+- [x] @mention suggestions in groups (both)
 - [ ] Broadcast list (up to 200 people)
 
 ## Batch 4 — Android dashboards (match iOS)
-- [ ] Tasks dashboard (meetings, approvals, follow-ups) with group-task cards
-- [ ] Attendance, Finance, CRM and other module dashboards with charts
-- [ ] Android Settings: remove iCloud wording; backup to Google Drive / other
+- [x] Tasks dashboard with violet group-task cards + weekly chart
+- [x] Attendance dashboard  - [ ] Finance, CRM and other module dashboards
+- [x] Android Settings: Google wording; backup to Google Drive / other
 
 ## Batch 5 — modules
-- [ ] Attendance: admin daily QR (new every day), punch in/out by scanning, selfie (both)
-- [ ] Tasks yearly repeat with reminders: 1 month, 15 days, 1 week, 1 day, 1 hour before; after expiry 1 day,
+- [x] Attendance: admin daily QR (new every day), punch in/out by scanning, selfie (both)
+- [x] Tasks yearly repeat with reminders: 1 month, 15 days, 1 week, 1 day, 1 hour before; after expiry 1 day,
       daily till renewed, 1 week, 15 days, 1 month — multi-select
 - [ ] X and O real-time
 - [ ] Above mini: last seen / online now / recent activity strip (scroll or tabs, tappable)

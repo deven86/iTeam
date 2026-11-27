@@ -6,7 +6,7 @@ group-task cards (ref: task app), graphs with card effect (ref: Zenvest).
 - [x] Chats: "waiting to sync" moved to Settings; replaced by latest 10 unseen activities (tap = open, next one slides in)
 - [x] iOS + Android TestFlight/APK with relay bridge, Violet Android look
 
-## Batch 2 — notifications & speed
+## Batch 2 — notifications & speed (27 Nov: push live, instant media, link fix, presence done)
 - [ ] Apple push from relay (needs APNs .p8 key: Key ID + Team ID) → instant iPhone alerts for Android messages
 - [ ] Android: instant FCM (done) — verify on device
 - [ ] Media: send instantly as a preview, full photo/document downloads only when tapped (both)

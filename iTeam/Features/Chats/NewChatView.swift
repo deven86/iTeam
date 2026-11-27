@@ -182,7 +182,7 @@ struct BroadcastView: View {
             Section {
                 ForEach(contacts) { c in
                     Button {
-                        if picked.contains(c.userID) { picked.remove(c.userID) } else { picked.insert(c.userID) }
+                        if picked.contains(c.userID) { picked.remove(c.userID) } else if picked.count < 200 { picked.insert(c.userID) } else { Haptics.warning() }
                     } label: {
                         HStack {
                             AvatarView(name: c.name, imageData: c.avatar, size: 34)
@@ -195,10 +195,10 @@ struct BroadcastView: View {
                 }
             } header: {
                 HStack {
-                    Text("Send to \(picked.count)")
+                    Text("Send to \(picked.count) / 200")
                     Spacer()
-                    Button(picked.count == contacts.count ? "None" : "All") {
-                        picked = picked.count == contacts.count ? [] : Set(contacts.map(\.userID))
+                    Button(picked.isEmpty ? "All" : "None") {
+                        picked = picked.isEmpty ? Set(contacts.prefix(200).map(\.userID)) : []
                     }.font(.caption)
                 }
             }

@@ -82,6 +82,7 @@ fun ChatList(app: AppState, status: StatusInfo, pastedInvite: MutableState<Strin
                             DropdownMenu(menu, { menu = false }) {
                                 DropdownMenuItem({ Text("Add contact") }, { menu = false; adding = true }, leadingIcon = { Icon(Icons.Default.PersonAdd, null) })
                                 DropdownMenuItem({ Text("New group") }, { menu = false; open(Page.NewGroup) }, leadingIcon = { Icon(Icons.Default.GroupAdd, null) })
+                                DropdownMenuItem({ Text("New broadcast") }, { menu = false; open(Page.Broadcast) }, leadingIcon = { Icon(Icons.Default.Campaign, null) })
                                 DropdownMenuItem({ Text("People nearby") }, { menu = false; open(Page.Nearby) }, leadingIcon = { Icon(Icons.Default.NearMe, null) })
                             }
                         }
@@ -280,4 +281,54 @@ fun GroupInfoScreen(app: AppState, id: String, onBack: () -> Unit) {
     if (confirmLeave) AlertDialog(onDismissRequest = { confirmLeave = false }, title = { Text("Leave “${conv.title}”?") },
         confirmButton = { TextButton({ confirmLeave = false; app.run(scope) { app.sync.leave(id) }; onBack() }) { Text("Leave") } },
         dismissButton = { TextButton({ confirmLeave = false }) { Text("Cancel") } })
+}
+
+
+/** Broadcast: one message, delivered privately to up to 200 people in each one-to-one chat. */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun BroadcastScreen(app: AppState, onBack: () -> Unit) {
+    var text by remember { mutableStateOf("") }
+    val picked = remember { mutableStateListOf<String>().apply { addAll(app.store.prefList("broadcast.last", emptyList()).filter { app.store.contacts[it] != null }) } }
+    var busy by remember { mutableStateOf(false) }
+    var progress by remember { mutableStateOf("") }
+    val scope = rememberCoroutineScope()
+    val max = 200
+    Scaffold(topBar = {
+        TopAppBar(title = { Text("Broadcast") }, navigationIcon = { IconButton(onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back") } }, actions = {
+            TextButton({
+                busy = true
+                val list = picked.take(max).toList()
+                app.store.setPref("broadcast.last", list)
+                scope.launch {
+                    var ok = 0
+                    list.forEachIndexed { i, u ->
+                        progress = "Sending ${i + 1} of ${list.size}…"
+                        runCatching {
+                            kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                                val me = app.store.me; val d = app.sync.directID(me, u)
+                                synchronized(app.store) { app.store.convs.getOrPut(d) { Conv(d, app.store.name(u), listOf(me, u)) } }
+                                app.sync.sendText(d, text.trim())
+                            }
+                        }.onSuccess { ok++ }
+                    }
+                    app.toast = "Sent to $ok of ${list.size}"; busy = false; app.changed(); onBack()
+                }
+            }, enabled = !busy && text.isNotBlank() && picked.isNotEmpty()) { Text(if (busy) "Sending…" else "Send") }
+        })
+    }) { pad ->
+        Column(Modifier.padding(pad)) {
+            OutlinedTextField(text, { text = it }, label = { Text("Message") }, minLines = 3, modifier = Modifier.fillMaxWidth().padding(16.dp))
+            Text("Each person gets it in your private chat with them and replies only to you. They can't see who else got it.",
+                style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(horizontal = 16.dp))
+            Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                Text(if (busy) progress else "Send to ${picked.size} / $max", style = MaterialTheme.typography.titleSmall, modifier = Modifier.weight(1f))
+                TextButton({ if (picked.isNotEmpty()) picked.clear() else picked.addAll(app.store.contacts.keys.filter { it != app.store.me }.take(max)) }) {
+                    Text(if (picked.isNotEmpty()) "None" else "All")
+                }
+            }
+            if (picked.size > max) Text("Only the first $max will get it.", color = MaterialTheme.colorScheme.error, modifier = Modifier.padding(horizontal = 16.dp))
+            ContactPicker(app, picked)
+        }
+    }
 }

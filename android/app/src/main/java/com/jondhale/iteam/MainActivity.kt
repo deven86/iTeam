@@ -233,6 +233,7 @@ sealed class Page {
     data class Room(val room: Rooms.Room) : Page()
     data class RoomDM(val room: String, val other: String) : Page()
     object NewGroup : Page()
+    object Broadcast : Page()
     object Nearby : Page()
     object Profile : Page()
     object Modules : Page()
@@ -295,6 +296,7 @@ fun Home(app: AppState, status: StatusInfo, openConv: MutableState<String?>, pas
             is Page.Room -> RoomScreen(app, top.room, onBack = { pop() }, open = { push(it) })
             is Page.RoomDM -> RoomDMScreen(app, top.room, top.other, onBack = { pop() })
             Page.NewGroup -> NewGroupScreen(app, onBack = { pop() }, created = { pop(); push(Page.Chat(it)) })
+            Page.Broadcast -> BroadcastScreen(app, onBack = { pop() })
             Page.Nearby -> NearbyScreen(app, onBack = { pop() }, open = { push(it) })
             Page.Profile -> MyDetailsScreen(app, onBack = { pop() })
             Page.TasksPage -> Column { TopBack("Tasks") { pop() }; TasksTab(app, open = { push(it) }) }

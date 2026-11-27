@@ -195,14 +195,30 @@ fun Sync.attTodayEntry(member: Rec, day: Long = System.currentTimeMillis()): Rec
     return store.attList().firstOrNull { it.ak == "entry" && it.s("memberID") == member.id && it.s("day") == k && !it.deleted }
 }
 
-/** Punch in, or out if already in. */
-fun Sync.attPunch(member: Rec, company: Rec): String {
+/** Office QR codes — same format as the iPhone: "iTeamAtt|company|slot|sig". A live code changes every
+ *  30 s; a daily code (negative slot = day number) is valid all day and can be printed for the door. */
+object AttQR {
+    private fun slot(ms: Long) = (ms / 1000 / 30).toInt()
+    fun dayIndex(ms: Long) = ((ms / 1000 + java.util.TimeZone.getDefault().getOffset(ms) / 1000) / 86400).toInt()
+    private fun sign(cid: String, slot: Int, secret: String): String {
+        val mac = javax.crypto.Mac.getInstance("HmacSHA256").apply { init(javax.crypto.spec.SecretKeySpec(secret.toByteArray(), "HmacSHA256")) }
+        return mac.doFinal("$cid|$slot".toByteArray()).take(5).joinToString("") { "%02x".format(it) }
+    }
+    fun live(cid: String, secret: String, ms: Long = System.currentTimeMillis()) = slot(ms).let { "iTeamAtt|$cid|$it|${sign(cid, it, secret)}" }
+    fun daily(cid: String, secret: String, ms: Long = System.currentTimeMillis()) = (-dayIndex(ms)).let { "iTeamAtt|$cid|$it|${sign(cid, it, secret)}" }
+    fun company(token: String): String? = token.split("|").takeIf { it.size == 4 && it[0] == "iTeamAtt" }?.get(1)
+    fun secondsLeft(ms: Long = System.currentTimeMillis()) = 30 - (ms / 1000 % 30).toInt()
+}
+
+/** Punch in, or out if already in. qr = scanned office code, photo = selfie (base64 JPEG). */
+fun Sync.attPunch(member: Rec, company: Rec, qr: String = "", photo: String = ""): String {
     val day = AttData.key(System.currentTimeMillis())
     val existing = attTodayEntry(member)
     val d = existing?.d?.let { JSONObject(it.toString()) } ?: AttData.entry()
     val what = when {
-        !d.has("inAt") -> { d.put("inAt", SwiftDate.now()).put("method", "self").put("markedBy", me); "in" }
-        !d.has("outAt") -> { d.put("outAt", SwiftDate.now()); "out" }
+        !d.has("inAt") -> { d.put("inAt", SwiftDate.now()).put("method", if (qr.isNotEmpty()) "qr" else if (photo.isNotEmpty()) "photo" else "self").put("markedBy", me)
+            if (qr.isNotEmpty()) d.put("qrIn", qr); if (photo.isNotEmpty()) d.put("photoIn", photo); "in" }
+        !d.has("outAt") -> { d.put("outAt", SwiftDate.now()); if (qr.isNotEmpty()) d.put("qrOut", qr); if (photo.isNotEmpty()) d.put("photoOut", photo); "out" }
         else -> return "done"
     }
     val id = existing?.id ?: "atte_${member.id}_${day}_${newID().take(6)}"

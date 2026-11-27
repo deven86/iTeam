@@ -8,6 +8,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -45,7 +46,38 @@ fun AttendanceHome(app: AppState, onBack: (() -> Unit)?, open: (Page) -> Unit) {
         .filter { m -> companies.any { it.id == m.s("companyID") && !isStaff(it.d, me) } }
     var newCompany by remember { mutableStateOf(false) }
     var leaveFor by remember { mutableStateOf<Rec?>(null) }
+    var showQR by remember { mutableStateOf<Rec?>(null) }
     val scope = rememberCoroutineScope()
+    // Punch flow: scan office QR (if required) → selfie (if required) → punch.
+    var pending by remember { mutableStateOf<Pair<Rec, Rec>?>(null) }
+    var scanned by remember { mutableStateOf("") }
+    fun finish(photo: String) {
+        val (m, comp) = pending ?: return
+        app.run(scope) { val w = app.sync.attPunch(m, comp, scanned, photo); app.toast = if (w == "in") "✅ Punched in" else if (w == "out") "✅ Punched out" else "Already punched out today" }
+        pending = null; scanned = ""
+    }
+    val selfie = androidx.activity.compose.rememberLauncherForActivityResult(androidx.activity.result.contract.ActivityResultContracts.TakePicturePreview()) { bmp ->
+        if (bmp == null) { app.toast = "A selfie is needed to punch"; pending = null; return@rememberLauncherForActivityResult }
+        val scale = 480f / maxOf(bmp.width, bmp.height)
+        val small = if (scale < 1f) android.graphics.Bitmap.createScaledBitmap(bmp, (bmp.width * scale).toInt(), (bmp.height * scale).toInt(), true) else bmp
+        val out = java.io.ByteArrayOutputStream(); small.compress(android.graphics.Bitmap.CompressFormat.JPEG, 60, out)
+        finish(E2E.b64(out.toByteArray()))
+    }
+    val scanQR = androidx.activity.compose.rememberLauncherForActivityResult(com.journeyapps.barcodescanner.ScanContract()) { r ->
+        val (_, comp) = pending ?: return@rememberLauncherForActivityResult
+        val code = r.contents ?: run { pending = null; return@rememberLauncherForActivityResult }
+        if (AttQR.company(code) != comp.id) { app.toast = "That's not this company's attendance QR"; pending = null; return@rememberLauncherForActivityResult }
+        scanned = code
+        if (comp.d.optBoolean("needPhoto")) selfie.launch(null) else finish("")
+    }
+    fun startPunch(m: Rec, comp: Rec) {
+        pending = m to comp; scanned = ""
+        when {
+            comp.d.optBoolean("needQR") -> scanQR.launch(com.journeyapps.barcodescanner.ScanOptions().setPrompt("Scan the office attendance QR").setBeepEnabled(false).setOrientationLocked(false))
+            comp.d.optBoolean("needPhoto") -> selfie.launch(null)
+            else -> finish("")
+        }
+    }
     Scaffold(topBar = { TopAppBar(title = { Text("Attendance") }, navigationIcon = { onBack?.let { b -> IconButton(b) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back") } } }) },
         floatingActionButton = { ExtendedFloatingActionButton(onClick = { newCompany = true }, icon = { Icon(Icons.Default.Add, null) }, text = { Text("New company") }) }) { pad ->
         LazyColumn(Modifier.padding(pad)) {
@@ -68,9 +100,10 @@ fun AttendanceHome(app: AppState, onBack: (() -> Unit)?, open: (Page) -> Unit) {
                             val special = listOf("needPhoto", "needQR", "needGeo").filter { c.optBoolean(it) }
                             Row(Modifier.padding(top = 8.dp)) {
                                 if (!c.optBoolean("selfPunch", true)) Text("Your admin marks attendance for you.", style = MaterialTheme.typography.bodySmall)
-                                else if (special.isNotEmpty()) Text("This company needs a ${special.joinToString(" / ") { it.removePrefix("need").lowercase() }} punch — use the iPhone app or your office kiosk.", style = MaterialTheme.typography.bodySmall)
-                                else if (outAt == null) Button({ app.run(scope) { val w = app.sync.attPunch(m, comp); app.toast = if (w == "in") "Punched in" else "Punched out" } }) {
-                                    Icon(Icons.Default.Fingerprint, null); Spacer(Modifier.width(6.dp)); Text(if (inAt == null) "Punch in" else "Punch out")
+                                else if ("needGeo" in special) Text("This company needs a location punch — use the iPhone app or your office kiosk.", style = MaterialTheme.typography.bodySmall)
+                                else if (outAt == null) Button({ startPunch(m, comp) }) {
+                                    Icon(if (c.optBoolean("needQR")) Icons.Default.QrCodeScanner else if (c.optBoolean("needPhoto")) Icons.Default.PhotoCamera else Icons.Default.Fingerprint, null)
+                                    Spacer(Modifier.width(6.dp)); Text(if (inAt == null) "Punch in" else "Punch out")
                                 }
                                 Spacer(Modifier.width(8.dp))
                                 OutlinedButton({ leaveFor = m }) { Text("Apply leave") }
@@ -80,18 +113,36 @@ fun AttendanceHome(app: AppState, onBack: (() -> Unit)?, open: (Page) -> Unit) {
                     }
                 }
             }
-            item { SectionHeader("Companies I manage") }
+            item { SectionTitle("Companies I manage", staffOf.size.takeIf { it > 0 }) }
             if (staffOf.isEmpty()) item { Empty("Set up a company to mark attendance for your team — staff on iTeam punch in from their phones, others you mark yourself.") }
             items(staffOf, key = { it.id }) { comp ->
-                val n = all.count { it.ak == "member" && it.s("companyID") == comp.id && !it.deleted }
-                ListItem(modifier = Modifier.clickable { open(Page.AttCompany(comp.id)) }, leadingContent = { Icon(Icons.Default.Business, null) },
-                    headlineContent = { Text(comp.d.optString("name")) },
-                    supportingContent = { Text("$n people · ${if (comp.d.optString("ownerID") == me) "Owner" else "Admin"}") })
+                // Dashboard per company: today's numbers, 7-day trend, QR for the door.
+                val members = all.filter { it.ak == "member" && it.s("companyID") == comp.id && !it.deleted && it.d.optBoolean("active", true) }
+                val entries = all.filter { it.ak == "entry" && it.s("companyID") == comp.id && !it.deleted }
+                val leaves = all.filter { it.ak == "leave" }; val hol = all.filter { it.ak == "holiday" }
+                val now = System.currentTimeMillis(); val todayKey = AttData.key(now)
+                val st = members.map { m -> attStatus(m, comp.d, now, entries.firstOrNull { it.s("memberID") == m.id && it.s("day") == todayKey }, leaves, hol) }
+                val present = st.count { it == "present" || it == "grace" || it == "late" || it == "open" }
+                val late = st.count { it == "late" }; val onLeave = st.count { it == "leave" || it == "unpaid" }
+                val days = lastDays(7)
+                val trend = days.map { (_, d) -> val k = AttData.key(d); entries.count { it.s("day") == k && it.d.has("inAt") }.toFloat() }
+                Column(Modifier.padding(vertical = 4.dp)) {
+                    Row(Modifier.fillMaxWidth().padding(horizontal = 20.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Column(Modifier.weight(1f).clickable { open(Page.AttCompany(comp.id)) }) {
+                            Text(comp.d.optString("name"), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                            Text("${members.size} people · ${if (comp.d.optString("ownerID") == me) "Owner" else "Admin"} · tap to manage", style = MaterialTheme.typography.bodySmall)
+                        }
+                        FilledTonalButton({ showQR = comp }) { Icon(Icons.Default.QrCode, null); Spacer(Modifier.width(6.dp)); Text("QR") }
+                    }
+                    StatRow(Triple("Present today", "$present/${members.size}", { open(Page.AttCompany(comp.id)) }), Triple("Late", "$late", null), Triple("On leave", "$onLeave", null))
+                    LineChartCard("Check-ins, last 7 days", "${trend.last().toInt()} today", days.map { it.first }, trend)
+                }
             }
             item { Spacer(Modifier.height(90.dp)) }
         }
     }
     if (newCompany) NewCompanyDialog(app) { newCompany = false }
+    showQR?.let { comp -> AttQRDialog(comp) { showQR = null } }
     leaveFor?.let { m -> LeaveDialog(app, m) { leaveFor = null } }
 }
 
@@ -192,6 +243,25 @@ fun AttCompanyScreen(app: AppState, id: String, onBack: () -> Unit) {
     Scaffold(topBar = {
         TopAppBar(title = { Text(c.optString("name")) }, navigationIcon = { IconButton(onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back") } },
             actions = {
+                var rules by remember { mutableStateOf(false) }
+                if (owner) IconButton({ rules = true }) { Icon(Icons.Default.Tune, "Punch rules") }
+                if (rules) {
+                    var needQR by remember { mutableStateOf(c.optBoolean("needQR")) }
+                    var needPhoto by remember { mutableStateOf(c.optBoolean("needPhoto")) }
+                    val scope2 = rememberCoroutineScope()
+                    AlertDialog({ rules = false }, title = { Text("How staff punch in") },
+                        text = { Column {
+                            Row(verticalAlignment = Alignment.CenterVertically) { Switch(needQR, { needQR = it }); Spacer(Modifier.width(10.dp)); Text("Scan the office QR (show it from the dashboard, or print today's QR)") }
+                            Spacer(Modifier.height(10.dp))
+                            Row(verticalAlignment = Alignment.CenterVertically) { Switch(needPhoto, { needPhoto = it }); Spacer(Modifier.width(10.dp)); Text("Take a selfie") }
+                            Text("\nWith neither, a tap is enough. You and admins can always mark anyone.", style = MaterialTheme.typography.bodySmall)
+                        } },
+                        confirmButton = { TextButton({
+                            val d = org.json.JSONObject(c.toString()).put("needQR", needQR).put("needPhoto", needPhoto)
+                            app.run(scope2) { app.sync.attSaveCompany(comp, d) }; rules = false
+                        }) { Text("Save") } },
+                        dismissButton = { TextButton({ rules = false }) { Text("Cancel") } })
+                }
                 PdfButton("Attendance", "${c.optString("name")} — ${java.text.SimpleDateFormat("MMMM yyyy", java.util.Locale.ENGLISH).format(java.util.Date())}") {
                     val days = (1..java.util.Calendar.getInstance().get(java.util.Calendar.DAY_OF_MONTH)).map { d -> java.util.Calendar.getInstance().apply { set(java.util.Calendar.DAY_OF_MONTH, d); set(java.util.Calendar.HOUR_OF_DAY, 12) }.timeInMillis }
                     val ents = all.filter { it.ak == "entry" && !it.deleted }
@@ -429,4 +499,38 @@ private fun FinEditor(app: AppState, existing: Rec?, book: String, isIn: Boolean
         val state = rememberDatePickerState(initialSelectedDateMillis = date)
         DatePickerDialog(onDismissRequest = { pick = false }, confirmButton = { TextButton({ state.selectedDateMillis?.let { date = it + 43_200_000L }; pick = false }) { Text("OK") } }) { DatePicker(state) }
     }
+}
+
+
+/** Office QR for managers: live code (changes every 30 s) or today's code to print/share for the door. */
+@Composable
+fun AttQRDialog(comp: Rec, onDone: () -> Unit) {
+    val ctx = androidx.compose.ui.platform.LocalContext.current
+    val secret = comp.d.optString("qrSecret")
+    var daily by remember { mutableStateOf(false) }
+    var now by remember { mutableStateOf(System.currentTimeMillis()) }
+    LaunchedEffect(Unit) { while (true) { kotlinx.coroutines.delay(1000); now = System.currentTimeMillis() } }
+    val token = if (secret.isEmpty()) "" else if (daily) AttQR.daily(comp.id, secret, now) else AttQR.live(comp.id, secret, now)
+    val bmp = remember(token) { if (token.isEmpty()) null else runCatching { com.journeyapps.barcodescanner.BarcodeEncoder().encodeBitmap(token, com.google.zxing.BarcodeFormat.QR_CODE, 700, 700) }.getOrNull() }
+    AlertDialog(onDone, confirmButton = { TextButton(onDone) { Text("Done") } },
+        dismissButton = if (daily && bmp != null) { {
+            TextButton({
+                val f = java.io.File(ctx.cacheDir, "attendance-qr.png"); f.outputStream().use { bmp.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, it) }
+                val uri = androidx.core.content.FileProvider.getUriForFile(ctx, ctx.packageName + ".files", f)
+                ctx.startActivity(android.content.Intent.createChooser(android.content.Intent(android.content.Intent.ACTION_SEND).setType("image/png")
+                    .putExtra(android.content.Intent.EXTRA_STREAM, uri).addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION), "Share or print today's QR"))
+            }) { Text("Share / print") }
+        } } else null,
+        title = { Text(comp.d.optString("name")) },
+        text = {
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Row { FilterChip(!daily, { daily = false }, { Text("Live (30 s)") }); Spacer(Modifier.width(8.dp)); FilterChip(daily, { daily = true }, { Text("Today's QR") }) }
+                Spacer(Modifier.height(10.dp))
+                if (bmp == null) Text("This phone hasn't received the company's QR key yet. Pull to refresh, or ask the owner.")
+                else androidx.compose.foundation.Image(bmp.asImageBitmap(), "Attendance QR", Modifier.size(260.dp).background(Color.White, RoundedCornerShape(16.dp)).padding(10.dp))
+                Spacer(Modifier.height(8.dp))
+                Text(if (daily) "Valid all day today — print it for the door. A new code is made every day." else "New code in ${AttQR.secondsLeft(now)} s — a photo of it can't be reused later.",
+                    style = MaterialTheme.typography.bodySmall, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+            }
+        })
 }

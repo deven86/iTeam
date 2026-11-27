@@ -37,13 +37,57 @@ fun TasksTab(app: AppState, open: (Page) -> Unit) {
             else -> t.status == "done"
         }
     }.sortedWith(compareBy<TaskRec> { it.due ?: Long.MAX_VALUE }.thenByDescending { it.updated })
-    Scaffold(topBar = { TopAppBar(title = { Text("Business Tasks", fontWeight = FontWeight.Bold) }) }) { pad ->
-        Column(Modifier.padding(pad)) {
-            ScrollableTabRow(filter, edgePadding = 8.dp) {
-                listOf("For me", "I assigned", "To accept", "Done").forEachIndexed { i, s -> Tab(filter == i, { filter = i }, text = { Text(s) }) }
+    val now = System.currentTimeMillis()
+    val open = all.filter { it.status != "done" && !it.deleted }
+    val mine = open.filter { it.assignees.contains(me) || it.assignees.isEmpty() }
+    val endOfToday = lastDays(1)[0].second + 86_400_000L
+    val today = mine.filter { (it.due ?: Long.MAX_VALUE) < endOfToday }
+    val overdue = open.filter { (it.due ?: Long.MAX_VALUE) < now }
+    val toAccept = open.filter { it.needsAcceptance && it.assignees.contains(me) && it.answer(me) == null }
+    val upcoming = open.sortedBy { it.due ?: Long.MAX_VALUE }.take(8)
+    val days = lastDays(7)
+    val doneByDay = days.map { (_, start) -> all.count { it.status == "done" && it.updated in start until start + 86_400_000L }.toFloat() }
+    fun people(t: TaskRec) = t.assignees.map { app.store.name(it) }
+    fun leftText(t: TaskRec) = t.due?.let { d -> val days2 = ((d - now) / 86_400_000L).toInt()
+        when { d < now -> "Overdue"; days2 == 0 -> "Due today"; days2 == 1 -> "1 day remaining"; else -> "$days2 days remaining" } } ?: "No due date"
+    Scaffold(containerColor = MaterialTheme.colorScheme.background) { pad ->
+        LazyColumn(Modifier.padding(pad), contentPadding = PaddingValues(bottom = 100.dp)) {
+            item {
+                DashHeader("Hello, " + app.store.myName.substringBefore(' ').ifBlank { "there" },
+                    "You have ${today.size} task${if (today.size == 1) "" else "s"} today") {
+                    IconButton({ open(Page.Meetings) }) { Icon(Icons.Default.Groups, "Meetings", tint = Brand) }
+                }
             }
-            if (shown.isEmpty()) Centered("No tasks here.\n\nCreate a task from any chat with the ✓+ button, or long-press a message → Make a task.")
-            LazyColumn {
+            item { StatRow(Triple("Open", "${mine.size}", null), Triple("Overdue", "${overdue.size}", null), Triple("To accept", "${toAccept.size}", { filter = 2 })) }
+            item {
+                Row(Modifier.padding(horizontal = 14.dp, vertical = 4.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    AssistChip({ open(Page.Meetings) }, { Text("Meetings") }, leadingIcon = { Icon(Icons.Default.Groups, null, Modifier.size(18.dp)) })
+                    AssistChip({ open(Page.MyDay) }, { Text("My Day") }, leadingIcon = { Icon(Icons.Default.WbSunny, null, Modifier.size(18.dp)) })
+                    AssistChip({ open(Page.Events) }, { Text("Events") }, leadingIcon = { Icon(Icons.Default.Celebration, null, Modifier.size(18.dp)) })
+                }
+            }
+            if (upcoming.isNotEmpty()) {
+                item { SectionTitle("Upcoming tasks", upcoming.size) }
+                item {
+                    HorizontalCards {
+                        upcoming.forEachIndexed { i, t ->
+                            val n = t.assignees.size.coerceAtLeast(1)
+                            VioletCard(t.title, t.conv?.let { app.store.conv(it)?.title } ?: "Personal",
+                                t.due?.let { dateText(it) } ?: "", leftText(t), people(t),
+                                progress = if (t.assignees.size > 1) t.doneBy.size.toFloat() / n else null,
+                                modifier = Modifier.width(250.dp), filled = i % 2 == 0) { open(Page.Task(t.id)) }
+                        }
+                    }
+                }
+            }
+            item { BarChartCard("Completed this week", "${doneByDay.sum().toInt()} done", days.map { it.first }, doneByDay) }
+            item {
+                ScrollableTabRow(filter, edgePadding = 8.dp, containerColor = Color.Transparent) {
+                    listOf("For me", "I assigned", "To accept", "Done").forEachIndexed { i, s -> Tab(filter == i, { filter = i }, text = { Text(s) }) }
+                }
+            }
+            if (shown.isEmpty()) item { Centered("No tasks here.\n\nCreate a task from any chat with the ✓+ button, or long-press a message → Make a task.") }
+            run {
                 items(shown, key = { it.id }) { t ->
                     ListItem(modifier = Modifier.clickable { open(Page.Task(t.id)) },
                         leadingContent = {

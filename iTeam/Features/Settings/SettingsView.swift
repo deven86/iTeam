@@ -151,6 +151,11 @@ struct SettingsView: View {
                     LabeledContent("Your security code", value: E2E.fingerprint(engine.myPublicKey)).font(.callout)
                     NavigationLink { ContactsListView() } label: { Label("Contacts (\(contacts.count))", systemImage: "person.2") }
                     NavigationLink { PeopleView() } label: { Label("People not on iTeam", systemImage: "person.crop.rectangle.stack") }
+                    if engine.pendingUploads > 0 {
+                        NavigationLink { PendingSyncView() } label: {
+                            Label("\(engine.pendingUploads) waiting to sync", systemImage: "arrow.triangle.2.circlepath")
+                        }
+                    }
                     NavigationLink { AndroidBridgeView() } label: { Label("Talk to Android users (beta)", systemImage: "candybarphone") }
                     if !blocked.isEmpty {
                         NavigationLink { BlockedView() } label: { Label("Blocked (\(blocked.count))", systemImage: "hand.raised") }

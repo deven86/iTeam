@@ -8,6 +8,7 @@ struct ChatListView: View {
     @Environment(\.horizontalSizeClass) private var sizeClass
     @Query(sort: \Conversation.lastActivity, order: .reverse) private var conversations: [Conversation]
     @State private var showPending = false
+    @Query(filter: #Predicate<ActivityItem> { !$0.read }, sort: \ActivityItem.date, order: .reverse) private var newActivity: [ActivityItem]
     @Query(filter: #Predicate<Contact> { $0.isRequest && !$0.blocked }) private var requests: [Contact]
 
     enum Filter: String, CaseIterable, Identifiable {
@@ -262,15 +263,36 @@ struct ChatListView: View {
                 .foregroundStyle(look.warning)
                 .listRowBackground(Color.clear)
         default:
-            if engine.pendingUploads > 0 && !ScreenshotMode.on {
-                Button { showPending = true } label: {
-                    Label("\(engine.pendingUploads) waiting to sync — tap for details", systemImage: "arrow.triangle.2.circlepath")
-                        .font(.footnote).foregroundStyle(look.textSecondary)
+            // Latest 10 unseen activities; opening one marks it seen and the next one takes its place.
+            // ("Waiting to sync" now lives in Settings.)
+            if !newActivity.isEmpty && !ScreenshotMode.on {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 10) {
+                        ForEach(newActivity.prefix(10)) { a in
+                            Button { openActivity(a) } label: {
+                                VStack(alignment: .leading, spacing: 4) {
+                                    Text(a.text).font(.footnote.weight(.semibold)).lineLimit(2).multilineTextAlignment(.leading)
+                                    Text(a.date, style: .relative).font(.caption2).foregroundStyle(look.textSecondary)
+                                }
+                                .frame(width: 170, alignment: .leading).padding(10)
+                                .background(look.accent.opacity(0.10), in: RoundedRectangle(cornerRadius: 16))
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+                    .padding(.vertical, 2)
                 }
                 .listRowBackground(Color.clear)
-                .sheet(isPresented: $showPending) { PendingSyncView() }
+                .listRowInsets(EdgeInsets(top: 4, leading: 12, bottom: 4, trailing: 12))
             }
         }
+    }
+
+    private func openActivity(_ a: ActivityItem) {
+        a.read = true
+        if !a.link.isEmpty, let url = URL(string: a.link) { router.handle(url) }
+        else if let t = a.taskID { router.show(task: t) }
+        else if let c = a.convID { router.show(conversation: c) }
     }
 
     @ViewBuilder

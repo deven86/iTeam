@@ -302,6 +302,7 @@ struct AttKioskView: View {
 struct AttQRView: View {
     let company: AttRecord
     @Environment(\.dismiss) private var dismiss
+    @State private var daily = false
 
     var body: some View {
         NavigationStack {
@@ -309,14 +310,26 @@ struct AttQRView: View {
                 if company.company.qrSecret.isEmpty {
                     ContentUnavailableView("QR not ready", systemImage: "qrcode", description: Text("This phone hasn't received the company's QR key yet. Pull to refresh on the dashboard, or ask the owner."))
                 } else {
+                    Picker("Kind", selection: $daily) { Text("Live (30 s)").tag(false); Text("Today's QR").tag(true) }
+                        .pickerStyle(.segmented).padding(.horizontal)
                     TimelineView(.periodic(from: .now, by: 1)) { ctx in
-                        let token = Att.qrToken(companyID: company.id, secret: company.company.qrSecret, at: ctx.date)
+                        let token = daily ? Att.qrDayToken(companyID: company.id, secret: company.company.qrSecret, at: ctx.date)
+                                          : Att.qrToken(companyID: company.id, secret: company.company.qrSecret, at: ctx.date)
                         VStack(spacing: 12) {
                             if let img = QRCode.image(token) {
                                 Image(uiImage: img).interpolation(.none).resizable().scaledToFit()
                                     .frame(maxWidth: 320).padding().background(.white, in: RoundedRectangle(cornerRadius: 18))
                             }
-                            Text("New code in \(Int(Att.qrSlot) - Int(ctx.date.timeIntervalSince1970) % Int(Att.qrSlot)) s").monospacedDigit().foregroundStyle(.secondary)
+                            if daily {
+                                if let img = QRCode.image(token) {
+                                    ShareLink(item: Image(uiImage: img), preview: SharePreview("Today's attendance QR", image: Image(uiImage: img))) {
+                                        Label("Share / print today's QR", systemImage: "printer")
+                                    }.buttonStyle(.borderedProminent)
+                                }
+                                Text("Valid all day today. A new code is made every day.").foregroundStyle(.secondary)
+                            } else {
+                                Text("New code in \(Int(Att.qrSlot) - Int(ctx.date.timeIntervalSince1970) % Int(Att.qrSlot)) s").monospacedDigit().foregroundStyle(.secondary)
+                            }
                         }
                     }
                     Text("Employees scan this in iTeam → Attendance → Punch in. The code changes every 30 seconds, so a photo of it can't be reused later.")

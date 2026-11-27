@@ -330,6 +330,12 @@ enum Att {
         let mac = HMAC<SHA256>.authenticationCode(for: Data("\(cid)|\(slot)".utf8), using: SymmetricKey(data: Data(secret.utf8)))
         return mac.prefix(5).map { String(format: "%02x", $0) }.joined()
     }
+    /// Today's code (valid all day; printable). Slot = minus the local day number, same as Android.
+    static func dayIndex(_ d: Date) -> Int { Int((d.timeIntervalSince1970 + Double(TimeZone.current.secondsFromGMT(for: d))) / 86400) }
+    static func qrDayToken(companyID: String, secret: String, at d: Date = .now) -> String {
+        let s = -dayIndex(d)
+        return "iTeamAtt|\(companyID)|\(s)|\(sign(companyID, s, secret))"
+    }
     static func qrCompany(_ token: String) -> String? {
         let p = token.split(separator: "|")
         return p.count == 4 && p[0] == "iTeamAtt" ? String(p[1]) : nil
@@ -338,7 +344,8 @@ enum Att {
     static func qrValid(_ token: String, secret: String, at d: Date) -> Bool {
         let p = token.split(separator: "|")
         guard p.count == 4, !secret.isEmpty, let s = Int(p[2]) else { return false }
-        return abs(s - slot(d)) <= 3 && sign(String(p[1]), s, secret) == String(p[3])
+        let fresh = s < 0 ? -s == dayIndex(d) : abs(s - slot(d)) <= 3
+        return fresh && sign(String(p[1]), s, secret) == String(p[3])
     }
 
     static func newSecret() -> String {

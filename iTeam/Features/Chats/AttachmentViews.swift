@@ -306,6 +306,8 @@ private struct StackCard: View {
     private func load() async {
         if ref.kind == "image" {
             var full = Attachments.cachedImage(ref)
+            // Not downloaded yet: show the small preview; the full photo downloads when tapped.
+            if full == nil, let t = ref.thumb, let small = UIImage(data: t) { image = small; return }
             if full == nil, let url = try? await Attachments.load(ref) { full = UIImage(contentsOfFile: url.path) }
             guard let full else { return }
             // Decode at screen size (sharp but light on memory).

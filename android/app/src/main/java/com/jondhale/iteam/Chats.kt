@@ -173,7 +173,7 @@ fun AddContactDialog(app: AppState, initial: String, onDone: (String?) -> Unit) 
                 OutlinedButton({
                     scan.launch(ScanOptions().setDesiredBarcodeFormats(ScanOptions.QR_CODE).setPrompt("Scan an iTeam QR code").setBeepEnabled(false).setOrientationLocked(true))
                 }, Modifier.fillMaxWidth()) { Icon(Icons.Default.QrCodeScanner, null); Spacer(Modifier.width(8.dp)); Text("Scan QR code") }
-                Text("…or paste the invite link they shared (starts with iteam://add).", style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(top = 10.dp))
+                Text("…or paste the invite link they shared (iPhone or Android).", style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(top = 10.dp))
                 OutlinedTextField(text, { text = it }, minLines = 3, modifier = Modifier.fillMaxWidth().padding(top = 8.dp))
                 msg?.let { Text(it, color = MaterialTheme.colorScheme.error) }
             }

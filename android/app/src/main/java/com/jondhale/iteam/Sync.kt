@@ -83,14 +83,17 @@ class Sync(internal val store: Store, private val cloud: CloudKit = newCloud(sto
 
     /** Adds a contact from an "iteam://add?…" link; the key is checked against their iCloud profile. */
     fun addContact(text: String): String {
-        val link = Regex("iteam://add\\?\\S+").find(text)?.value ?: throw IllegalArgumentException("Paste or scan an iTeam invite")
-        val u = android.net.Uri.parse(link).getQueryParameter("u") ?: throw IllegalArgumentException("Invite link is incomplete")
+        // Accepts iteam://add?u=… and the web/iPhone share links (…?u=… or …&u=…).
+        val u = Regex("[?&]u=([^&\\s]+)").find(text)?.groupValues?.get(1)?.let { java.net.URLDecoder.decode(it, "UTF-8") }
+            ?: throw IllegalArgumentException("Paste or scan an iTeam invite link")
         return addContactID(u)
     }
 
     /** Adds someone by iTeam ID (Nearby, Rooms reveal, group members). */
     fun addContactID(u: String): String {
-        val p = cloud.profile(u) ?: throw IllegalArgumentException("That person isn't on iTeam yet")
+        val p = cloud.profile(u) ?: throw IllegalArgumentException(
+            if (BuildConfig.RELAY && !u.startsWith("u_")) "This iPhone user hasn't turned on Android chat yet. Ask them: iTeam Settings → Talk to Android users → Turn on."
+            else "That person isn't on iTeam yet")
         return synchronized(store) {
             store.contacts[u] = Contact(u, p.name, p.pubkey, p.pic, store.contacts[u]?.about ?: "")
             val conv = directID(me, u)

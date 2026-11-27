@@ -364,9 +364,19 @@ final class SyncEngine: ObservableObject {
                 records.append(cloud.makeEnvelope(to: r, from: me, conv: item.convID, kind: 1, loud: false, body: body, hint: nil))
             }
         }
-        let failed = try await cloud.save(records)
-        if let first = failed.values.first { throw first }
-        for r in records { context.insert(SentRecord(recordName: r.recordID.recordName)) }
+        // Speed: deliver the message (with its small preview) first, then the full file.
+        // The other person sees it instantly; the full photo/document downloads when they tap it.
+        // (Android contacts get both together, because their files travel through the relay.)
+        let blobs = records.filter { $0.recordType == "Blob" }
+        let split = !blobs.isEmpty && !item.recipients.contains(where: RelayClient.isRelayID)
+        let first = split ? records.filter { $0.recordType != "Blob" } : records
+        let failed = try await cloud.save(first)
+        if let e = failed.values.first { throw e }
+        for r in first { context.insert(SentRecord(recordName: r.recordID.recordName)) }
+        if split {
+            let bf = try await cloud.save(blobs)
+            if let e = bf.values.first { throw e }
+        }
         for (_, file) in item.uploads { try? FileManager.default.removeItem(at: Attachments.outgoingURL(file)) }
     }
 
